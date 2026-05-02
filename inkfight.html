@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨境之战 - 火柴人回合制对战 (终极版)</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#05050d; color:#eee; font-family:'Courier New', monospace;
+  overflow-x:hidden; min-height:100vh; position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+#scene-bg { position:fixed; inset:0; z-index:-3; transition:background 1s; background:#05050d; }
+#scene-bg-canvas { position:fixed; inset:0; z-index:-2; pointer-events:none; }
+#scene-fx { position:fixed; inset:0; z-index:-1; pointer-events:none; }
+#fx-canvas { position:fixed; inset:0; z-index:50; pointer-events:none; }
+
+/* 屏幕震动包装 */
+#shake-wrap { width:100%; min-height:100vh; transition:transform .05s linear; }
+
+.btn {
+  padding:10px 22px; border:2px solid #e94560; background:transparent;
+  color:#e94560; font-family:inherit; font-size:15px; cursor:pointer;
+  transition:all .2s; border-radius:4px; position:relative; overflow:hidden;
+  letter-spacing:1px;
+}
+.btn::after{
+  content:""; position:absolute; inset:0; background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,.35), transparent 60%);
+  opacity:0; transition:opacity .3s;
+}
+.btn:hover:not(:disabled)::after{ opacity:1; }
+.btn:hover:not(:disabled){ background:#e94560; color:#1a1a2e; box-shadow:0 0 20px rgba(233,69,96,.6); transform:translateY(-1px); }
+.btn:active:not(:disabled){ transform:translateY(1px); }
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.btn-sm { padding:6px 14px; font-size:13px; }
+.btn-confirm { border-color:#16c79a; color:#16c79a; }
+.btn-confirm:hover:not(:disabled){ background:#16c79a; color:#1a1a2e; box-shadow:0 0 20px rgba(22,199,154,.6);}
+.btn-danger { border-color:#ff5252; color:#ff5252; }
+.btn-danger:hover:not(:disabled){ background:#ff5252; color:#1a1a2e;}
+
+/* 顶部音量/设置 */
+#top-bar { position:fixed; top:8px; left:8px; z-index:100; display:flex; gap:8px; align-items:center; background:rgba(0,0,0,.5); padding:6px 10px; border-radius:20px; border:1px solid rgba(233,69,96,.3); }
+#top-bar label{ font-size:11px; color:#ccc; }
+#top-bar input[type=range]{ width:80px; }
+
+#screen-title, #screen-mode, #screen-difficulty, #screen-scene, #screen-select, #screen-battle, #screen-result, #screen-campaign, #screen-cutscene, #screen-radar {
+  display:none; width:100%; min-height:100vh;
+  flex-direction:column; align-items:center; justify-content:center;
+  animation:fadeIn .5s ease;
+}
+@keyframes fadeIn { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
+.active { display:flex !important; }
+
+#screen-title h1 {
+  font-size:72px; color:#e94560;
+  text-shadow:0 0 30px rgba(233,69,96,.7), 0 0 60px rgba(233,69,96,.3);
+  margin-bottom:10px; letter-spacing:12px;
+  animation:titleGlow 3s ease-in-out infinite;
+  font-weight:bold;
+}
+@keyframes titleGlow { 0%,100%{text-shadow:0 0 30px rgba(233,69,96,.7), 0 0 60px rgba(233,69,96,.3);} 50%{text-shadow:0 0 50px rgba(233,69,96,1),0 0 90px rgba(233,69,96,.6);} }
+#screen-title .subtitle { color:#16c79a; font-size:14px; letter-spacing:8px; margin-bottom:18px; opacity:.8; }
+#screen-title p { color:#ddd; margin-bottom:30px; max-width:600px; text-align:center; line-height:1.7; }
+#screen-title .title-deco { width:300px; height:2px; background:linear-gradient(90deg,transparent,#e94560,transparent); margin:8px 0; }
+
+.option-grid { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; max-width:1100px; margin:16px 0 24px; }
+.option-card {
+  width:240px; border:2px solid #0f3460; border-radius:10px; padding:18px;
+  background:rgba(15,52,96,.35); cursor:pointer; transition:all .25s; text-align:center;
+  position:relative; overflow:hidden;
+}
+.option-card::before{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(135deg, transparent 40%, rgba(233,69,96,.1) 50%, transparent 60%);
+  transform:translateX(-100%); transition:transform .6s;
+}
+.option-card:hover::before{ transform:translateX(100%); }
+.option-card:hover { border-color:#16c79a; transform:translateY(-4px); box-shadow:0 8px 24px rgba(0,0,0,.5);}
+.option-card.selected { border-color:#e94560; background:rgba(233,69,96,.18); box-shadow:0 0 20px rgba(233,69,96,.4);}
+.option-card h3 { color:#e94560; font-size:20px; margin-bottom:8px; }
+.option-card .ic { font-size:38px; margin-bottom:6px; filter:drop-shadow(0 0 8px currentColor); }
+.option-card .desc { font-size:12px; color:#ccc; line-height:1.6; min-height:60px; }
+.option-card .buff { font-size:12px; color:#16c79a; margin-top:8px; }
+.option-card .preview { height:80px; border-radius:6px; margin-bottom:8px; overflow:hidden; position:relative; }
+
+#screen-select h2 { color:#e94560; margin:18px 0 8px; font-size:22px; }
+.char-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; max-width:1000px; }
+.char-card {
+  width:150px; border:2px solid #0f3460; border-radius:8px; padding:12px 8px;
+  text-align:center; cursor:pointer; transition:all .2s;
+  background:linear-gradient(180deg, rgba(15,52,96,.4), rgba(15,52,96,.15));
+  position:relative;
+}
+.char-card:hover { border-color:#16c79a; transform:translateY(-4px); box-shadow:0 6px 16px rgba(22,199,154,.3); }
+.char-card.selected { border-color:#e94560; background:linear-gradient(180deg,rgba(233,69,96,.3),rgba(233,69,96,.05)); box-shadow:0 0 16px rgba(233,69,96,.5); }
+.char-card.disabled { opacity:.3; pointer-events:none; }
+.char-card .stick-preview { height:90px; display:flex; align-items:center; justify-content:center; }
+.char-card .cname { font-size:16px; font-weight:bold; margin:6px 0 2px; }
+.char-card .crole { font-size:11px; color:#aaa; }
+.char-card .cstats { font-size:11px; color:#16c79a; margin-top:4px; line-height:1.4;}
+
+/* —— 修复 Bug：Tooltip 用 position:fixed + 全局最高层级 —— */
+#global-tooltip {
+  position:fixed; display:none; background:rgba(10,10,24,.97);
+  border:1px solid #e94560; border-radius:8px; padding:10px 12px;
+  font-size:12px; z-index:9999; max-width:260px; pointer-events:none;
+  text-align:left; line-height:1.7; box-shadow:0 4px 24px rgba(0,0,0,.7);
+  backdrop-filter:blur(4px);
+}
+#global-tooltip b { color:#ffd54f; }
+
+.turn-info {
+  text-align:center; padding:8px 0; font-size:18px;
+  color:#e94560; width:100%; background:linear-gradient(90deg,rgba(0,0,0,.4),rgba(0,0,0,.7),rgba(0,0,0,.4));
+  letter-spacing:2px; position:relative;
+}
+.turn-info .round-badge {
+  display:inline-block; background:#e94560; color:#1a1a2e; padding:2px 10px;
+  border-radius:12px; font-size:13px; margin-right:8px; font-weight:bold;
+  animation:badgePulse 2s infinite;
+}
+@keyframes badgePulse { 0%,100%{box-shadow:0 0 0 0 rgba(233,69,96,.6);} 50%{box-shadow:0 0 0 8px rgba(233,69,96,0);} }
+.exit-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); padding:5px 12px; font-size:12px; }
+.scene-banner { width:100%; text-align:center; font-size:12px; color:#ccc; background:rgba(0,0,0,.4); padding:5px; }
+
+.battle-field { display:flex; width:100%; flex:1; min-height:380px; }
+.team-side { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px; }
+.battle-unit {
+  width:240px; border:2px solid #0f3460; border-radius:10px; padding:12px;
+  background:linear-gradient(180deg,rgba(15,52,96,.55),rgba(15,52,96,.25));
+  transition:all .3s; position:relative; backdrop-filter:blur(2px);
+}
+.battle-unit.active-turn {
+  border-color:#e94560;
+  box-shadow:0 0 20px rgba(233,69,96,.6), inset 0 0 14px rgba(233,69,96,.15);
+  animation:activePulse 1.5s ease-in-out infinite;
+}
+@keyframes activePulse { 0%,100%{box-shadow:0 0 20px rgba(233,69,96,.5);} 50%{box-shadow:0 0 30px rgba(233,69,96,.9);} }
+.battle-unit.target-select { cursor:pointer; border-color:#16c79a; }
+.battle-unit.target-select:hover { box-shadow:0 0 25px rgba(22,199,154,.6); transform:scale(1.03);}
+.battle-unit.dead { opacity:.35; border-color:#333; filter:grayscale(.7);}
+.battle-unit.stunned { border-color:#f5a623; }
+.battle-unit.low-hp { animation:lowHpWarn 1.2s ease-in-out infinite; }
+@keyframes lowHpWarn { 0%,100%{box-shadow:0 0 8px rgba(255,82,82,.3);} 50%{box-shadow:0 0 22px rgba(255,82,82,.8);} }
+.unit-name { font-size:16px; font-weight:bold; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;}
+.unit-meta { font-size:10px; color:#aaa; display:flex; gap:8px; justify-content:center; margin-bottom:4px;}
+.unit-meta span { background:rgba(0,0,0,.4); padding:1px 6px; border-radius:8px; }
+.unit-meta .meta-atk { color:#ff7043; }
+.unit-meta .meta-def { color:#90caf9; }
+.unit-meta .meta-crit { color:#ffd54f; }
+.bar-wrap { height:14px; background:#111; border-radius:7px; margin:4px 0; overflow:hidden; position:relative; border:1px solid #000;}
+.bar-fill { height:100%; border-radius:7px; transition:width .4s; position:relative; }
+.bar-fill::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.25),transparent 50%); }
+.bar-hp .bar-fill { background:linear-gradient(90deg,#c2185b,#e94560,#ff6b6b);}
+.bar-sp .bar-fill { background:linear-gradient(90deg,#0f3460,#4fc3f7,#16c79a);}
+.bar-shield { position:absolute; left:0; top:0; height:100%; background:rgba(144,202,249,.4); border-right:2px solid #90caf9;}
+.bar-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 1px 2px #000; font-weight:bold;}
+.unit-status { font-size:11px; color:#f5a623; margin-top:4px; min-height:14px; }
+.unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
+.unit-canvas { display:block; margin:0 auto 6px; transition:transform .25s; }
+
+.skill-panel {
+  width:100%; max-width:920px; padding:12px 20px;
+  background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.4));
+  display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+  min-height:84px; align-items:center;
+  border-top:1px solid rgba(233,69,96,.3); border-bottom:1px solid rgba(233,69,96,.3);
+}
+.skill-btn {
+  padding:8px 14px 8px 38px; border:1px solid #0f3460;
+  background:linear-gradient(180deg,rgba(15,52,96,.7),rgba(15,52,96,.4));
+  color:#eee; font-family:inherit; font-size:13px;
+  cursor:pointer; border-radius:6px; transition:all .2s; position:relative;
+  width:150px; height:64px; text-align:left; box-sizing:border-box; overflow:hidden;
+}
+.skill-btn:hover:not(:disabled){ border-color:#e94560; background:rgba(233,69,96,.25); transform:translateY(-2px); box-shadow:0 4px 12px rgba(233,69,96,.4); }
+.skill-btn:disabled { opacity:.35; cursor:not-allowed; }
+.skill-btn .skill-icon { position:absolute; left:6px; top:50%; transform:translateY(-50%); width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 0 8px currentColor; }
+.skill-btn .sp-cost { font-size:10px; color:#16c79a; display:block; margin-top:2px;}
+.skill-btn .dmg-preview { font-size:10px; color:#ff7043; display:block; }
+.skill-btn .key-hint { position:absolute; top:2px; right:4px; font-size:9px; color:#888; }
+
+.battle-log {
+  width:100%; max-width:920px; height:150px; overflow-y:auto;
+  padding:10px 16px; background:rgba(0,0,0,.7);
+  font-size:12px; line-height:1.7;
+  border:1px solid rgba(15,52,96,.6);
+  font-family:'Consolas','Courier New',monospace;
+  scroll-behavior:smooth;
+}
+.battle-log .log-entry { margin:1px 0; padding:2px 4px; border-left:3px solid transparent; animation:logIn .3s ease; }
+@keyframes logIn { from{opacity:0; transform:translateX(-8px);} to{opacity:1; transform:none;} }
+.battle-log .log-entry .log-time { color:#666; margin-right:6px; }
+.battle-log .log-entry .log-icon { margin-right:4px; }
+.log-divider { color:#e94560; font-weight:bold; border-bottom:1px dashed #e94560; padding-bottom:2px; margin:4px 0;}
+.log-dmg { color:#ff6b7a; border-left-color:#e94560 !important; }
+.log-heal { color:#4dd6a8; border-left-color:#16c79a !important; }
+.log-sp { color:#4fc3f7; border-left-color:#4fc3f7 !important; }
+.log-stun { color:#f5a623; border-left-color:#f5a623 !important; }
+.log-info { color:#aaa; }
+.log-miss { color:#888; font-style:italic; }
+.log-buff { color:#ce93d8; border-left-color:#ce93d8 !important; }
+.log-crit { color:#ffd54f; font-weight:bold; }
+.log-death { color:#ff1744; font-weight:bold; border-left-color:#ff1744 !important;}
+
+.log-controls { display:flex; gap:6px; max-width:920px; width:100%; padding:4px 16px; background:rgba(0,0,0,.5); justify-content:flex-end; }
+.log-controls button { font-size:10px; padding:3px 8px; }
+
+#screen-result h1 { font-size:56px; margin-bottom:16px; text-shadow:0 0 30px currentColor; animation:resultBounce .6s cubic-bezier(.5,1.6,.4,1);}
+@keyframes resultBounce { 0%{transform:scale(0); opacity:0;} 100%{transform:scale(1); opacity:1;} }
+#screen-result .result-stats { background:rgba(0,0,0,.5); padding:16px 24px; border-radius:8px; border:1px solid #0f3460; margin-bottom:20px; min-width:400px;}
+#screen-result .result-stats h3 { color:#e94560; margin-bottom:8px; }
+#screen-result .result-stats .row { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; border-bottom:1px dashed #333;}
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+@keyframes flash { 0%,100%{opacity:1} 50%{opacity:.4} }
+.anim-hit { animation:shake .35s ease; }
+.anim-heal { animation:flash .4s ease 2; }
+.unit-canvas.lunge-left { transform:translateX(50px) scale(1.08); }
+.unit-canvas.lunge-right { transform:translateX(-50px) scale(1.08); }
+
+.modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
+.modal-box { background:#1a1a2e; border:2px solid #e94560; border-radius:10px; padding:24px; min-width:320px; text-align:center; box-shadow:0 0 40px rgba(233,69,96,.5); }
+.modal-box h3 { color:#e94560; margin-bottom:14px; }
+.modal-box p { color:#ccc; margin-bottom:18px; }
+.modal-box .row { display:flex; gap:10px; justify-content:center; }
+
+/* 雷达图预览 */
+#screen-radar { text-align:center; }
+.radar-wrap { display:flex; gap:40px; justify-content:center; align-items:flex-start; margin:16px 0 24px; flex-wrap:wrap; }
+.radar-side { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.radar-side h3 { font-size:14px; letter-spacing:2px; }
+.radar-labels { font-size:11px; color:#888; line-height:1.8; text-align:left; }
+
+/* 战役地图 */
+.campaign-map { display:flex; flex-direction:column; gap:10px; max-width:680px; width:100%; margin:16px 0 24px; }
+.stage-row { display:flex; align-items:center; gap:12px; }
+.stage-node {
+  width:52px; height:52px; border-radius:50%; border:2px solid #0f3460;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+  flex-shrink:0; cursor:pointer; transition:all .25s; position:relative;
+  background:rgba(15,52,96,.4);
+}
+.stage-node.unlocked { border-color:#16c79a; cursor:pointer; }
+.stage-node.unlocked:hover { transform:scale(1.15); box-shadow:0 0 16px rgba(22,199,154,.6); }
+.stage-node.completed { border-color:#e94560; background:rgba(233,69,96,.2); }
+.stage-node.locked { opacity:.35; cursor:not-allowed; }
+.stage-node.current { border-color:#ffd54f; box-shadow:0 0 20px rgba(255,213,79,.6); animation:activePulse 1.5s infinite; }
+.stage-info { flex:1; }
+.stage-info .s-title { font-size:14px; font-weight:bold; color:#e0e0e0; }
+.stage-info .s-desc { font-size:11px; color:#888; margin-top:2px; }
+.stage-connector { width:2px; height:16px; background:linear-gradient(180deg,#0f3460,#16c79a); margin-left:25px; }
+
+/* 过场文字 */
+#screen-cutscene { text-align:center; }
+#cutscene-stage { font-size:13px; color:#16c79a; letter-spacing:4px; margin-bottom:12px; }
+#cutscene-text {
+  max-width:560px; font-size:16px; line-height:2; color:#e0e0e0;
+  white-space:pre-line; margin-bottom:32px;
+  text-shadow:0 0 8px rgba(233,69,96,.3);
+}
+
+
+.vs-divider { width:2px; background:linear-gradient(180deg,transparent,#e94560,transparent); position:relative; }
+.vs-divider::before { content:"VS"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#e94560; font-weight:bold; font-size:24px; background:#0a0a18; padding:8px; border-radius:50%; border:2px solid #e94560; box-shadow:0 0 16px rgba(233,69,96,.6); }
+</style>
+</head>
+<body>
+
+<div id="scene-bg"></div>
+<canvas id="scene-bg-canvas"></canvas>
+<canvas id="scene-fx"></canvas>
+<canvas id="fx-canvas"></canvas>
+
+<div id="top-bar">
+  <span style="font-size:14px;">🔊</span>
+  <label>BGM<input type="range" id="vol-bgm" min="0" max="100" value="35"></label>
+  <label>SFX<input type="range" id="vol-sfx" min="0" max="100" value="60"></label>
+  <button class="btn btn-sm" id="btn-mute" onclick="toggleMute()">🔔</button>
+</div>
+
+<div id="global-tooltip"></div>
+
+<div id="shake-wrap">
+
+<!-- 标题 -->
+<div id="screen-title" class="active">
+  <div class="subtitle">INK · REALM · CLASH</div>
+  <h1>墨 境 之 战</h1>
+  <div class="title-deco"></div>
+  <p>在黑白交织的墨境世界中，火柴人战士们以灵能（SP）为力量源泉展开对决。<br>
+  小心灵能过载——SP越满，越容易被眩晕！</p>
+  <div style="display:flex; gap:12px;">
+    <button class="btn" onclick="playSfx('click'); showScreen('screen-mode')">⚔ 开始对战</button>
+    <button class="btn btn-sm" onclick="playSfx('click'); showHelp()">❓ 玩法说明</button>
+  </div>
+</div>
+
+<!-- 模式 -->
+<div id="screen-mode">
+  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 模 式</h2>
+  <div class="option-grid" id="mode-grid">
+    <div class="option-card" data-mode="pvp">
+      <div class="ic">👥</div><h3>双人对战 PVP</h3>
+      <div class="desc">两位玩家轮流操作各自的两名战士。</div>
+    </div>
+    <div class="option-card" data-mode="ai">
+      <div class="ic">🤖</div><h3>人机对战</h3>
+      <div class="desc">玩家1自由操作，玩家2由AI掌控，三种难度可选。</div>
+    </div>
+    <div class="option-card" data-mode="campaign">
+      <div class="ic">⚔️</div><h3>战役模式</h3>
+      <div class="desc">挑战8关剧情战役，揭开墨境世界的秘密，击败墨皇。</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-title')">返回</button>
+    <button class="btn btn-confirm" id="btn-mode-next" disabled onclick="playSfx('confirm'); confirmMode()">下一步</button>
+  </div>
+</div>
+
+<!-- 难度 -->
+<div id="screen-difficulty">
+  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 AI 难 度</h2>
+  <div class="option-grid" id="diff-grid">
+    <div class="option-card" data-diff="easy">
+      <div class="ic">🟢</div><h3>简单</h3>
+      <div class="desc">AI 行动较随机，偏爱普攻，技能使用频率低，几乎不会针对残血。</div>
+      <div class="buff">伤害 ×0.85，初始SP低</div>
+    </div>
+    <div class="option-card" data-diff="normal">
+      <div class="ic">🟡</div><h3>普通</h3>
+      <div class="desc">AI 使用评分系统选择技能与目标，会优先攻击残血。</div>
+      <div class="buff">标准属性</div>
+    </div>
+    <div class="option-card" data-diff="hard">
+      <div class="ic">🔴</div><h3>困难</h3>
+      <div class="desc">AI 会预判威胁、保护残血友军、集火脆皮、合理蓄SP放大招。</div>
+      <div class="buff">伤害 ×1.15，SP回复 ×1.2</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
+    <button class="btn btn-confirm" id="btn-diff-next" disabled onclick="playSfx('confirm'); confirmDifficulty()">下一步</button>
+  </div>
+</div>
+
+<!-- 场景 -->
+<div id="screen-scene">
+  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 战 场</h2>
+  <div class="option-grid" id="scene-grid"></div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); goBackFromScene()">返回</button>
+    <button class="btn btn-confirm" id="btn-scene-next" disabled onclick="playSfx('confirm'); confirmScene()">下一步</button>
+  </div>
+</div>
+
+<!-- 选人 -->
+<div id="screen-select">
+  <h2 id="select-title">玩家 1（黑墨团）选择 2 名角色</h2>
+  <div class="char-grid" id="char-grid"></div>
+  <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
+    <span id="select-count">已选: 0/2</span>
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-scene')">返回</button>
+    <button class="btn btn-confirm" id="btn-confirm-select" disabled onclick="playSfx('confirm'); confirmSelection()">确认选择</button>
+  </div>
+</div>
+
+<!-- 战斗 -->
+<div id="screen-battle">
+  <div class="turn-info" id="turn-info">
+    <span class="round-badge" id="round-badge">回合 1</span>
+    <span id="turn-text">玩家1 行动</span>
+    <button class="btn btn-sm btn-danger exit-btn" onclick="playSfx('click'); confirmExit()">退出战斗 (ESC)</button>
+  </div>
+  <div class="scene-banner" id="scene-banner"></div>
+  <div class="battle-field">
+    <div class="team-side left" id="team-left"></div>
+    <div class="vs-divider"></div>
+    <div class="team-side right" id="team-right"></div>
+  </div>
+  <div class="skill-panel" id="skill-panel"><span style="color:#666;">等待行动...</span></div>
+  <div class="log-controls">
+    <button class="btn btn-sm" onclick="clearLog()">清空</button>
+    <button class="btn btn-sm" id="btn-log-pause" onclick="toggleLogPause()">暂停滚动</button>
+  </div>
+  <div class="battle-log" id="battle-log"></div>
+</div>
+
+<!-- 结果 -->
+<div id="screen-result">
+  <h1 id="result-title">胜利！</h1>
+  <p id="result-desc"></p>
+  <div class="result-stats" id="result-stats"></div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-confirm" onclick="playSfx('click'); location.reload()">再来一局</button>
+  </div>
+</div>
+
+<!-- 战役地图 -->
+<div id="screen-campaign">
+  <h2 style="color:#e94560;margin-bottom:4px;letter-spacing:4px;">战 役 模 式</h2>
+  <p style="color:#888;font-size:12px;margin-bottom:4px;">揭开墨境世界的秘密，击败墨皇</p>
+  <div class="campaign-map" id="campaign-map"></div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
+    <button class="btn btn-confirm" id="btn-campaign-reset" onclick="playSfx('click'); resetCampaign()">重置进度</button>
+  </div>
+</div>
+
+<!-- 过场文字 -->
+<div id="screen-cutscene">
+  <div id="cutscene-stage"></div>
+  <div id="cutscene-text"></div>
+  <button class="btn btn-confirm" id="btn-cutscene" onclick="playSfx('confirm'); onCutsceneNext()">继续</button>
+</div>
+
+<!-- 阵容雷达图 -->
+<div id="screen-radar">
+  <h2 style="color:#e94560;margin-bottom:4px;letter-spacing:4px;">阵 容 对 比</h2>
+  <div class="radar-wrap">
+    <div class="radar-side">
+      <h3 id="radar-title-p1" style="color:#e94560;">玩家1</h3>
+      <canvas id="radar-canvas-p1" width="200" height="200"></canvas>
+      <div class="radar-labels" id="radar-labels-p1"></div>
+    </div>
+    <div class="radar-side">
+      <h3 id="radar-title-p2" style="color:#16c79a;">玩家2</h3>
+      <canvas id="radar-canvas-p2" width="200" height="200"></canvas>
+      <div class="radar-labels" id="radar-labels-p2"></div>
+    </div>
+  </div>
+  <button class="btn btn-confirm" onclick="playSfx('confirm'); onRadarNext()">开始战斗！</button>
+</div>
+
+</div>
+
+<script>window.playSfx=()=>{}; window.showScreen=()=>{}; window.showHelp=()=>{};</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
