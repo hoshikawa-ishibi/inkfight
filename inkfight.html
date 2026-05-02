@@ -44,7 +44,7 @@ body {
 #top-bar label{ font-size:11px; color:#ccc; }
 #top-bar input[type=range]{ width:80px; }
 
-#screen-title, #screen-mode, #screen-difficulty, #screen-scene, #screen-select, #screen-battle, #screen-result, #screen-campaign, #screen-cutscene, #screen-radar {
+#screen-title, #screen-mode, #screen-difficulty, #screen-scene, #screen-ban, #screen-select, #screen-battle, #screen-result, #screen-campaign, #screen-cutscene, #screen-radar, #screen-test {
   display:none; width:100%; min-height:100vh;
   flex-direction:column; align-items:center; justify-content:center;
   animation:fadeIn .5s ease;
@@ -313,6 +313,10 @@ body {
       <div class="ic">⚔️</div><h3>战役模式</h3>
       <div class="desc">挑战8关剧情战役，揭开墨境世界的秘密，击败墨皇。</div>
     </div>
+    <div class="option-card" data-mode="test">
+      <div class="ic">🧪</div><h3>平衡测试</h3>
+      <div class="desc">双方AI自动对战多轮，统计胜率，检验角色数值平衡。</div>
+    </div>
   </div>
   <div style="display:flex;gap:10px;">
     <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-title')">返回</button>
@@ -353,6 +357,16 @@ body {
   <div style="display:flex;gap:10px;">
     <button class="btn btn-sm" onclick="playSfx('click'); goBackFromScene()">返回</button>
     <button class="btn btn-confirm" id="btn-scene-next" disabled onclick="playSfx('confirm'); confirmScene()">下一步</button>
+  </div>
+</div>
+
+<!-- Ban阶段 -->
+<div id="screen-ban">
+  <h2 id="ban-title" style="color:#e94560;margin-bottom:8px;letter-spacing:4px;">BAN 阶 段</h2>
+  <p id="ban-desc" style="color:#aaa;font-size:13px;margin-bottom:16px;"></p>
+  <div class="char-grid" id="ban-grid"></div>
+  <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
+    <span id="ban-status" style="color:#ffd54f;"></span>
   </div>
 </div>
 
@@ -434,9 +448,29 @@ body {
   <button class="btn btn-confirm" onclick="playSfx('confirm'); onRadarNext()">开始战斗！</button>
 </div>
 
+<!-- 平衡测试 -->
+<div id="screen-test">
+  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">平 衡 测 试</h2>
+  <p style="color:#888;font-size:12px;margin-bottom:20px;">随机阵容 · 双方最高AI · 统计各角色胜率</p>
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
+    <label style="font-size:13px;color:#ccc;">测试轮数：</label>
+    <select id="test-rounds" style="background:#1a1a2e;color:#eee;border:1px solid #0f3460;padding:6px 12px;border-radius:4px;font-family:inherit;font-size:14px;">
+      <option value="100">100 局</option>
+      <option value="500">500 局</option>
+      <option value="1000" selected>1000 局</option>
+      <option value="5000">5000 局</option>
+      <option value="10000">10000 局</option>
+    </select>
+  </div>
+  <div id="test-progress" style="display:none;color:#ffd54f;font-size:13px;margin-bottom:12px;"></div>
+  <div id="test-results" class="result-stats" style="display:none;min-width:420px;max-width:560px;"></div>
+  <div style="display:flex;gap:10px;margin-top:16px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
+    <button class="btn btn-confirm" id="btn-test-start" onclick="playSfx('confirm'); startTestRun()">开始测试</button>
+  </div>
 </div>
 
-<script>window.playSfx=()=>{}; window.showScreen=()=>{}; window.showHelp=()=>{};</script>
+</div>
 <script type="module" src="./main.js"></script>
 </body>
 </html>

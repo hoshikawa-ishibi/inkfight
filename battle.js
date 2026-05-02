@@ -75,6 +75,20 @@ function triggerPassive(trigger, unit, ctx={}){
       }
       break;
     }
+    case 'corruptBonus': {
+      const target = ctx.target;
+      if(target){
+        const stacks = target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+        if(stacks > 0){
+          const bonus = stacks * 8;
+          target.hp = clamp(target.hp - bonus, 0, target.maxHp);
+          addLog(`【${p.name}】腐化侵蚀 ${target.name} 额外 ${bonus} 伤害（${stacks}层）`, 'dmg');
+          spawnFloatText(target, `-${bonus}`, '#ce93d8', 16);
+          if(target.hp <= 0) handleDeath(target, unit);
+        }
+      }
+      break;
+    }
   }
 }
 
@@ -134,33 +148,59 @@ export function startBattle(){
 }
 
 function buildTurnOrder(){
-  gameState.turnOrder=[];
-  const max=Math.max(gameState.p1Units.length,gameState.p2Units.length);
-  for(let i=0;i<max;i++){
-    if(gameState.p1Units[i]) gameState.turnOrder.push(gameState.p1Units[i].id);
-    if(gameState.p2Units[i]) gameState.turnOrder.push(gameState.p2Units[i].id);
-  }
-  gameState.currentIdx=0;
+  gameState.currentPlayer=1;
+  gameState.p1LastActed=null;
+  gameState.p2LastActed=null;
 }
 
 function startTurn(){
-  const id=gameState.turnOrder[gameState.currentIdx];
-  const u=getUnit(id);
-  if(!u||!u.alive){ nextTurn(); return; }
+  const p=gameState.currentPlayer;
+  const units=(p===1?gameState.p1Units:gameState.p2Units).filter(u=>u.alive);
+  if(!units.length){ nextTurn(); return; }
+  const lastId=p===1?gameState.p1LastActed:gameState.p2LastActed;
+  // if 2 alive and one acted last time, the other must go
+  if(units.length===2&&lastId){
+    const forced=units.find(u=>u.id!==lastId);
+    activateUnit(forced);
+  } else if(units.length===2&&!lastId&&gameState.mode==='pvp'){
+    showUnitPicker(p,units,activateUnit);
+  } else {
+    activateUnit(units[0]);
+  }
+}
+
+function showUnitPicker(player,units,cb){
+  document.getElementById('turn-text').textContent=`玩家${player} 选择出战角色`;
+  document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
+  renderBattle();
+  const panel=document.getElementById('skill-panel');
+  panel.innerHTML=`<div style="color:#aaa;margin-bottom:8px;">选择出战角色：</div>`;
+  units.forEach(u=>{
+    const btn=document.createElement('button');
+    btn.className='skill-btn';
+    btn.innerHTML=`<b style="color:${u.color}">${u.name}</b> <span style="color:#aaa">HP:${u.hp}/${u.maxHp} SP:${u.sp}</span>`;
+    btn.onclick=()=>{ playSfx('select'); cb(u); };
+    panel.appendChild(btn);
+  });
+}
+
+function activateUnit(u){
+  if(u.player===1) gameState.p1LastActed=u.id;
+  else gameState.p2LastActed=u.id;
   if(u.stunned){
     addLog(`${u.name} 被眩晕，跳过回合！`,'stun');
     playSfx('stun'); u.stunned=false;
     setTimeout(nextTurn,700); return;
   }
   processStartOfTurn(u);
-  if(!u.alive){ setTimeout(nextTurn,600); return; }
+  if(!u.alive){ setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
   u.sp=clamp(u.sp+u.spRegen,0,u.maxSp);
   if(gameState.scene.buff==='spRegen') u.sp=clamp(u.sp+5,0,u.maxSp);
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
     `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
   renderBattle();
-  if(gameState.mode==='ai'&&u.player===2){
+  if((gameState.mode==='ai'||gameState.mode==='campaign')&&u.player===2){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
     setTimeout(()=>aiAct(u),700+Math.random()*400);
   } else {
@@ -192,11 +232,11 @@ function processStartOfTurn(u){
 
 function nextTurn(){
   if(checkVictory()) return;
-  gameState.currentIdx++;
-  if(gameState.currentIdx>=gameState.turnOrder.length){
-    gameState.currentIdx=0; gameState.round++;
+  if(gameState.currentPlayer===2){
+    gameState.round++;
     addLog(`═══ 回合 ${gameState.round} 开始 ═══`,'divider');
   }
+  gameState.currentPlayer=gameState.currentPlayer===1?2:1;
   startTurn();
 }
 
@@ -330,7 +370,7 @@ function onSkillClick(u,s){
   if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) return;
   const needsEnemy=['damage','stun','spSteal','debuff','drain'].includes(s.type);
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
-  const noTarget=['healSp','shield','taunt','dodge','selfBuff','revive','damageAll'].includes(s.type);
+  const noTarget=['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague'].includes(s.type);
   if(noTarget){ executeSkill(u,s,null); return; }
   if(needsEnemy){
     const taunter=getEnemies(u.player).find(e=>e.alive&&e.buffs.some(b=>b.type==='taunt'));
@@ -386,7 +426,10 @@ function executeSkill(actor,skill,target){
   lungeActor(actor); actor.pose='attack';
   setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },500);
   switch(skill.type){
-    case 'damage': playSkillVfx(actor,target,skill,()=>doDamage(actor,target,skill)); break;
+    case 'damage': playSkillVfx(actor,target,skill,()=>{
+      doDamage(actor,target,skill);
+      if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt,actor);
+    }); break;
     case 'damageAll': {
       const targets=getEnemies(actor.player).filter(e=>e.alive);
       targets.forEach((t,i)=>setTimeout(()=>playSkillVfx(actor,t,skill,()=>doDamage(actor,t,skill)),i*120));
@@ -458,8 +501,40 @@ function executeSkill(actor,skill,target){
         gameState.stats['p'+actor.player].heal+=drain;
         if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal+=drain;
         spawnFloatText(actor,`+${drain}`,'#16c79a',16); spawnDrainBeam(target,actor);
+        if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt,actor);
       });
       break;
+    case 'plague': {
+      const enemies=getEnemies(actor.player).filter(e=>e.alive);
+      enemies.forEach((t,i)=>setTimeout(()=>{
+        applyCorrupt(t,skill.corrupt,actor);
+        t.debuffs.push({type:'poison',dur:skill.dotDur,value:skill.dot});
+        addLog(`${t.name} 感染瘟疫，中毒${skill.dotDur}回合`,'buff');
+        spawnFloatText(t,'瘟疫!','#9ccc65',16); spawnCurse(t);
+      },i*150));
+      break;
+    }
+    case 'corruptBurst': {
+      const enemies=getEnemies(actor.player).filter(e=>e.alive);
+      let totalDmg=0;
+      enemies.forEach(t=>{
+        const stacks=t.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+        if(stacks>0){
+          const dmg=stacks*skill.dmgPerStack;
+          t.debuffs=t.debuffs.filter(d=>d.type!=='corrupt');
+          t.hp=clamp(t.hp-dmg,0,t.maxHp);
+          totalDmg+=dmg;
+          gameState.stats['p'+actor.player].dmg+=dmg;
+          if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=dmg;
+          if(dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg,name:actor.name};
+          addLog(`腐化爆发！${t.name} 受到 ${dmg} 伤害（${stacks}层）`,'crit');
+          spawnFloatText(t,`-${dmg}`,'#ce93d8',24); spawnHitBurst(t,'#ce93d8'); _screenShake(10,300);
+          if(t.hp<=0) handleDeath(t,actor);
+        }
+      });
+      if(totalDmg===0){ addLog(`腐化爆发：无腐化层，无效果`,'miss'); spawnFloatText(actor,'无腐化','#888',14); }
+      break;
+    }
     case 'revive':
       actor.undying=skill.hpRestore;
       addLog(`${actor.name} 进入不屈状态`,'buff');
@@ -535,6 +610,13 @@ function doStun(actor,target,skill){
     addLog(`${target.name} 抵抗了眩晕`,'miss');
     spawnFloatText(target,'抵抗','#888',16); playSfx('miss');
   }
+}
+
+function applyCorrupt(target, stacks, actor){
+  target.debuffs.push({type:'corrupt', dur:99, value:stacks});
+  const total = target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+  addLog(`${actor.name} 给 ${target.name} 施加 ${stacks} 层腐化（共${total}层）`,'buff');
+  spawnFloatText(target,`腐化${total}层`,'#7e57c2',14); spawnCurse(target);
 }
 
 function handleDeath(u,killer){

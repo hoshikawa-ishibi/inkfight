@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨境之战 · 改进 Todolist</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 30% 20%, #0d0d2b 0%, #05050d 70%);
+    font-family: 'Courier New', monospace;
+    padding: 40px 24px;
+    color: #e0e0e0;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 6px; }
+  h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: 2px; }
+  .sub { font-size: 13px; color: #666; margin-bottom: 4px; }
+
+  .progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .bar-track { flex: 1; height: 4px; background: #1a1a3a; border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, #e94560, #7e57c2); border-radius: 2px; transition: width 0.5s ease; }
+  .prog-label { font-size: 12px; color: #555; white-space: nowrap; }
+
+  .filters { display: flex; gap: 8px; margin-bottom: 24px; }
+  .filter-btn {
+    padding: 5px 14px;
+    border: 1px solid #2a2a4a;
+    border-radius: 20px;
+    background: transparent;
+    color: #666;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    transition: all 0.2s;
+  }
+  .filter-btn.active {
+    border-color: #e94560;
+    background: rgba(233,69,96,0.15);
+    color: #e94560;
+  }
+
+  .list { display: flex; flex-direction: column; gap: 10px; }
+
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: opacity 0.3s, border-color 0.3s;
+  }
+  .card.done { opacity: 0.45; border-color: #1a1a3a; background: rgba(255,255,255,0.02); }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .checkbox {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid #444;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .checkbox.checked { border-color: #e94560; background: #e94560; }
+  .checkbox.checked::after { content: '✓'; font-size: 10px; color: #fff; }
+
+  .tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .tag-机制 { border: 1px solid rgba(255,77,109,0.27); color: #ff4d6d; background: rgba(255,77,109,0.07); }
+  .tag-内容 { border: 1px solid rgba(247,127,0,0.27); color: #f77f00; background: rgba(247,127,0,0.07); }
+  .tag-体验 { border: 1px solid rgba(76,201,240,0.27); color: #4cc9f0; background: rgba(76,201,240,0.07); }
+
+  .priority { font-size: 11px; flex-shrink: 0; }
+  .title { flex: 1; font-size: 14px; font-weight: 600; color: #e0e0e0; transition: color 0.2s; }
+  .done .title { color: #444; text-decoration: line-through; }
+  .arrow { font-size: 10px; color: #444; transition: transform 0.2s; }
+  .arrow.open { transform: rotate(180deg); }
+
+  .subitems {
+    border-top: 1px solid #1a1a3a;
+    padding: 12px 16px 14px 48px;
+    display: none;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .subitems.open { display: flex; }
+  .subitem { display: flex; gap: 10px; align-items: flex-start; }
+  .dash { color: #333; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+  .subtext { font-size: 12px; color: #888; line-height: 1.6; }
+
+  footer { text-align: center; color: #2a2a4a; font-size: 11px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>墨境之战</h1>
+    <span class="sub">改进 Todolist</span>
+  </header>
+
+  <div class="progress-row">
+    <div class="bar-track"><div class="bar-fill" id="bar" style="width:0%"></div></div>
+    <span class="prog-label" id="prog">0 / 10 完成</span>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('全部', this)">全部</button>
+    <button class="filter-btn" onclick="setFilter('机制', this)">机制</button>
+    <button class="filter-btn" onclick="setFilter('内容', this)">内容</button>
+    <button class="filter-btn" onclick="setFilter('体验', this)">体验</button>
+  </div>
+
+  <div class="list" id="list"></div>
+  <footer>点击条目展开子任务 · 点击方框标记完成</footer>
+</div>
+
+<script>
+const todos = [
+  { id:1, priority:'⭐⭐⭐', tag:'机制', title:'被动技能系统',
+    items:['在 data.js 每个角色添加 passive 字段（触发条件 + 效果）','在 battle.js 各伤害/受伤/回合开始节点检测并触发被动','在 render.js 技能面板下方展示被动描述','示例：刺客暴击后 +10SP、守卫受击 20% 反击、狂战士 HP<30% 免疫控制'] },
+  { id:2, priority:'⭐⭐⭐', tag:'内容', title:'战役模式',
+    items:['新建 campaign.js，定义 8 关关卡数组（AI 阵容 + 剧情文本）','在 inkfight.html 加入 screen-campaign 界面（关卡地图 UI）','main.js 加入战役入口，通关后写 localStorage 存档','每关结束显示过场文字和解锁提示'] },
+  { id:3, priority:'⭐⭐', tag:'内容', title:'更多场景（+3 个）',
+    items:['暴风雪原：每回合 10% 概率随机眩晕一个单位','古战祭坛：每回合最低 HP 单位自动回 8 HP','虚空裂隙：所有单位 DEF=0，SP 上限翻倍','在 data.js SCENES 数组追加，scene.js 加对应背景动画'] },
+  { id:4, priority:'⭐⭐', tag:'机制', title:'更多状态效果',
+    items:['沉默（silenced）：无法使用消耗 SP 的技能，持续 1-2 回合','燃烧（burning）：每回合伤害递增（10→15→20），不同于中毒','束缚（bound）：无法使用 dodge 类技能','在 battle.js 回合结算处加入以上三种 debuff 处理逻辑'] },
+  { id:5, priority:'⭐⭐', tag:'体验', title:'结算界面增强',
+    items:['追踪本场最高单次伤害（附角色名）','计算 MVP（综合伤害+治疗+生存）并高亮显示','展示双方详细数据对比表格','加入结算动画（数字滚动 + 星级评定）'] },
+  { id:6, priority:'⭐⭐', tag:'体验', title:'选阵容雷达图预览',
+    items:['选角完成后显示双方属性雷达图（ATK/DEF/SP/机动/支撑 5 维）','使用 Canvas 绘制五边形雷达，与 stickman.js 风格一致','数据从 CHARACTERS 中的 atk、def、spRegen、dodge、heal 能力派生'] },
+  { id:7, priority:'⭐', tag:'机制', title:'角色羁绊/组合加成',
+    items:['在 data.js 新增 SYNERGIES 数组，定义组合条件和加成效果','startBattle() 时检测双方选角是否触发羁绊','战斗界面显示激活的羁绊名称和效果描述','示例：剑士+牧师「圣战者」治疗+10%，刺客+术士「暗影对」控制率+8%'] },
+  { id:8, priority:'⭐', tag:'机制', title:'技能冷却（CD）机制',
+    items:['data.js 技能对象加入 cd 字段（最大冷却回合数）','state.js 的 unit 对象加入 skillCd 数组追踪每个技能的当前 CD','battle.js 回合结算时对所有 CD > 0 的技能递减','render.js 技能按钮上显示 CD 数字覆盖层'] },
+  { id:9, priority:'⭐', tag:'内容', title:'PvP Ban/Pick 阶段',
+    items:['双人模式下在选角前加入 Ban 阶段（各禁 1 个角色）','禁用的角色在角色格加上红色 X 遮罩并不可点击','main.js initBanScreen() 控制禁用流程，禁完自动进入选角'] },
+  { id:10, priority:'⭐', tag:'体验', title:'局内随机增益（轻 Rogue-like）',
+    items:['新建 buff-pool.js，定义 15 种随机增益（首回合 SP 满、某角色 ATK+5 等）','startBattle() 前随机抽取双方各一张"场地牌"并展示','增益效果在 battle.js 开局时应用到对应单位'] },
+];
+
+const checked = {};
+const expanded = {};
+let currentFilter = '全部';
+
+function updateProgress() {
+  const done = Object.values(checked).filter(Boolean).length;
+  document.getElementById('bar').style.width = (done / todos.length * 100) + '%';
+  document.getElementById('prog').textContent = done + ' / ' + todos.length + ' 完成';
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function toggleCheck(id, e) {
+  e.stopPropagation();
+  checked[id] = !checked[id];
+  render();
+  updateProgress();
+}
+
+function toggleExpand(id) {
+  expanded[id] = !expanded[id];
+  render();
+}
+
+function render() {
+  const list = document.getElementById('list');
+  const filtered = currentFilter === '全部' ? todos : todos.filter(t => t.tag === currentFilter);
+  list.innerHTML = filtered.map(t => `
+    <div class="card ${checked[t.id] ? 'done' : ''}" id="card-${t.id}">
+      <div class="card-head" onclick="toggleExpand(${t.id})">
+        <div class="checkbox ${checked[t.id] ? 'checked' : ''}" onclick="toggleCheck(${t.id}, event)"></div>
+        <span class="tag tag-${t.tag}">${t.tag}</span>
+        <span class="priority">${t.priority}</span>
+        <span class="title">${t.title}</span>
+        <span class="arrow ${expanded[t.id] ? 'open' : ''}">▼</span>
+      </div>
+      <div class="subitems ${expanded[t.id] ? 'open' : ''}">
+        ${t.items.map(item => `<div class="subitem"><span class="dash">—</span><span class="subtext">${item}</span></div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+render();
+updateProgress();
+</script>
+</body>
+</html>

@@ -7,10 +7,11 @@ import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBa
 import { initRender, renderBattle } from './render.js';
 import { initAi } from './ai.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause } from './battle.js';
+import { runSimulation } from './sim.js';
 
 let _inBattle = false;
 export function showScreen(id) {
-  document.querySelectorAll('#screen-title,#screen-mode,#screen-difficulty,#screen-scene,#screen-select,#screen-battle,#screen-result,#screen-campaign,#screen-cutscene,#screen-radar')
+  document.querySelectorAll('#screen-title,#screen-mode,#screen-difficulty,#screen-scene,#screen-ban,#screen-select,#screen-battle,#screen-result,#screen-campaign,#screen-cutscene,#screen-radar,#screen-test')
     .forEach(el => el.classList.remove('active'));
   const el = document.getElementById(id);
   el.classList.add('active');
@@ -20,6 +21,7 @@ export function showScreen(id) {
   if (id==='screen-mode') initModeScreen();
   if (id==='screen-difficulty') initDifficultyScreen();
   if (id==='screen-scene') initSceneScreen();
+  if (id==='screen-ban') initBanScreen();
   if (id==='screen-select') startSelection();
   if (id==='screen-campaign') initCampaignScreen();
 }
@@ -78,6 +80,7 @@ export function confirmMode() {
   gameState.mode=chosenMode;
   if(chosenMode==='campaign') showScreen('screen-campaign');
   else if(chosenMode==='ai') showScreen('screen-difficulty');
+  else if(chosenMode==='test'){ showScreen('screen-test'); initTestScreen(); }
   else showScreen('screen-scene');
 }
 
@@ -132,6 +135,7 @@ export function confirmScene() {
   if(!chosenScene) return;
   gameState.scene=chosenScene;
   applySceneBackground(chosenScene);
+  if(gameState.mode==='pvp') { showScreen('screen-ban'); return; }
   showScreen('screen-select');
 }
 
@@ -157,11 +161,50 @@ document.addEventListener('mousemove',e=>{
   }
 });
 
+// ── Ban阶段（PvP专用）────────────────────────────────────
+let banPhase=1, bannedIds=[];
+export function initBanScreen(){
+  banPhase=1; bannedIds=[];
+  renderBanGrid();
+}
+function renderBanGrid(){
+  const grid=document.getElementById('ban-grid');
+  grid.innerHTML='';
+  document.getElementById('ban-title').textContent='BAN 阶 段';
+  document.getElementById('ban-desc').textContent=`玩家${banPhase} 选择禁用 1 名角色`;
+  document.getElementById('ban-status').textContent=`已禁用: ${bannedIds.map(id=>CHARACTERS.find(c=>c.id===id).name).join(', ')||'无'}`;
+  CHARACTERS.forEach(c=>{
+    const banned=bannedIds.includes(c.id);
+    const card=document.createElement('div');
+    card.className='char-card'+(banned?' disabled':'');
+    card.innerHTML=`
+      <div class="stick-preview"><canvas width="80" height="90" id="ban-prev-${c.id}"></canvas></div>
+      <div class="cname" style="color:${banned?'#555':c.color}">${c.name}</div>
+      <div class="crole" style="color:${banned?'#444':'#aaa'}">${banned?'已禁用':c.role}</div>`;
+    if(!banned){
+      card.onclick=()=>{ playSfx('select'); doBan(c.id); };
+      card.onmouseenter=(e)=>{ playSfx('hover'); showTooltip(buildCharTooltip(c),e.clientX,e.clientY); };
+      card.onmouseleave=hideTooltip;
+    }
+    grid.appendChild(card);
+    setTimeout(()=>drawStickman(document.getElementById('ban-prev-'+c.id),c,'idle'),10);
+  });
+}
+function doBan(id){
+  bannedIds.push(id);
+  if(banPhase===1){ banPhase=2; renderBanGrid(); }
+  else {
+    gameState.bannedIds=bannedIds;
+    showScreen('screen-select');
+  }
+}
+
 let selectPhase=1, tempPicks=[];
 function startSelection(){
   selectPhase=1; tempPicks=[];
   gameState.p1Picks=[];
   if(gameState.mode!=='campaign') gameState.p2Picks=[];
+  if(gameState.mode!=='pvp') gameState.bannedIds=[];
   renderCharGrid(); updateSelectUI();
 }
 function buildCharTooltip(c){
@@ -173,17 +216,19 @@ function buildCharTooltip(c){
 function renderCharGrid(){
   const grid=document.getElementById('char-grid');
   grid.innerHTML='';
+  const banned=gameState.bannedIds||[];
   CHARACTERS.forEach(c=>{
-    const taken=gameState.p1Picks.includes(c.id);
+    const taken=selectPhase===2&&gameState.mode==='pvp'?false:gameState.p1Picks.includes(c.id);
     const selected=tempPicks.includes(c.id);
+    const isBanned=banned.includes(c.id);
     const card=document.createElement('div');
-    card.className='char-card'+(selected?' selected':'')+(taken?' disabled':'');
+    card.className='char-card'+(selected?' selected':'')+(taken||isBanned?' disabled':'');
     card.innerHTML=`
       <div class="stick-preview"><canvas width="80" height="90" id="prev-${c.id}"></canvas></div>
-      <div class="cname" style="color:${c.color}">${c.name}</div>
-      <div class="crole">${c.role}</div>
-      <div class="cstats">HP:${c.hp} SP:${c.sp}<br>ATK:${c.atk} DEF:${c.def}</div>`;
-    if(!taken){
+      <div class="cname" style="color:${isBanned?'#555':c.color}">${c.name}</div>
+      <div class="crole" style="color:${isBanned?'#444':'#aaa'}">${isBanned?'已禁用':c.role}</div>
+      <div class="cstats">${isBanned?'':(`HP:${c.hp} SP:${c.sp}<br>ATK:${c.atk} DEF:${c.def}`)}</div>`;
+    if(!taken&&!isBanned){
       card.onclick=()=>{ playSfx('select'); togglePick(c.id); };
       card.onmouseenter=(e)=>{ playSfx('hover'); showTooltip(buildCharTooltip(c), e.clientX, e.clientY); };
       card.onmouseleave=hideTooltip;
@@ -341,6 +386,59 @@ export function resetCampaign(){
   initCampaignScreen();
 }
 
+// ── 测试模式 ──────────────────────────────────────────────
+export function initTestScreen(){
+  document.getElementById('btn-test-start').disabled = false;
+  document.getElementById('test-progress').style.display = 'none';
+  document.getElementById('test-results').style.display = 'none';
+}
+
+export function startTestRun(){
+  const rounds = parseInt(document.getElementById('test-rounds').value);
+  document.getElementById('btn-test-start').disabled = true;
+  document.getElementById('test-progress').style.display = 'block';
+  document.getElementById('test-progress').textContent = `准备中...`;
+  document.getElementById('test-results').style.display = 'none';
+
+  runSimulation(rounds,
+    (done, total) => {
+      document.getElementById('test-progress').textContent = `进行中... ${done} / ${total} 局`;
+    },
+    (charStats) => {
+      document.getElementById('test-progress').textContent = `完成！共 ${rounds} 局`;
+      showSimResults(charStats, rounds);
+      document.getElementById('btn-test-start').disabled = false;
+    }
+  );
+}
+
+function showSimResults(charStats, rounds){
+  const sorted = Object.values(charStats)
+    .filter(c=>c.games>0)
+    .sort((a,b)=>(b.wins/b.games)-(a.wins/a.games));
+
+  const history = JSON.parse(localStorage.getItem('inkfight_sim')||'[]');
+  history.unshift({ date: new Date().toLocaleString(), rounds, chars: sorted.map(c=>({name:c.name,pct:(c.wins/c.games*100).toFixed(1),games:c.games})) });
+  if(history.length>10) history.length=10;
+  localStorage.setItem('inkfight_sim', JSON.stringify(history));
+
+  const el = document.getElementById('test-results');
+  el.style.display = 'block';
+  el.innerHTML = `<h3 style="color:#ffd54f;margin-bottom:10px;">角色胜率排行（${rounds}局随机对战）</h3>`
+    + sorted.map(c=>{
+        const pct = (c.wins/c.games*100).toFixed(1);
+        const bar = Math.round(pct/2);
+        const color = pct>=55?'#e94560':pct>=45?'#ffd54f':'#16c79a';
+        return `<div class="row" style="align-items:center;gap:8px;">
+          <span style="width:60px;color:${color}">${c.name}</span>
+          <div style="flex:1;height:10px;background:#111;border-radius:5px;overflow:hidden;">
+            <div style="width:${bar*2}%;height:100%;background:${color};border-radius:5px;"></div>
+          </div>
+          <span style="width:80px;text-align:right;color:${color}">${pct}% (${c.games}局)</span>
+        </div>`;
+      }).join('');
+}
+
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
@@ -453,5 +551,6 @@ Object.assign(window, {
   playSfx, toggleMute, showScreen, showHelp,
   confirmMode, confirmDifficulty, goBackFromScene, confirmScene,
   confirmSelection, clearLog, toggleLogPause, confirmExit,
-  onCutsceneNext, resetCampaign, onRadarNext
+  onCutsceneNext, resetCampaign, onRadarNext,
+  initTestScreen, startTestRun, initBanScreen
 });

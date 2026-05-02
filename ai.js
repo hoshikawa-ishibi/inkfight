@@ -9,8 +9,8 @@ export function aiEasy(u,enemies,allies){
   let skill=Math.random()<0.7?u.skills[0]:usable[rand(0,usable.length-1)];
   let target=enemies[rand(0,enemies.length-1)];
   if(['heal','cleanse','buff'].includes(skill.type)) target=allies[rand(0,allies.length-1)];
-  if(['healSp','shield','taunt','dodge','selfBuff','revive','damageAll'].includes(skill.type)) target=null;
-  if(['damage','stun','spSteal','debuff','drain'].includes(skill.type)){
+  if(['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst'].includes(skill.type)) target=null;
+  if(['damage','stun','spSteal','debuff','drain','plague'].includes(skill.type)){
     const t=enemies.find(e=>e.buffs.some(b=>b.type==='taunt'));
     if(t) target=t;
   }
@@ -85,6 +85,14 @@ function scoreSkill(u,s,enemies,allies,level){
       target=enemies.sort((a,b)=>b.hp-a.hp)[0]; score=24; if(level==='hard') score+=8; break;
     case 'drain':
       target=lowEnemy; score=30+(u.hp/u.maxHp<0.5?20:0); break;
+    case 'plague':
+      score=35; if(enemies.length>=2) score+=20;
+      if(level==='hard') score+=10; break;
+    case 'corruptBurst': {
+      const totalStacks=enemies.reduce((s,e)=>s+e.debuffs.filter(d=>d.type==='corrupt').reduce((a,d)=>a+d.value,0),0);
+      score=totalStacks*15-5;
+      if(level==='hard'&&totalStacks>=3) score+=30; break;
+    }
     case 'revive':
       score=u.hp/u.maxHp<0.35?42:-50; break;
   }
