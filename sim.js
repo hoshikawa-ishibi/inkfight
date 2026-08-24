@@ -8,7 +8,7 @@ import {
   applyCorrupt, applyPlague, applyCorruptBurst, handleDeath as resolveDeath,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS
 } from './combat.js';
-import { scoreSkill, pickTarget } from './ai-scoring.js';
+import { scoreSkill, pickTarget, makeTeamContext } from './ai-scoring.js';
 
 function noteKill(died, killer, stats){
   if(died && killer && stats) stats[killer.charId].kills++;
@@ -27,7 +27,7 @@ function doDamage(actor, target, skill, scene, stats){
 }
 
 
-function pickSkill(u, enemies, allies, scene){
+function pickSkill(u, enemies, allies, scene, opts){
   const foes = enemies.filter(e=>e.alive);
   const friends = allies.filter(a=>a.alive);
   if(!foes.length) return null;
@@ -36,7 +36,7 @@ function pickSkill(u, enemies, allies, scene){
   for(const s of u.skills){
     if(u.sp < s.cost) continue;
     if(s.hpCost && u.hp <= s.hpCost) continue;
-    const score = scoreSkill(u, s, foes, friends, scene);
+    const score = scoreSkill(u, s, foes, friends, scene, opts);
     if(score > bestScore){ bestScore = score; best = s; }
   }
   // 全部技能都不划算时，退而求其次用最便宜的能用技能，别空过回合
@@ -127,6 +127,8 @@ function simOneBattle(p1ids, p2ids, scene){
   }
   const stats = {};
   [...p1,...p2].forEach(u=>{ stats[u.charId]={dmg:0,heals:0,kills:0}; });
+  // 每支队伍一份战术上下文（集火目标），队内共享、局间不复用
+  const ctx = { 1: makeTeamContext(), 2: makeTeamContext() };
 
   for(let round=0; round<60; round++){
     for(const u of order){
@@ -153,9 +155,10 @@ function simOneBattle(p1ids, p2ids, scene){
       const allies=(u.player===1?p1:p2).filter(a=>a.alive);
       if(!enemies.length) break;
 
-      const skill=pickSkill(u,enemies,allies,scene);
+      const opts={ ctx: ctx[u.player] };
+      const skill=pickSkill(u,enemies,allies,scene,opts);
       if(!skill) continue;
-      const target=pickTarget(u,skill,enemies,allies);
+      const target=pickTarget(u,skill,enemies,allies,opts);
       executeSkill(u,skill,target,scene,p1,p2,stats);
     }
     const p1alive=p1.some(u=>u.alive), p2alive=p2.some(u=>u.alive);

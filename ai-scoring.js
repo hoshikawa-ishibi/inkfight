@@ -20,11 +20,111 @@ import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget } from '
 const KILL_BONUS = 60;      // 能补掉一个目标的额外价值
 const SP_STARVED = 0.35;    // SP 低于这个比例才认为「缺蓝」
 
+// ── 队伍战术上下文 ───────────────────────────────────────
+// 同一支队伍的单位之间共享，用来记住「整队正在集火谁」。
+//
+// 只存 focusTarget 一项。原计划还打算记 buffedThisRound / lastActedRound，
+// 实现时发现两者都是多余的：技能是**立即结算**的，队友干了什么直接写在单位
+// 身上（buff 已经挂上、目标已经死了），从单位状态读比另记一份账更准；
+// 而「回合」在 battle.js 与 sim.js 里含义还不一样——battle.js 一个回合只走
+// 「我方一个单位 + 敌方一个单位」，同队两个单位分属相邻的两个回合，
+// 按 round 清空反而永远清在错的时机。集火是唯一真正需要跨单位记忆的行为，
+// 因为「整队决定先杀谁」没法从战场状态反推出来。
+export function makeTeamContext(){
+  return { focusTarget: null };
+}
+
+function bestPower(u){
+  const ps = u.skills.filter(k => k.power).map(k => k.power);
+  return ps.length ? Math.max(...ps) : 1;
+}
+
+// 威胁度：这个单位一回合最多能产出多少「等效伤害」。
+// 治疗必须算进来。只按攻击力算的话，牧师（atk 10、最高倍率 1.0）是全场
+// 威胁最低的单位，敌方奶妈于是永远排不进集火名单——实测这么跑 10000 局，
+// 牧师胜率直接飙到 65.2%，纯粹是 AI 的盲区，不是角色真的强。
+// 一个没人管的牧师每回合抵消掉 48 点伤害，那它就值 48 点威胁。
+function threatOf(u){
+  const dmg = getEffectiveAtk(u) * bestPower(u);
+  const heal = Math.max(0, ...u.skills.map(k => k.healAmt || 0));
+  return Math.max(dmg, heal);
+}
+
+// 击杀性价比 = 威胁度 / 有效血量。数值越高越该先杀。
+// 只看当前 HP 会挑错人：满血的法师（92HP/def3）比掉了血的守卫（155HP/def9）
+// 好杀得多，威胁也更大。护盾和减伤都要折进有效血量，
+// 否则 AI 会去啃一个刚开了 45 点护盾的坦克。
+function killValue(f){
+  const dmgMul = 1 - f.def/(f.def + 50);
+  const ehp = Math.max(1, (f.hp + (f.shield||0)) / Math.max(0.05, dmgMul));
+  return threatOf(f) / ehp;
+}
+
+// 整队集火的目标。teamwork=0 时不使用上下文，纯按性价比选（低难度不会配合）。
+// 换目标要有明显收益才换（阈值 25%），否则两个单位会为了一两点血差
+// 在两个敌人之间反复横跳，谁也磨不死。
+export function focusFoe(foes, ctx, teamwork = 1){
+  if(!foes.length) return null;
+  const taunter = foes.find(e => e.buffs.some(b => b.type === 'taunt'));
+  if(taunter) return taunter;                     // 被嘲讽了就没得选
+  const best = foes.reduce((a,b)=> killValue(a) >= killValue(b) ? a : b);
+  if(!ctx || !teamwork) return best;
+  if(ctx.focusTarget && !ctx.focusTarget.alive) ctx.focusTarget = null;
+  const focus = foes.includes(ctx.focusTarget) ? ctx.focusTarget : null;
+  if(focus && killValue(focus) * 1.25 >= killValue(best)) return focus;
+  return best;
+}
+
+// 伤害类技能的收益。超出目标有效血量的部分打不出去（40 点伤害砸在 5 血的
+// 敌人身上有 35 点白给），而且技能越贵、溢出越多，越不该拿它来补这一刀——
+// 免费的普攻明明也能杀。不封顶的话 AI 永远用大招收最后一丝血。
+function damageWorth(d, foe, skill){
+  const ehp = foe.hp + (foe.shield || 0);
+  if(d < ehp) return d;
+  return ehp + KILL_BONUS - (skill.cost || 0) * (1 - ehp / d);
+}
+
+// 治疗的实际收益：只有「治疗量」与「缺失血量」的较小值真正生效，
+// 溢出的治疗是浪费。队友越濒危越值钱。
+function healGain(f, skill){
+  const usable = Math.min(skill.healAmt || 0, f.maxHp - f.hp);
+  return usable * (f.hp/f.maxHp < 0.35 ? 1.8 : 1.0);
+}
+
+// 选谁来治：在实际收益之上，按队友的产出加权——同样缺 48 血，
+// 把法师奶回来比把坦克奶满更能赢。这一项**只用于排序**，不能拿去当分数，
+// 否则「优先救输出高的」会连带把治疗这个技能整体抬价，牧师就开始滥治疗了。
+function healPriority(f, skill, topThreat, tw){
+  const value = topThreat > 0 ? 1 + tw * 0.5 * threatOf(f)/topThreat : 1;
+  return healGain(f, skill) * value;
+}
+
+function healTarget(friends, skill, tw){
+  const hurt = friends.filter(f => f.hp < f.maxHp);
+  if(!hurt.length) return null;
+  const topThreat = Math.max(...friends.map(threatOf));
+  return hurt.reduce((a,b)=>
+    healPriority(a, skill, topThreat, tw) >= healPriority(b, skill, topThreat, tw) ? a : b);
+}
+
+// 加攻目标：优先给还没带同类 buff 的人。牧师连着两回合祝福同一个人，
+// 第二次只是把 dur 刷新一下，等于白扔一个回合。
+function buffTarget(friends, skill, tw){
+  const fresh = friends.filter(f => !f.buffs.some(b => b.type === skill.buffType));
+  const pool = (tw > 0 && fresh.length) ? fresh : friends;
+  if(!pool.length) return null;
+  return pool.reduce((a,b)=> getEffectiveAtk(a) >= getEffectiveAtk(b) ? a : b);
+}
+
 // opts.tempo 是「机会成本」的权重（0~1，默认 1 = 完全计入）：
 // 低难度的 AI 算不清「这回合拿去加 buff 就少打一轮」这笔长远账，
 // 于是会在该输出的时候去开增益。这是真实的水平差距，比单纯加随机噪声更像人。
 // 注意不能直接归零——实测守卫在 tempo=0 时 98% 的回合都在开护盾，
 // 满血还狂加盾，反而比「只会平A」的简单难度更差，梯度会倒挂。
+//
+// opts.teamwork（0~1，默认 1）是「配合」类判断的权重：集火、不重复上 buff、
+// 队友濒危时顶上去、优先救输出高的。低难度的 AI 各打各的。
+// opts.ctx 是队伍战术上下文（见 makeTeamContext），缺省则退化为单打独斗。
 export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   const atk = getEffectiveAtk(u);
   const sceneMul = scene?.buff === 'damageUp' ? 1.15 : 1;   // scene 可缺省
@@ -32,10 +132,18 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   const avgDefMul = 1 - (foes.reduce((n,f)=>n+f.def,0)/foes.length) / ((foes.reduce((n,f)=>n+f.def,0)/foes.length) + 50);
   const dmgOf = p => atk * (p||1) * sceneMul * avgDefMul;
 
-  const weakestFoe = foes.reduce((a,b)=> a.hp <= b.hp ? a : b);
-  const hurt = friends.filter(f => f.hp < f.maxHp);
-  const neediest = hurt.length ? hurt.reduce((a,b)=> a.hp/a.maxHp <= b.hp/b.maxHp ? a : b) : null;
+  const tw = opts.teamwork ?? 1;
+  // 评分和选目标必须看同一个目标，否则会出现「按 A 的血量算能补刀、
+  // 实际却打在 B 身上」。两边都走 focusFoe。这里不写回 ctx——
+  // 评分要对每个技能各跑一次，中途改集火目标等于让技能顺序影响结果。
+  const mainFoe = focusFoe(foes, opts.ctx, tw) || foes[0];
   const hpFrac = u.hp / u.maxHp;
+
+  // 队友保护：队友越危险，护盾/嘲讽这类顶在前面的技能越该优先。
+  // 这一项以前只存在于 ai.js 的困难难度加成里，平衡测试完全吃不到。
+  const others = friends.filter(f => f !== u);
+  const allyDanger = others.length ? Math.min(...others.map(f => f.hp/f.maxHp)) : 1;
+  const protect = (allyDanger < 0.3 ? 1 : allyDanger < 0.5 ? 0.45 : 0) * tw;
 
   // 辅助技能要占掉一整个回合，这回合本可以打出的最高伤害就是它的机会成本。
   // 不减掉它，buff / 护盾 / 嘲讽一类技能的分数全是虚高的——实测狂战士因此
@@ -46,10 +154,8 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     ? Math.max(...dmgOptions.map(k => atk * k.power * sceneMul * avgDefMul)) * tempoW : 0;
 
   switch(s.type){
-    case 'damage': {
-      const d = dmgOf(s.power);
-      return d + (d >= weakestFoe.hp ? KILL_BONUS : 0);
-    }
+    case 'damage':
+      return damageWorth(dmgOf(s.power), mainFoe, s);
 
     case 'damageAll':
       // 打到每个存活敌人，但单体收益略低于同威力的单体技能
@@ -57,8 +163,9 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
 
     case 'drain': {
       const d = dmgOf(s.power);
+      // 吸血按实际打出的伤害算，溢杀的部分照样吸得回来，所以这里不封顶
       const healed = Math.min(d * (s.drainPct/100), u.maxHp - u.hp);
-      return d + healed * 0.8 + (d >= weakestFoe.hp ? KILL_BONUS : 0);
+      return damageWorth(d, mainFoe, s) + healed * 0.8;
     }
 
     case 'spSteal': {
@@ -73,9 +180,8 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const cand = foes.reduce((a,b)=>
         (s.basePct + s.spScale*(a.sp/a.maxSp)) >= (s.basePct + s.spScale*(b.sp/b.maxSp)) ? a : b);
       const p = Math.min(1, (s.basePct + s.spScale * (cand.sp/cand.maxSp)) / 100);
-      const foeBest = Math.max(1, ...cand.skills.filter(k=>k.power).map(k=>k.power));
       // 带 power 的眩晕技能自带一次伤害，要算进收益
-      return dmgOf(s.power || 0) + p * getEffectiveAtk(cand) * foeBest;
+      return dmgOf(s.power || 0) + p * threatOf(cand);
     }
 
     case 'plague': {
@@ -94,11 +200,9 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     }
 
     case 'heal': {
-      if(!neediest) return 0;                       // 满血就别治
-      const effective = Math.min(s.healAmt, neediest.maxHp - neediest.hp);
-      // 队友越危险，治疗越值钱
-      const urgency = neediest.hp/neediest.maxHp < 0.35 ? 1.8 : 1.0;
-      return effective * urgency - tempo * 0.6;
+      const target = healTarget(friends, s, tw);
+      if(!target) return 0;                       // 满血就别治
+      return healGain(target, s) - tempo * 0.6;
     }
 
     case 'cleanse': {
@@ -109,9 +213,13 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
 
     case 'buff': {
       // 给还活着的队友加攻：预期多打出来的伤害
-      const target = friends.filter(f=>f!==u).concat(friends)[0] || u;
+      const target = buffTarget(friends, s, tw);
+      if(!target) return 0;
       const buffVal = s.buffValue ?? BUFF_DEFAULTS.allyBuff;
-      return getEffectiveAtk(target) * buffVal * (s.dur||1) * 0.9 - tempo;
+      const gain = getEffectiveAtk(target) * buffVal * (s.dur||1) * 0.9;
+      // 全队都已经带着同类 buff：再放一次只是刷新 dur，基本等于空过一回合
+      const dup = target.buffs.some(b => b.type === s.buffType);
+      return gain * (dup ? 1 - 0.85 * tw : 1) - tempo;
     }
 
     case 'selfBuff': {
@@ -130,13 +238,14 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     case 'shield': {
       // 护盾等价于同量治疗，但能提前吃伤害；已有盾时收益递减
       const worth = (s.shieldAmt||0) * (u.shield > 0 ? 0.4 : 0.85);
-      return worth * (hpFrac < 0.5 ? 1.3 : 1.0) - tempo;
+      // 自己身上挂着嘲讽时，加盾就是在替队友挡刀，价值更高
+      const taunting = u.buffs.some(b => b.type === 'taunt') ? 1.6 : 1;
+      return worth * (hpFrac < 0.5 ? 1.3 : 1.0) + protect * 22 * taunting - tempo;
     }
 
     case 'taunt': {
       // 把火力吸到自己身上：自己越硬、队友越危险，越值
-      const ally = friends.find(f => f !== u);
-      const allyRisk = ally && ally.hp/ally.maxHp < 0.4 ? 45 : 12;
+      const allyRisk = 12 + protect * 48;
       return allyRisk * (hpFrac > 0.5 ? 1.2 : 0.5) - tempo;
     }
 
@@ -168,22 +277,24 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   }
 }
 
-export function pickTarget(actor, skill, enemies, allies){
+// opts 与 scoreSkill 同源（ctx / teamwork），保证「算分时看的目标」和
+// 「实际打的目标」是同一个。这里是唯一会写回 ctx.focusTarget 的地方：
+// 决策已经定了，才把集火目标登记给队友。
+export function pickTarget(actor, skill, enemies, allies, opts = {}){
   const foes = enemies.filter(e=>e.alive);
   const friends = allies.filter(a=>a.alive);
-  const needsEnemy = needsEnemyTarget(skill);
+  const tw = opts.teamwork ?? 1;
+  const ctx = opts.ctx;
 
-  if(needsEnemy){
-    const taunter = foes.find(e=>e.buffs.some(b=>b.type==='taunt'));
-    if(taunter) return taunter;
-    return foes.slice().sort((a,b)=>a.hp-b.hp)[0] || null;   // 集火残血
+  if(needsEnemyTarget(skill)){
+    const focus = focusFoe(foes, ctx, tw);
+    if(ctx && tw && focus) ctx.focusTarget = focus;
+    return focus;
   }
 
   switch(skill.type){
     case 'heal':
-      // 治疗按缺失血量最多的选，而不是绝对血量最低的
-      return friends.slice().sort((a,b)=>
-        (b.maxHp-b.hp) - (a.maxHp-a.hp))[0] || null;
+      return healTarget(friends, skill, tw);
     case 'cleanse': {
       // 只对真正带负面状态的队友净化，否则这一回合就白费了
       const afflicted = friends.filter(f => f.debuffs.length > 0 || f.stunned);
@@ -191,9 +302,7 @@ export function pickTarget(actor, skill, enemies, allies){
         (b.debuffs.length + (b.stunned?1:0)) - (a.debuffs.length + (a.stunned?1:0)))[0] || null;
     }
     case 'buff':
-      // 加攻给输出最高的队友收益最大
-      return friends.slice().sort((a,b)=>
-        getEffectiveAtk(b) - getEffectiveAtk(a))[0] || null;
+      return buffTarget(friends, skill, tw);
     default:
       return null;   // damageAll / plague / corruptBurst 是 AoE，自身增益类无需目标
   }

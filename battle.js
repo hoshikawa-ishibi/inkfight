@@ -3,6 +3,7 @@ import { gameState, clamp, getUnit, getEnemies, getAllies } from './state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
+import { makeTeamContext } from './ai-scoring.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -11,6 +12,10 @@ import {
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
+
+// 每支队伍一份战术上下文，让同队的两个单位集火同一个目标。
+// 每局开始时重建（里面存着上一局单位的引用，留着会认错人）。
+let teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
 
 // ── 被动技能事件呈现（规则本身在 combat.js，这里只管日志/特效） ──────────
 function renderPassiveEvent(unit, event){
@@ -92,6 +97,7 @@ export function startBattle(){
       else if(d==='hard'){ u.atk=Math.round(u.atk*1.15); u.spRegen=Math.round(u.spRegen*1.2); }
     });
   }
+  teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.currentIdx=0;
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
@@ -356,10 +362,11 @@ function aiAct(u){
   const allies=getAllies(u.player).filter(e=>e.alive);
   if(enemies.length===0){ setTimeout(nextTurn,400); return; }
   const d=gameState.difficulty;
+  const ctx=teamCtx[u.player];
   let chosen;
-  if(d==='easy') chosen=aiEasy(u,enemies,allies,gameState.scene);
-  else if(d==='hard') chosen=aiHard(u,enemies,allies,gameState.scene);
-  else chosen=aiNormal(u,enemies,allies,gameState.scene);
+  if(d==='easy') chosen=aiEasy(u,enemies,allies,gameState.scene,ctx);
+  else if(d==='hard') chosen=aiHard(u,enemies,allies,gameState.scene,ctx);
+  else chosen=aiNormal(u,enemies,allies,gameState.scene,ctx);
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`,'info');
   executeSkill(u,chosen.skill,chosen.target);
