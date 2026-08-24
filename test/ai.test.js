@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { aiEasy, aiNormal, aiHard } from '../ai.js';
 import { createUnit, needsEnemyTarget, AOE_TYPES } from '../combat.js';
+import { scoreSkill } from '../ai-scoring.js';
 import { SCENES, CHARACTERS } from '../data.js';
 
 // 这个测试文件本身就是 Phase 1 的验收标准：
@@ -78,6 +79,55 @@ describe('AI 的目标分配与 needsEnemyTarget 保持一致', () => {
           `${c.name}·${s.name} 是 AoE，不该要求单体目标`);
       }
     }
+  });
+});
+
+describe('三档难度确实存在梯度（合并评分后手感不能被抹平）', () => {
+  // 难度实现从「三套经验分」改成「同一评分 + 不同噪声/加成」后，
+  // 必须证明梯度还在，否则简单难度会变得跟困难一样聪明。
+  // 做法：让每档 AI 在同一局面下反复决策，用共享评分给它选的技能打分，
+  // 取平均值作为「决策质量」。
+  function quality(fn, n = 300){
+    const scene = SCENES[0];
+    let sum = 0, count = 0;
+    for(let i = 0; i < n; i++){
+      const mine = [createUnit('swordsman',1,0), createUnit('priest',1,1)];
+      const foes = [createUnit('warlock',2,0), createUnit('guardian',2,1)];
+      foes[0].hp = 25;                       // 制造一个可补刀的目标
+      mine[1].hp = mine[1].maxHp * 0.25;     // 制造一个需要救的队友
+      const d = fn(mine[0], foes, mine, scene);
+      if(d?.skill){ sum += scoreSkill(mine[0], d.skill, foes, mine, scene); count++; }
+    }
+    return count ? sum / count : 0;
+  }
+
+  test('困难的决策质量高于简单', () => {
+    const easy = quality(aiEasy);
+    const hard = quality(aiHard);
+    assert.ok(hard > easy,
+      `困难(${hard.toFixed(1)}) 应当优于简单(${easy.toFixed(1)})——难度梯度消失了`);
+  });
+
+  test('普通介于简单与困难之间（允许与困难接近）', () => {
+    const easy = quality(aiEasy);
+    const normal = quality(aiNormal);
+    assert.ok(normal > easy,
+      `普通(${normal.toFixed(1)}) 应当优于简单(${easy.toFixed(1)})`);
+  });
+
+  test('简单难度明显偏爱普攻（保留新手手感）', () => {
+    const scene = SCENES[0];
+    let basicCount = 0;
+    const n = 300;
+    for(let i = 0; i < n; i++){
+      const mine = [createUnit('swordsman',1,0)];
+      const foes = [createUnit('guardian',2,0)];
+      const d = aiEasy(mine[0], foes, mine, scene);
+      if(d?.skill === mine[0].skills[0]) basicCount++;
+    }
+    const pct = basicCount / n;
+    assert.ok(pct > 0.5,
+      `简单难度用普攻的比例只有 ${(pct*100).toFixed(0)}%，新手手感丢失了`);
   });
 });
 

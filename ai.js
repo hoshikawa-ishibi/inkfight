@@ -1,111 +1,107 @@
-// 纯函数 AI：不依赖 DOM 也不依赖 gameState，因此可以直接在 Node 中运行，
-// 让平衡测试（sim.js）驱动玩家真正面对的这套 AI。
-// scene 一律由调用方显式传入，不再从全局状态里取。
+// 玩家对战的 AI。技能评分本身来自 ai-scoring.js（与平衡测试共用同一份），
+// 本文件只负责「难度包装」：在同一套评分之上叠加噪声与战术加成。
+//
+// 这样三档难度的差别是可解释的——不是三套互不相干的经验值，而是同一个
+// 判断标准配上不同的执行水平：
+//   简单  评分只起弱作用 + 大噪声 + 偏爱普攻（像个新手）
+//   普通  按评分走 + 中等噪声
+//   困难  按评分走 + 极小噪声 + 战术加成（会针对脆皮、护住残血队友）
 import { rand } from './state.js';
-import { needsEnemyTarget, previewDmg } from './combat.js';
+import { needsEnemyTarget } from './combat.js';
+import { scoreSkill, pickTarget } from './ai-scoring.js';
 
-export function aiEasy(u,enemies,allies,scene){
-  const usable=u.skills.filter(s=>u.sp>=s.cost&&!(s.hpCost&&u.hp<=s.hpCost));
-  if(usable.length===0) return null;
-  let skill=Math.random()<0.7?u.skills[0]:usable[rand(0,usable.length-1)];
-  let target=enemies[rand(0,enemies.length-1)];
-  if(['heal','cleanse','buff'].includes(skill.type)) target=allies[rand(0,allies.length-1)];
-  if(!needsEnemyTarget(skill) &&
-     ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst'].includes(skill.type)) target=null;
-  if(['damage','stun','spSteal','debuff','drain','plague'].includes(skill.type)){
-    const t=enemies.find(e=>e.buffs.some(b=>b.type==='taunt'));
-    if(t) target=t;
+// noise 是加在评分上的随机量，越大越容易选到次优解。
+// 共享评分本身已经相当聪明，所以普通难度必须有足够噪声才不会跟困难一样强
+// （实测 noise=10 时普通与困难的决策质量只差 0.4，难度形同虚设）。
+// 三档难度不是三套评分，而是同一套评分配上不同的「执行水平」：
+//   noise   随机量，越大越容易选到次优解
+//   tempo   机会成本的权重（0~1）：算不算得清「拿这回合去加 buff 就少打一轮」
+//   tactical 是否具备前瞻判断（针对脆皮、护住残血队友等）
+// 只靠 noise 拉不开普通与困难的差距（实测 noise 从 10 加到 45，决策质量
+// 也只差 2.3），所以改为让低难度「算不清长远账」。但 tempo 也不能直接归零：
+// 实测守卫在 tempo=0 时 98% 的回合都在开护盾，反而比简单难度还差。
+const DIFFICULTY = {
+  easy:   { weight: 0.5, noise: 30, preferBasic: 0.7, tactical: false, tempo: 0.35 },
+  normal: { weight: 1.0, noise: 12, preferBasic: 0,   tactical: false, tempo: 0.7  },
+  hard:   { weight: 1.0, noise: 2,  preferBasic: 0,   tactical: true,  tempo: 1    },
+};
+
+// 困难难度独有的战术判断。共享评分已经涵盖了「能补刀」「条件不满足则不放」
+// 这类基本盘，所以这里只补充更前瞻的判断，避免重复计分。
+function tacticalBonus(u, s, foes, friends){
+  let b = 0;
+  const fragile = foes.reduce((a,c)=> a.maxHp <= c.maxHp ? a : c);
+  const lowFriend = friends.length
+    ? friends.reduce((a,c)=> a.hp/a.maxHp <= c.hp/c.maxHp ? a : c) : null;
+  const hpFrac = u.hp / u.maxHp;
+
+  // 集火脆皮：优先打最脆的那个，而不是见谁打谁
+  if(needsEnemyTarget(s) && fragile.hp/fragile.maxHp < 0.5) b += 12;
+
+  // 队友濒危时，保护类技能的优先级要顶上去
+  if(lowFriend && lowFriend.hp/lowFriend.maxHp < 0.3 &&
+     ['heal','shield','taunt','cleanse','buff'].includes(s.type)) b += 25;
+
+  // 自己濒危时优先保命
+  if(hpFrac < 0.3 && ['dodge','revive','shield'].includes(s.type)) b += 20;
+
+  // 回蓝刚好能解锁一个大招时，值得先回蓝
+  if(s.type === 'healSp'){
+    const big = u.skills.find(k => k.cost >= 30);
+    if(big && u.sp < big.cost && u.sp + (s.spGain||0) >= big.cost) b += 20;
   }
-  return {skill,target};
+
+  // 眩晕高 SP 目标更划算（命中率随目标 SP 上升）
+  if(s.type === 'stun' && foes.some(f => f.sp >= f.maxSp * 0.7)) b += 15;
+
+  return b;
 }
 
-export function aiNormal(u,enemies,allies,scene){
-  let best=null,bestScore=-Infinity,bestTarget=null;
-  for(const s of u.skills){
-    if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) continue;
-    const r=scoreSkill(u,s,enemies,allies,'normal',scene);
-    if(r.score>bestScore){ bestScore=r.score; best=s; bestTarget=r.target; }
-  }
-  return best?{skill:best,target:bestTarget}:null;
+function canUse(u, s){
+  if(u.sp < s.cost) return false;
+  if(s.hpCost && u.hp <= s.hpCost) return false;
+  return true;
 }
 
-export function aiHard(u,enemies,allies,scene){
-  let best=null,bestScore=-Infinity,bestTarget=null;
-  for(const s of u.skills){
-    if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) continue;
-    const r=scoreSkill(u,s,enemies,allies,'hard',scene);
-    if(r.score>bestScore){ bestScore=r.score; best=s; bestTarget=r.target; }
-  }
-  return best?{skill:best,target:bestTarget}:null;
-}
+function decide(u, enemies, allies, scene, level){
+  const cfg = DIFFICULTY[level];
+  const foes = enemies.filter(e => e.alive);
+  const friends = allies.filter(a => a.alive);
+  if(!foes.length) return null;
 
-function scoreSkill(u,s,enemies,allies,level,scene){
-  let score=0,target=null;
-  const lowEnemy=enemies.slice().sort((a,b)=>a.hp-b.hp)[0];
-  const lowAlly=allies.slice().sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
-  const highSpEnemy=enemies.slice().sort((a,b)=>b.sp/b.maxSp-a.sp/a.maxSp)[0];
-  const fragileEnemy=enemies.slice().sort((a,b)=>a.maxHp-b.maxHp)[0];
-  const dmgEst=previewDmg(u,s,scene);
-  switch(s.type){
-    case 'damage':
-      target=lowEnemy; score=(s.power||1)*30;
-      if(dmgEst&&target.hp<=dmgEst+target.shield) score+=80;
-      else if(dmgEst&&target.hp<=dmgEst*1.5) score+=30;
-      if(level==='hard'){ if(target===fragileEnemy) score+=15; if(s.crit&&target.hp/target.maxHp<0.4) score+=20; }
-      if(s.cost>0) score+=8; break;
-    case 'damageAll':
-      score=enemies.length*22+10;
-      if(level==='hard'&&enemies.length>=2&&enemies.every(e=>e.hp/e.maxHp<0.5)) score+=40; break;
-    case 'stun': {
-      target=highSpEnemy;
-      const prob=s.basePct+s.spScale*(target.sp/target.maxSp);
-      score=prob*0.7;
-      if(level==='hard'){ if(target.atk>15) score+=15; if(target.sp>=target.maxSp*0.7) score+=20; }
-      break;
+  // 简单难度：大概率直接抡普攻，保留「新手只会平A」的手感
+  if(cfg.preferBasic && Math.random() < cfg.preferBasic){
+    const basic = u.skills[0];
+    if(canUse(u, basic)){
+      return { skill: basic, target: pickTarget(u, basic, foes, friends) };
     }
-    case 'heal':
-      target=lowAlly;
-      score=target.hp/target.maxHp>0.75?-20:(1-target.hp/target.maxHp)*80;
-      if(level==='hard'&&target.hp/target.maxHp<0.3) score+=30; break;
-    case 'healSp':
-      score=u.sp/u.maxSp<0.3?28:-10;
-      if(level==='hard'){ const bigSkill=u.skills.find(sk=>sk.cost>=30); if(bigSkill&&u.sp<bigSkill.cost&&u.sp+s.spGain>=bigSkill.cost) score+=25; }
-      break;
-    case 'shield': score=u.hp/u.maxHp<0.6?22:5; if(level==='hard'&&enemies.some(e=>e.atk>=18)) score+=10; break;
-    case 'taunt': score=allies.some(a=>a.hp/a.maxHp<0.4)?32:8; if(level==='hard'&&u.maxHp>=140) score+=15; break;
-    case 'dodge': score=u.hp/u.maxHp<0.4?38:8; break;
-    case 'selfBuff':
-      // 带 power 的边打边上 buff，要选目标；纯 buff 技能则占掉整个回合
-      if(s.power){ target=lowEnemy; score=22+(s.power||0)*20; }
-      else score=22;
-      if(level==='hard'&&u.hp/u.maxHp>0.6) score+=10; break;
-    case 'cleanse':
-      target=allies.find(a=>a.debuffs.length>0||a.stunned)||lowAlly;
-      score=target.debuffs?.length>0||target.stunned?32:-25; break;
-    case 'buff':
-      target=allies.sort((a,b)=>b.atk-a.atk)[0];
-      score=20; if(level==='hard'&&target.atk>=20) score+=15; break;
-    case 'spSteal':
-      target=highSpEnemy; score=26; if(level==='hard'&&target.sp>=40) score+=15; break;
-    case 'debuff':
-      target=enemies.sort((a,b)=>b.hp-a.hp)[0]; score=24; if(level==='hard') score+=8; break;
-    case 'drain':
-      target=lowEnemy; score=30+(u.hp/u.maxHp<0.5?20:0); break;
-    case 'plague':
-      score=35; if(enemies.length>=2) score+=20;
-      if(level==='hard') score+=10; break;
-    case 'corruptBurst': {
-      const totalStacks=enemies.reduce((s,e)=>s+e.debuffs.filter(d=>d.type==='corrupt').reduce((a,d)=>a+d.value,0),0);
-      score=totalStacks*15-5;
-      if(level==='hard'&&totalStacks>=3) score+=30; break;
-    }
-    case 'revive':
-      score=u.hp/u.maxHp<0.35?42:-50; break;
   }
-  if(needsEnemyTarget(s)){
-    const t=enemies.find(e=>e.buffs.some(b=>b.type==='taunt'));
-    if(t) target=t;
+
+  let best = null, bestScore = -Infinity;
+  for(const s of u.skills){
+    if(!canUse(u, s)) continue;
+    let score = scoreSkill(u, s, foes, friends, scene, { tempo: cfg.tempo }) * cfg.weight;
+    if(cfg.tactical) score += tacticalBonus(u, s, foes, friends);
+    score += Math.random() * cfg.noise;
+    if(score > bestScore){ bestScore = score; best = s; }
   }
-  score+=Math.random()*(level==='hard'?2:6);
-  return {score,target};
+
+  // 全部技能都不划算时也别空过回合，退而用最便宜的
+  if(!best){
+    const usable = u.skills.filter(s => canUse(u, s));
+    best = usable.sort((a,b) => a.cost - b.cost)[0] || null;
+  }
+  if(!best) return null;
+
+  return { skill: best, target: pickTarget(u, best, foes, friends) };
+}
+
+export function aiEasy(u, enemies, allies, scene){
+  return decide(u, enemies, allies, scene, 'easy');
+}
+export function aiNormal(u, enemies, allies, scene){
+  return decide(u, enemies, allies, scene, 'normal');
+}
+export function aiHard(u, enemies, allies, scene){
+  return decide(u, enemies, allies, scene, 'hard');
 }

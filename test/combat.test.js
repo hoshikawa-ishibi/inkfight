@@ -443,6 +443,7 @@ describe('目标分配的一致性（防止「AI 和玩家用同一技能行为�
     const skill = {type:'selfBuff', buffType:'berserk', dur:3, power:1.0, buffValue:0.4, selfDmg:5};
     const actor = createUnit('berserker',1,0);
     const target = createUnit('swordsman',2,0);
+    target.dodge = 0;   // 剑士自带 5% 闪避，不清零这条测试会偶发性失败
     const r = resolveSelfBuff(actor, target, skill, null);
     assert.ok(r.damage && r.damage.dmg > 0, '有目标时应结算伤害');
     assert.equal(actor.buffs.length, 1, 'buff 也要上');
