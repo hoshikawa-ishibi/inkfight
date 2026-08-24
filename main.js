@@ -1,6 +1,6 @@
 import { SCENES, CHARACTERS } from './data.js';
 import { CAMPAIGN_STAGES } from './campaign.js';
-import { Audio, playSfx, toggleMute } from './audio.js';
+import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
 import { gameState, rand, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from './scene.js';
@@ -466,6 +466,7 @@ document.addEventListener('mousemove',e=>{
 document.getElementById('vol-bgm').addEventListener('input',e=>{ Audio.init(); Audio.setBgmVol(e.target.value/100); });
 document.getElementById('vol-sfx').addEventListener('input',e=>{ Audio.init(); Audio.setSfxVol(e.target.value/100); });
 document.addEventListener('click',()=>{ Audio.init(); Audio.startMenuBgm(); },{once:true});
+syncMuteButton();   // 让静音按钮图标反映上次保存的状态
 
 initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
 initRender(getEffectiveAtk, onTargetClick);

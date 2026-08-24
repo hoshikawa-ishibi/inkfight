@@ -1,11 +1,22 @@
+// 静音状态持久化到 localStorage：刷新页面后仍然保持，不必每次重新点静音。
+const MUTE_KEY = 'inkfight_muted';
+function loadMuted(){
+  try{ return localStorage.getItem(MUTE_KEY) === '1'; }catch(e){ return false; }
+}
+export function saveMuted(m){
+  try{ localStorage.setItem(MUTE_KEY, m ? '1' : '0'); }catch(e){}
+}
+
 export const Audio = {
-  ctx:null, master:null, bgmGain:null, sfxGain:null, muted:false, bgmTimer:null, bgmNodes:[],
+  ctx:null, master:null, bgmGain:null, sfxGain:null, muted:loadMuted(), bgmTimer:null, bgmNodes:[],
   _menuTimer:null, _battlePhase:0, _battleBeat:0,
   init(){
     if(this.ctx) return;
     try{
       this.ctx = new (window.AudioContext||window.webkitAudioContext)();
-      this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 1;   // 尊重上次保存的静音状态
+      this.master.connect(this.ctx.destination);
       this.bgmGain = this.ctx.createGain(); this.bgmGain.gain.value = 0.35; this.bgmGain.connect(this.master);
       this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 0.6; this.sfxGain.connect(this.master);
     }catch(e){ console.warn('AudioContext init failed', e); }
@@ -125,5 +136,12 @@ export const SFX = {
 export function playSfx(name){ Audio.init(); if(SFX[name]) SFX[name](); }
 export function toggleMute(){
   Audio.muted=!Audio.muted; Audio.setMuted(Audio.muted);
-  document.getElementById('btn-mute').textContent = Audio.muted?'🔕':'🔔';
+  saveMuted(Audio.muted);
+  syncMuteButton();
+}
+
+// 页面加载时把按钮图标同步到已保存的静音状态
+export function syncMuteButton(){
+  const btn = document.getElementById('btn-mute');
+  if(btn) btn.textContent = Audio.muted ? '🔕' : '🔔';
 }
