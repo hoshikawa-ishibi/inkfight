@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
   triggerPassive, processStartOfTurn, calcDamage, calcStun,
-  applyCorrupt, applyPlague, applyCorruptBurst
+  applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS
 } from '../combat.js';
 import { CHARACTERS } from '../data.js';
 
@@ -284,6 +284,33 @@ describe('腐化机制：applyCorrupt / applyPlague / applyCorruptBurst', () => 
     const target = makeUnit();
     assert.equal(applyCorrupt(target, 2), 2);
     assert.equal(applyCorrupt(target, 1), 3);
+  });
+
+  test('腐化层不会超过上限（防止「腐化侵蚀」被动无限滚雪球）', () => {
+    const target = makeUnit();
+    for(let i=0;i<10;i++) applyCorrupt(target, 2);
+    assert.equal(countCorrupt(target), MAX_CORRUPT_STACKS);
+  });
+
+  test('已达上限时再施加腐化不会增加层数', () => {
+    const target = makeUnit();
+    applyCorrupt(target, MAX_CORRUPT_STACKS);
+    assert.equal(applyCorrupt(target, 3), MAX_CORRUPT_STACKS);
+  });
+
+  test('部分溢出时只吃到上限为止', () => {
+    const target = makeUnit();
+    applyCorrupt(target, MAX_CORRUPT_STACKS - 1);
+    assert.equal(applyCorrupt(target, 5), MAX_CORRUPT_STACKS, '只应补满 1 层');
+  });
+
+  test('腐化爆发清空层数后可以重新叠满（爆发→再叠的循环成立）', () => {
+    const actor = makeUnit();
+    const target = makeUnit({maxHp:9999, hp:9999});
+    applyCorrupt(target, MAX_CORRUPT_STACKS);
+    applyCorruptBurst(actor, [target], {dmgPerStack:22});
+    assert.equal(countCorrupt(target), 0, '爆发后应清空');
+    assert.equal(applyCorrupt(target, MAX_CORRUPT_STACKS), MAX_CORRUPT_STACKS, '应能重新叠满');
   });
 
   test('applyPlague 同时施加腐化与中毒', () => {

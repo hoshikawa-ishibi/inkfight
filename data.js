@@ -14,20 +14,20 @@ export const SCENES = [
 ];
 
 export const CHARACTERS = [
-  { id:'swordsman', name:'剑士', role:'均衡输出', hp:125, sp:80, atk:18, def:6, crit:10, dodge:5, spRegen:8, color:'#e94560', weapon:'sword',
+  { id:'swordsman', name:'剑士', role:'均衡输出', hp:125, sp:80, atk:18, def:6, crit:10, dodge:5, spRegen:10, color:'#e94560', weapon:'sword',
     passive:{ name:'剑意', desc:'暴击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'斩击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'⚔️', iconColor:'#e94560', sfx:'slash', vfx:'slash' },
       { name:'旋风斩', type:'damage', cost:25, power:1.7, desc:'消耗25SP，170%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
       { name:'剑气', type:'healSp', cost:0, hpCost:18, spGain:22, desc:'消耗18HP回复22SP', icon:'✨', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'破甲突刺', type:'damage', cost:35, power:1.8, debuff:'defDown', debuffDur:2, desc:'180%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
+      { name:'破甲突刺', type:'damage', cost:35, power:2.1, debuff:'defDown', debuffDur:2, desc:'210%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
     ]},
   { id:'mage', name:'法师', role:'高爆发/控制', hp:92, sp:130, atk:15, def:3, crit:15, dodge:6, spRegen:11, color:'#4fc3f7', weapon:'staff',
     passive:{ name:'法力涌动', desc:'回合开始时 SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
       { name:'墨之洪流', type:'damage', cost:35, power:3.1, desc:'消耗35SP，310%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
-      { name:'灵能过载', type:'stun', cost:20, basePct:30, spScale:35, desc:'眩晕概率随目标SP上升', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
+      { name:'灵能过载', type:'stun', cost:20, power:1.4, basePct:30, spScale:35, desc:'140%伤害，眩晕概率随目标SP上升', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
       { name:'冥想', type:'healSp', cost:0, hpCost:0, spGain:30, desc:'恢复30SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
   { id:'guardian', name:'守卫', role:'坦克/反制', hp:155, sp:65, atk:14, def:9, crit:5, dodge:2, spRegen:8, color:'#8d6e63', weapon:'shield',
@@ -52,13 +52,13 @@ export const CHARACTERS = [
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
       { name:'治愈之光', type:'heal', cost:25, healAmt:48, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
       { name:'净化', type:'cleanse', cost:20, desc:'清除友方负面状态', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
-      { name:'祝福', type:'buff', cost:35, buffType:'atkUp', dur:2, desc:'友方攻击+30% 2回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
+      { name:'祝福', type:'buff', cost:28, buffType:'atkUp', dur:3, buffValue:0.5, desc:'友方攻击+50% 3回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
     ]},
   { id:'berserker', name:'狂战士', role:'越残越强', hp:140, sp:70, atk:19, def:4, crit:10, dodge:3, spRegen:7, color:'#ff7043', weapon:'axe',
     passive:{ name:'血怒', desc:'HP<40% 时受击，获得额外 10% 攻击加成（最多叠加 3 层）', trigger:'onTakeDamage', effect:'bloodRage', value:0.1, maxStacks:3 },
     skills:[
       { name:'重击', type:'damage', cost:0, power:1.0, desc:'基础攻击(HP越低伤害越高)', icon:'🪓', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
-      { name:'狂暴', type:'selfBuff', cost:25, buffType:'berserk', dur:3, desc:'攻+40%/回合-8HP', icon:'🔥', iconColor:'#ff5722', sfx:'buff', vfx:'rage' },
+      { name:'狂暴', type:'selfBuff', cost:25, power:0.8, buffType:'berserk', dur:3, buffValue:0.35, selfDmg:6, desc:'80%伤害并进入狂暴：3回合攻+35%，每回合-6HP', icon:'🔥', iconColor:'#ff5722', sfx:'buff', vfx:'rage' },
       { name:'鲜血之力', type:'drain', cost:25, power:1.4, drainPct:30, desc:'140%伤害，吸血30%', icon:'🩸', iconColor:'#b71c1c', sfx:'hit', vfx:'drain' },
       { name:'不屈', type:'revive', cost:30, hpRestore:50, desc:'下次致死保留50HP(一次)', icon:'💀', iconColor:'#ffd54f', sfx:'buff', vfx:'aura' }
     ]},
@@ -68,7 +68,7 @@ export const CHARACTERS = [
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
       { name:'穿透箭', type:'damageAll', cost:28, power:1.6, desc:'对所有敌人160%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'束缚箭', type:'stun', cost:25, basePct:35, spScale:30, desc:'眩晕1回合', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
+      { name:'束缚箭', type:'stun', cost:25, power:1.3, basePct:35, spScale:30, desc:'130%伤害，眩晕1回合', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
   { id:'warlock', name:'术士', role:'腐化/爆发', hp:100, sp:120, atk:14, def:4, crit:12, dodge:5, spRegen:12, color:'#7e57c2', weapon:'orb',
     passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×8 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },

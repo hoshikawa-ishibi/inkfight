@@ -5,8 +5,9 @@ import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealC
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
-  processStartOfTurn as resolveStartOfTurn, calcDamage, calcStun,
-  applyCorrupt as applyCorruptCore, applyCorruptBurst
+  processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
+  applyCorrupt as applyCorruptCore, applyCorruptBurst,
+  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -312,9 +313,12 @@ export function renderSkillPanel(u){
 
 function onSkillClick(u,s){
   if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) return;
-  const needsEnemy=['damage','stun','spSteal','debuff','drain'].includes(s.type);
+  // 带 power 的自我增益技能（如狂战士「狂暴」）要先打一下，因此需要选敌方目标
+  const armedSelfBuff = s.type==='selfBuff' && !!s.power;
+  const needsEnemy=['damage','stun','spSteal','debuff','drain'].includes(s.type) || armedSelfBuff;
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
-  const noTarget=['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague'].includes(s.type);
+  const noTarget=!armedSelfBuff &&
+    ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague'].includes(s.type);
   if(noTarget){ executeSkill(u,s,null); return; }
   if(needsEnemy){
     const taunter=getEnemies(u.player).find(e=>e.alive&&e.buffs.some(b=>b.type==='taunt'));
@@ -392,7 +396,7 @@ function executeSkill(actor,skill,target){
       actor.sp=clamp(actor.sp+skill.spGain,0,actor.maxSp);
       addLog(`${actor.name} 恢复 ${skill.spGain} SP`,'sp');
       spawnFloatText(actor,`+${skill.spGain} SP`,'#4fc3f7',16); spawnAura(actor,'#4fc3f7');
-      if(skill.buffType) actor.buffs.push({type:skill.buffType,dur:skill.dur,value:0.2});
+      if(skill.buffType) actor.buffs.push(makeSpBuff(skill));
       break;
     case 'shield':
       actor.shield+=skill.shieldAmt;
@@ -409,18 +413,20 @@ function executeSkill(actor,skill,target){
       addLog(`${actor.name} 进入闪避状态`,'info');
       spawnFloatText(actor,'💨','#fff',20); spawnSmoke(actor);
       break;
-    case 'selfBuff':
-      actor.buffs.push({type:skill.buffType,dur:skill.dur,value:0.4});
+    case 'selfBuff': {
+      const sb = resolveSelfBuff(actor, target, skill, gameState.scene);
+      if(sb.damage) presentDamage(actor, target, sb.damage);
       addLog(`${actor.name} 进入${skill.buffType==='berserk'?'狂暴':'强化'}状态`,'buff');
       spawnFloatText(actor,'狂暴!','#ff7043',18); spawnAura(actor,'#ff5722');
       break;
+    }
     case 'cleanse':
       target.debuffs=[]; target.stunned=false;
       addLog(`${actor.name} 净化了 ${target.name}`,'heal');
       spawnHealColumn(target,'#fff');
       break;
     case 'buff':
-      target.buffs.push({type:skill.buffType,dur:skill.dur,value:0.3});
+      target.buffs.push(makeAllyBuff(skill));
       addLog(`${actor.name} 给予 ${target.name} 攻击祝福`,'buff');
       spawnFloatText(target,'ATK↑','#ce93d8',16); spawnAura(target,'#ffd54f');
       break;
@@ -433,7 +439,7 @@ function executeSkill(actor,skill,target){
       break;
     }
     case 'debuff':
-      target.debuffs.push({type:skill.debuffType,dur:skill.dur,value:0.25});
+      target.debuffs.push(makeDebuff(skill));
       addLog(`${actor.name} 诅咒了 ${target.name}`,'buff');
       spawnFloatText(target,'诅咒','#7e57c2',16); spawnCurse(target);
       break;
@@ -482,7 +488,12 @@ function executeSkill(actor,skill,target){
 }
 
 function doDamage(actor,target,skill){
-  const r = calcDamage(actor, target, skill, gameState.scene);
+  return presentDamage(actor, target, calcDamage(actor, target, skill, gameState.scene));
+}
+
+// 把 combat.js 算出来的伤害结果翻译成日志/特效/统计。
+// 抽出来是因为带 power 的眩晕技能也要走同一套呈现。
+function presentDamage(actor,target,r){
   if(r.dodged){
     addLog(`${target.name} 闪避了攻击！`,'miss');
     spawnFloatText(target,'MISS','#888',18); playSfx('miss');
@@ -515,7 +526,10 @@ function doDamage(actor,target,skill){
 }
 
 function doStun(actor,target,skill){
-  const r = calcStun(actor, target, skill);
+  const r = resolveStun(actor, target, skill, gameState.scene);
+  // 带 power 的眩晕技能会先结算一次伤害
+  if(r.damage) presentDamage(actor, target, r.damage);
+  if(r.skipped) return;
   addLog(`${actor.name} 对 ${target.name} 施放${skill.name}，眩晕概率 ${r.prob.toFixed(1)}%`,'stun');
   if(r.success){
     addLog(`${target.name} 被眩晕了！`,'stun');

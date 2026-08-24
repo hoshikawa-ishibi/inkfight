@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qE '(combat|battle|sim)\\.js\"|\\.test\\.js\"' || exit 0; out=$(npm test --silent 2>&1) || { printf '%s\\n' \"$out\" | grep -E '✖|not ok|AssertionError' | head -12 >&2; exit 2; }",
+            "statusMessage": "跑测试中...",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

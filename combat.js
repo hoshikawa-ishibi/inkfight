@@ -118,7 +118,7 @@ export function triggerPassive(trigger, unit, ctx={}){
     case 'corruptBonus': {
       const target = ctx.target;
       if(!target) return null;
-      const stacks = target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+      const stacks = countCorrupt(target);
       if(stacks <= 0) return null;
       const bonus = stacks * 8;
       target.hp = clamp(target.hp - bonus, 0, target.maxHp);
@@ -147,9 +147,10 @@ export function processStartOfTurn(u, ctx={}){
   let berserk = null;
   const berserkBuff = u.buffs.find(b=>b.type==='berserk');
   if(berserkBuff){
-    u.hp = clamp(u.hp - 8, 0, u.maxHp);
+    const selfDmg = berserkBuff.selfDmg ?? BUFF_DEFAULTS.berserkSelfDmg;
+    u.hp = clamp(u.hp - selfDmg, 0, u.maxHp);
     const death = u.hp <= 0 ? handleDeath(u) : null;
-    berserk = { dmg:8, died:!!death?.died, undying:!!death?.undying };
+    berserk = { dmg:selfDmg, died:!!death?.died, undying:!!death?.undying };
   }
 
   u.buffs = u.buffs.filter(b=>--b.dur>0);
@@ -221,9 +222,61 @@ export function calcStun(actor, target, skill){
   return { prob, success };
 }
 
-export function applyCorrupt(target, stacks){
-  target.debuffs.push({type:'corrupt', dur:99, value:stacks});
+// 眩晕技能：带 power 的先结算伤害，再判定眩晕。
+// 闪避或直接打死的情况下不再判眩晕。
+export function resolveStun(actor, target, skill, scene){
+  const damage = skill.power ? calcDamage(actor, target, skill, scene) : null;
+  if(damage && (damage.dodged || damage.killed || !target.alive)){
+    return { damage, prob:0, success:false, skipped:true };
+  }
+  const { prob, success } = calcStun(actor, target, skill);
+  return { damage, prob, success, skipped:false };
+}
+
+// ── buff/debuff 构造 ────────────────────────────────────
+// 强度以前硬编码在 sim.js 和 battle.js 各一份（共三处），
+// 想调狂暴的加成得同时改代码三个地方。集中到这里，并允许
+// data.js 用 buffValue / selfDmg 覆盖，数值调整不必再动代码。
+export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, debuff:0.25, berserkSelfDmg:8 };
+
+// 自我增益技能：带 power 的会先打出一次伤害再上 buff。
+// 纯 buff 技能要占掉一整个回合，在这个节奏下几乎永远不划算
+// （狂战士「狂暴」实测：增伤刚好被少打的那一回合抵消，还倒亏血）。
+export function resolveSelfBuff(actor, target, skill, scene){
+  const damage = (skill.power && target) ? calcDamage(actor, target, skill, scene) : null;
+  actor.buffs.push(makeSelfBuff(skill));
+  return { damage };
+}
+
+export function makeSelfBuff(skill){
+  const b = { type:skill.buffType, dur:skill.dur, value:skill.buffValue ?? BUFF_DEFAULTS.selfBuff };
+  if(skill.buffType === 'berserk') b.selfDmg = skill.selfDmg ?? BUFF_DEFAULTS.berserkSelfDmg;
+  return b;
+}
+export function makeAllyBuff(skill){
+  return { type:skill.buffType, dur:skill.dur, value:skill.buffValue ?? BUFF_DEFAULTS.allyBuff };
+}
+export function makeSpBuff(skill){
+  return { type:skill.buffType, dur:skill.dur, value:skill.buffValue ?? BUFF_DEFAULTS.spBuff };
+}
+export function makeDebuff(skill){
+  return { type:skill.debuffType, dur:skill.dur, value:skill.debuffValue ?? BUFF_DEFAULTS.debuff };
+}
+
+// 腐化层上限。腐化层 dur:99 实际上永不过期（战斗上限 60 回合），
+// 而「腐化侵蚀」被动每次攻击都吃 层数×8，没有上限就是无限滚雪球：
+// 术士的免费技能在 10 层时能打出 94 伤害，超过别人 35SP 的大招。
+export const MAX_CORRUPT_STACKS = 5;
+
+export function countCorrupt(target){
   return target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+}
+
+export function applyCorrupt(target, stacks){
+  const current = countCorrupt(target);
+  const added = Math.min(stacks, Math.max(0, MAX_CORRUPT_STACKS - current));
+  if(added > 0) target.debuffs.push({type:'corrupt', dur:99, value:added});
+  return current + added;
 }
 
 export function applyPlague(target, skill){
@@ -236,7 +289,7 @@ export function applyCorruptBurst(actor, enemies, skill){
   const hits = [];
   let totalDmg = 0;
   enemies.forEach(t=>{
-    const stacks = t.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+    const stacks = countCorrupt(t);
     if(stacks <= 0) return;
     const dmg = stacks * skill.dmgPerStack;
     t.debuffs = t.debuffs.filter(d=>d.type!=='corrupt');
