@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
   triggerPassive, processStartOfTurn, calcDamage, calcStun,
-  applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS
+  applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
+  needsEnemyTarget, AOE_TYPES, resolveSelfBuff
 } from '../combat.js';
 import { CHARACTERS } from '../data.js';
 
@@ -414,6 +415,38 @@ describe('createUnit / getEffectiveAtk / previewDmg / applyTurnRegen', () => {
     assert.equal(u.sp, 58);
     applyTurnRegen(u, {buff:'spRegen'});
     assert.equal(u.sp, 71); // 58+8+5
+  });
+});
+
+describe('目标分配的一致性（防止「AI 和玩家用同一技能行为不同」再次发生）', () => {
+  // 起因：给狂战士「狂暴」加 power（边打边上 buff）时，只改了 battle.js 和 sim.js，
+  // 漏了 ai.js，结果 AI 放狂暴不造成伤害、玩家放却会。判断逻辑现已收敛到
+  // needsEnemyTarget()，这条测试保证以后任何带 power 的技能都不会漏配目标。
+  test('data.js 里每个带 power 的非 AoE 技能都会被分配敌方目标', () => {
+    for(const c of CHARACTERS){
+      for(const s of c.skills){
+        if(!s.power) continue;
+        if(AOE_TYPES.includes(s.type)) continue;   // AoE 自行遍历敌人
+        assert.ok(needsEnemyTarget(s),
+          `${c.name}·${s.name}（type=${s.type}）带 power 却拿不到敌方目标，伤害会静默失效`);
+      }
+    }
+  });
+
+  test('不带 power 的自我增益技能不需要目标', () => {
+    assert.equal(needsEnemyTarget({type:'selfBuff', dur:3}), false);
+    assert.equal(needsEnemyTarget({type:'shield'}), false);
+    assert.equal(needsEnemyTarget({type:'taunt'}), false);
+  });
+
+  test('带 power 的自我增益技能：有目标才结算伤害，无目标只上 buff', () => {
+    const skill = {type:'selfBuff', buffType:'berserk', dur:3, power:1.0, buffValue:0.4, selfDmg:5};
+    const actor = createUnit('berserker',1,0);
+    const target = createUnit('swordsman',2,0);
+    const r = resolveSelfBuff(actor, target, skill, null);
+    assert.ok(r.damage && r.damage.dmg > 0, '有目标时应结算伤害');
+    assert.equal(actor.buffs.length, 1, 'buff 也要上');
+    assert.ok(target.hp < target.maxHp, '目标应该掉血');
   });
 });
 

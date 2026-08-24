@@ -6,7 +6,8 @@ import { clamp } from './state.js';
 import {
   createUnit as makeUnit, triggerPassive, calcDamage, getEffectiveAtk, countCorrupt,
   applyCorrupt, applyPlague, applyCorruptBurst, handleDeath as resolveDeath,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS,
+  needsEnemyTarget
 } from './combat.js';
 
 function noteKill(died, killer, stats){
@@ -200,8 +201,7 @@ function pickSkill(u, enemies, allies, scene){
 function pickTarget(actor, skill, enemies, allies){
   const foes = enemies.filter(e=>e.alive);
   const friends = allies.filter(a=>a.alive);
-  const needsEnemy = ['damage','stun','spSteal','debuff','drain'].includes(skill.type)
-    || (skill.type === 'selfBuff' && skill.power);
+  const needsEnemy = needsEnemyTarget(skill);
 
   if(needsEnemy){
     const taunter = foes.find(e=>e.buffs.some(b=>b.type==='taunt'));

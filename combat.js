@@ -239,6 +239,19 @@ export function resolveStun(actor, target, skill, scene){
 // data.js 用 buffValue / selfDmg 覆盖，数值调整不必再动代码。
 export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, debuff:0.25, berserkSelfDmg:8 };
 
+// 这个技能是否需要一个敌方目标。
+// 判断以前分散在 ai.js / battle.js / sim.js 三处，给「狂暴」加 power 时
+// 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。
+// 收敛到这里，三方共用，并由测试锁住。
+export function needsEnemyTarget(skill){
+  if(['damage','stun','spSteal','debuff','drain'].includes(skill.type)) return true;
+  if(skill.type === 'selfBuff' && skill.power) return true;   // 边打边上 buff
+  return false;
+}
+
+// AoE / 自身类技能：由执行逻辑自行遍历敌人，不需要单体目标
+export const AOE_TYPES = ['damageAll','plague','corruptBurst'];
+
 // 自我增益技能：带 power 的会先打出一次伤害再上 buff。
 // 纯 buff 技能要占掉一整个回合，在这个节奏下几乎永远不划算
 // （狂战士「狂暴」实测：增伤刚好被少打的那一回合抵消，还倒亏血）。

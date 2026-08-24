@@ -1,4 +1,5 @@
 import { gameState, rand } from './state.js';
+import { needsEnemyTarget } from './combat.js';
 
 let _previewDmg;
 export function initAi(previewDmg){ _previewDmg=previewDmg; }
@@ -9,7 +10,8 @@ export function aiEasy(u,enemies,allies){
   let skill=Math.random()<0.7?u.skills[0]:usable[rand(0,usable.length-1)];
   let target=enemies[rand(0,enemies.length-1)];
   if(['heal','cleanse','buff'].includes(skill.type)) target=allies[rand(0,allies.length-1)];
-  if(['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst'].includes(skill.type)) target=null;
+  if(!needsEnemyTarget(skill) &&
+     ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst'].includes(skill.type)) target=null;
   if(['damage','stun','spSteal','debuff','drain','plague'].includes(skill.type)){
     const t=enemies.find(e=>e.buffs.some(b=>b.type==='taunt'));
     if(t) target=t;
@@ -72,7 +74,11 @@ function scoreSkill(u,s,enemies,allies,level){
     case 'shield': score=u.hp/u.maxHp<0.6?22:5; if(level==='hard'&&enemies.some(e=>e.atk>=18)) score+=10; break;
     case 'taunt': score=allies.some(a=>a.hp/a.maxHp<0.4)?32:8; if(level==='hard'&&u.maxHp>=140) score+=15; break;
     case 'dodge': score=u.hp/u.maxHp<0.4?38:8; break;
-    case 'selfBuff': score=22; if(level==='hard'&&u.hp/u.maxHp>0.6) score+=10; break;
+    case 'selfBuff':
+      // 带 power 的边打边上 buff，要选目标；纯 buff 技能则占掉整个回合
+      if(s.power){ target=lowEnemy; score=22+(s.power||0)*20; }
+      else score=22;
+      if(level==='hard'&&u.hp/u.maxHp>0.6) score+=10; break;
     case 'cleanse':
       target=allies.find(a=>a.debuffs.length>0||a.stunned)||lowAlly;
       score=target.debuffs?.length>0||target.stunned?32:-25; break;
@@ -96,7 +102,7 @@ function scoreSkill(u,s,enemies,allies,level){
     case 'revive':
       score=u.hp/u.maxHp<0.35?42:-50; break;
   }
-  if(['damage','stun','spSteal','debuff','drain'].includes(s.type)){
+  if(needsEnemyTarget(s)){
     const t=enemies.find(e=>e.buffs.some(b=>b.type==='taunt'));
     if(t) target=t;
   }

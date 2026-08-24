@@ -21,6 +21,24 @@ node fix-game.js         # 修复 ./game-output/ 里的游戏
 
 CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量。游戏本身无构建步骤。
 
+## 已知架构风险：存在两套 AI
+
+`ai.js`（玩家对战的 AI，easy/normal/hard）和 `sim.js` 的 `pickSkill`（平衡测试的 AI）
+是**两套完全独立的技能评分实现**。这带来两个后果：
+
+1. **平衡数据来自 `sim.js` 的 AI，而玩家面对的是 `ai.js`。** 两者决策逻辑不同，
+   所以 `npm run balance` 的结论未必适用于真实对局。
+2. **改一处忘另一处就会漂移。** 2026-08-24 给「狂暴」加 `power` 时只改了
+   `sim.js` 和 `battle.js`，漏掉 `ai.js`，结果 AI 放狂暴不造成伤害、玩家放却会——
+   同一个技能两种行为。已修，并把「是否需要敌方目标」的判断收敛为
+   `combat.js` 的 `needsEnemyTarget()`，三方共用，测试锁住。
+
+**给技能加新字段时，务必检查 `ai.js` 是否也需要同步。** 这是目前最容易再次踩到的坑。
+
+彻底的解法是把技能评分抽成共享模块，`ai.js` 只负责难度包装（easy 加随机、hard 加
+额外判断），`sim.js` 直接调用 `aiHard` 跑模拟——那样平衡测试测的就是玩家真正面对的
+AI。尚未实施，属较大改动。
+
 ## 工作约定（重要）
 
 - **战斗规则只改 `combat.js`。** `battle.js` 和 `sim.js` 都依赖它。历史上这两个文件

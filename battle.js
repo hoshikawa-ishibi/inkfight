@@ -7,7 +7,7 @@ import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
-  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff
+  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -313,11 +313,9 @@ export function renderSkillPanel(u){
 
 function onSkillClick(u,s){
   if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) return;
-  // 带 power 的自我增益技能（如狂战士「狂暴」）要先打一下，因此需要选敌方目标
-  const armedSelfBuff = s.type==='selfBuff' && !!s.power;
-  const needsEnemy=['damage','stun','spSteal','debuff','drain'].includes(s.type) || armedSelfBuff;
+  const needsEnemy=needsEnemyTarget(s);
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
-  const noTarget=!armedSelfBuff &&
+  const noTarget=!needsEnemy &&
     ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague'].includes(s.type);
   if(noTarget){ executeSkill(u,s,null); return; }
   if(needsEnemy){
