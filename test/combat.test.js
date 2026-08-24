@@ -1,0 +1,409 @@
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
+  triggerPassive, processStartOfTurn, calcDamage, calcStun,
+  applyCorrupt, applyPlague, applyCorruptBurst
+} from '../combat.js';
+import { CHARACTERS } from '../data.js';
+
+function makeUnit(overrides={}){
+  return Object.assign({
+    id:'u1', charId:'test', name:'测试单位', player:1, color:'#fff', weapon:'sword',
+    maxHp:100, hp:100, maxSp:100, sp:100, atk:20, def:0, crit:0, dodge:0, spRegen:10,
+    skills:[], passive:null, passiveStacks:0,
+    alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
+    pose:'idle', blink:0
+  }, overrides);
+}
+
+function withRandom(value, fn){
+  const orig = Math.random;
+  Math.random = () => value;
+  try { return fn(); } finally { Math.random = orig; }
+}
+
+describe('calcDamage', () => {
+  test('基础伤害 = atk * power，无防御时不打折', () => {
+    const actor = makeUnit({atk:20});
+    const target = makeUnit({def:0});
+    const r = calcDamage(actor, target, {power:1}, null);
+    assert.equal(r.dodged, false);
+    assert.equal(r.dmg, 20);
+    assert.equal(target.hp, 80);
+  });
+
+  test('防御减伤曲线 def/(def+50)', () => {
+    const actor = makeUnit({atk:20});
+    const target = makeUnit({def:50}); // defReduce = 0.5
+    const r = calcDamage(actor, target, {power:1}, null);
+    assert.equal(r.dmg, 10);
+  });
+
+  test('target.dodging 标记必定闪避，且不消耗任何随机数判定暴击', () => {
+    const actor = makeUnit();
+    const target = makeUnit({dodging:true});
+    const r = calcDamage(actor, target, {power:1}, null);
+    assert.equal(r.dodged, true);
+    assert.equal(r.dmg, 0);
+    assert.equal(target.dodging, false, 'dodging 状态用后应清除');
+    assert.equal(target.hp, 100, '闪避不掉血');
+  });
+
+  test('暴击 1.5 倍伤害', () => {
+    const actor = makeUnit({atk:20, crit:100});
+    const target = makeUnit();
+    const r = withRandom(0, () => calcDamage(actor, target, {power:1}, null));
+    assert.equal(r.isCrit, true);
+    assert.equal(r.dmg, 30);
+  });
+
+  test('cursed 目标额外 1.25 倍，defDown 目标额外 1.2 倍', () => {
+    const actor = makeUnit({atk:20});
+    const cursed = makeUnit({debuffs:[{type:'cursed', dur:1}]});
+    const defDown = makeUnit({debuffs:[{type:'defDown', dur:1}]});
+    assert.equal(calcDamage(actor, cursed, {power:1}, null).dmg, 25);
+    assert.equal(calcDamage(actor, defDown, {power:1}, null).dmg, 24);
+  });
+
+  test('场景 damageUp 加成 1.15 倍', () => {
+    const actor = makeUnit({atk:20});
+    const target = makeUnit();
+    const r = calcDamage(actor, target, {power:1}, {buff:'damageUp'});
+    assert.equal(r.dmg, 23); // floor(20*1.15)=23
+  });
+
+  test('护盾先吸收伤害，再扣血；返回吸收量', () => {
+    const actor = makeUnit({atk:20});
+    const target = makeUnit({shield:5});
+    const r = calcDamage(actor, target, {power:1}, null);
+    assert.equal(r.shieldAbsorbed, 5);
+    assert.equal(r.dmg, 15);
+    assert.equal(target.shield, 0);
+    assert.equal(target.hp, 85);
+  });
+
+  test('dot/defDown/selfHeal 技能字段会附加对应状态', () => {
+    const actor = makeUnit({atk:20, hp:50});
+    const target = makeUnit();
+    const skill = {power:1, dot:5, dotDur:3, debuff:'defDown', debuffDur:2, selfHeal:10};
+    const r = calcDamage(actor, target, skill, null);
+    assert.equal(r.dotApplied, true);
+    assert.ok(target.debuffs.some(d=>d.type==='poison' && d.value===5 && d.dur===3));
+    assert.ok(target.debuffs.some(d=>d.type==='defDown' && d.dur===2));
+    assert.equal(r.selfHeal, 10);
+    assert.equal(actor.hp, 60);
+  });
+
+  test('atkUp1 buff 生效一次后被消耗', () => {
+    const actor = makeUnit({atk:20, buffs:[{type:'atkUp1', dur:1, value:0.5}]});
+    const target = makeUnit();
+    const r = calcDamage(actor, target, {power:1}, null);
+    assert.equal(r.dmg, 30); // 20*1.5
+    assert.equal(actor.buffs.length, 0);
+  });
+
+  test('斩杀目标：killed=true，被 undying 保命时 undying=true 且不视为死亡', () => {
+    const actor = makeUnit({atk:1000});
+    const dying = makeUnit({hp:10});
+    const r1 = calcDamage(actor, dying, {power:1}, null);
+    assert.equal(r1.killed, true);
+    assert.equal(dying.alive, false);
+
+    const saved = makeUnit({hp:10, undying:30});
+    const r2 = calcDamage(actor, saved, {power:1}, null);
+    assert.equal(r2.killed, false);
+    assert.equal(r2.undying, true);
+    assert.equal(saved.alive, true);
+    assert.equal(saved.hp, 30);
+  });
+
+  test('造成伤害时触发 onDamageDealt/onTakeDamage/onCrit 被动，事件带在返回值里', () => {
+    const actor = makeUnit({
+      atk:20, crit:100,
+      passive:{name:'剑意', trigger:'onCrit', effect:'spGain', value:8}, sp:50
+    });
+    const target = makeUnit();
+    const r = withRandom(0, () => calcDamage(actor, target, {power:1}, null));
+    assert.equal(actor.sp, 58);
+    const spGainEvent = r.passiveEvents.find(e=>e.event.effect==='spGain');
+    assert.ok(spGainEvent, '应包含 spGain 被动事件');
+  });
+});
+
+describe('calcStun', () => {
+  test('概率 = basePct + spScale * (sp/maxSp)', () => {
+    const actor = makeUnit();
+    const target = makeUnit({sp:50, maxSp:100});
+    const r = withRandom(0.999, () => calcStun(actor, target, {basePct:30, spScale:35}));
+    assert.equal(r.prob, 47.5);
+  });
+
+  test('随机数低于概率时眩晕成功', () => {
+    const actor = makeUnit();
+    const target = makeUnit({sp:100, maxSp:100});
+    const r = withRandom(0, () => calcStun(actor, target, {basePct:30, spScale:35}));
+    assert.equal(r.success, true);
+    assert.equal(target.stunned, true);
+  });
+
+  test('随机数高于概率时眩晕失败', () => {
+    const actor = makeUnit();
+    const target = makeUnit({sp:0, maxSp:100}); // prob = 30
+    const r = withRandom(0.99, () => calcStun(actor, target, {basePct:30, spScale:35}));
+    assert.equal(r.success, false);
+    assert.equal(target.stunned, false);
+  });
+});
+
+describe('triggerPassive - 8 种被动效果', () => {
+  test('spGain：无条件回复 SP', () => {
+    const u = makeUnit({sp:50, passive:{name:'剑意', trigger:'onCrit', effect:'spGain', value:8}});
+    const ev = triggerPassive('onCrit', u);
+    assert.equal(u.sp, 58);
+    assert.equal(ev.effect, 'spGain');
+  });
+
+  test('overchargeBuff：SP≥80% 才触发', () => {
+    const p = {name:'法力涌动', trigger:'onTurnStart', effect:'overchargeBuff'};
+    const low = makeUnit({sp:50, passive:p});
+    assert.equal(triggerPassive('onTurnStart', low), null);
+    assert.equal(low.buffs.length, 0);
+
+    const high = makeUnit({sp:90, passive:p});
+    const ev = triggerPassive('onTurnStart', high);
+    assert.ok(ev);
+    assert.ok(high.buffs.some(b=>b.type==='atkUp'));
+  });
+
+  test('allyHeal：只治疗 HP<30% 的友军', () => {
+    const p = {name:'圣光', trigger:'onTurnStart', effect:'allyHeal', value:20};
+    const u = makeUnit({passive:p});
+    const low = makeUnit({id:'low', hp:10, maxHp:100});
+    const healthy = makeUnit({id:'healthy', hp:80, maxHp:100});
+    const ev = triggerPassive('onTurnStart', u, {allies:[low, healthy]});
+    assert.equal(low.hp, 30);
+    assert.equal(healthy.hp, 80);
+    assert.equal(ev.targets.length, 1);
+  });
+
+  test('critStack：叠层有上限，超过上限不再触发', () => {
+    const p = {name:'鹰眼', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:2};
+    const u = makeUnit({crit:10, passive:p});
+    assert.ok(triggerPassive('onTurnStart', u));
+    assert.equal(u.crit, 13);
+    assert.ok(triggerPassive('onTurnStart', u));
+    assert.equal(u.crit, 16);
+    assert.equal(triggerPassive('onTurnStart', u), null, '达到上限后不再触发');
+    assert.equal(u.crit, 16);
+  });
+
+  test('reflect：按比例反弹伤害，可反杀攻击者', () => {
+    const p = {name:'铁甲反弹', trigger:'onTakeDamage', effect:'reflect', value:0.5};
+    const u = makeUnit({passive:p});
+    const attacker = makeUnit({hp:5});
+    const ev = triggerPassive('onTakeDamage', u, {attacker, dmg:20});
+    assert.equal(ev.amount, 10);
+    assert.equal(attacker.hp, 0);
+    assert.equal(ev.died, true);
+    assert.equal(attacker.alive, false);
+  });
+
+  test('bloodRage：HP<40% 才触发，且有叠层上限', () => {
+    const p = {name:'血怒', trigger:'onTurnStart', effect:'bloodRage', value:0.3, maxStacks:1};
+    const healthy = makeUnit({hp:80, maxHp:100, passive:p});
+    assert.equal(triggerPassive('onTurnStart', healthy), null);
+
+    const hurt = makeUnit({hp:30, maxHp:100, passive:p});
+    const ev = triggerPassive('onTurnStart', hurt);
+    assert.ok(ev);
+    assert.ok(hurt.buffs.some(b=>b.type==='atkUp' && b.value===0.3));
+  });
+
+  test('soulDrain：目标带毒/诅咒才吸血', () => {
+    const p = {name:'灵魂侵蚀', trigger:'onDamageDealt', effect:'soulDrain', value:15};
+    const u = makeUnit({hp:50, passive:p});
+    const cleanTarget = makeUnit({debuffs:[]});
+    assert.equal(triggerPassive('onDamageDealt', u, {target:cleanTarget}), null);
+    assert.equal(u.hp, 50);
+
+    const poisoned = makeUnit({debuffs:[{type:'poison', dur:1, value:1}]});
+    const ev = triggerPassive('onDamageDealt', u, {target:poisoned});
+    assert.ok(ev);
+    assert.equal(u.hp, 65);
+  });
+
+  test('corruptBonus：按腐化层数造成额外伤害，可致命', () => {
+    const p = {name:'腐化侵蚀', trigger:'onDamageDealt', effect:'corruptBonus'};
+    const warlock = makeUnit({passive:p});
+    const noCorrupt = makeUnit({debuffs:[]});
+    assert.equal(triggerPassive('onDamageDealt', warlock, {target:noCorrupt}), null, '无腐化层不触发');
+
+    const corrupted = makeUnit({hp:10, debuffs:[{type:'corrupt', dur:99, value:2}]});
+    const ev = triggerPassive('onDamageDealt', warlock, {target:corrupted});
+    assert.equal(ev.amount, 16); // 2层 * 8
+    assert.equal(corrupted.hp, 0);
+    assert.equal(ev.died, true);
+    assert.equal(ev.killer, warlock, '击杀者应记为被动持有者，供上层记功');
+  });
+});
+
+describe('processStartOfTurn', () => {
+  test('中毒扣血 + 狂暴扣血 + buff/debuff 到期衰减', () => {
+    const u = makeUnit({
+      hp:100,
+      debuffs:[{type:'poison', dur:1, value:5}],
+      buffs:[{type:'berserk', dur:1, value:0.4}, {type:'atkUp', dur:2, value:0.2}]
+    });
+    const r = processStartOfTurn(u);
+    assert.equal(u.hp, 87); // 100-5(poison)-8(berserk)
+    assert.equal(r.poison.dmg, 5);
+    assert.equal(r.berserk.dmg, 8);
+    assert.equal(u.debuffs.length, 0, 'dur 用尽的 debuff 应被移除');
+    assert.equal(u.buffs.length, 1, 'berserk(dur1) 到期移除，atkUp(dur2) 仍保留一回合');
+    assert.equal(u.buffs[0].type, 'atkUp');
+  });
+
+  test('回合开始被动事件会一并返回', () => {
+    const u = makeUnit({sp:90, passive:{name:'法力涌动', trigger:'onTurnStart', effect:'overchargeBuff'}});
+    const r = processStartOfTurn(u);
+    assert.ok(r.passiveEvent);
+    assert.equal(r.passiveEvent.effect, 'overchargeBuff');
+  });
+
+  test('中毒致命时正确报告死亡', () => {
+    const u = makeUnit({hp:3, debuffs:[{type:'poison', dur:1, value:5}]});
+    const r = processStartOfTurn(u);
+    assert.equal(r.poison.died, true);
+    assert.equal(u.alive, false);
+  });
+});
+
+describe('腐化机制：applyCorrupt / applyPlague / applyCorruptBurst', () => {
+  test('applyCorrupt 层数累加', () => {
+    const target = makeUnit();
+    assert.equal(applyCorrupt(target, 2), 2);
+    assert.equal(applyCorrupt(target, 1), 3);
+  });
+
+  test('applyPlague 同时施加腐化与中毒', () => {
+    const target = makeUnit();
+    const total = applyPlague(target, {corrupt:2, dot:7, dotDur:3});
+    assert.equal(total, 2);
+    assert.ok(target.debuffs.some(d=>d.type==='corrupt' && d.value===2));
+    assert.ok(target.debuffs.some(d=>d.type==='poison' && d.value===7 && d.dur===3));
+  });
+
+  test('applyCorruptBurst：按层数结算伤害并清空腐化，无腐化的目标不计入命中', () => {
+    const actor = makeUnit();
+    const stacked = makeUnit({id:'a', debuffs:[{type:'corrupt', dur:99, value:3}]});
+    const clean = makeUnit({id:'b', debuffs:[]});
+    const { hits, totalDmg } = applyCorruptBurst(actor, [stacked, clean], {dmgPerStack:22});
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0].dmg, 66); // 3*22
+    assert.equal(totalDmg, 66);
+    assert.equal(stacked.hp, 34);
+    assert.equal(stacked.debuffs.some(d=>d.type==='corrupt'), false, '结算后腐化层应清空');
+  });
+
+  test('applyCorruptBurst 可致命并在结果里报告', () => {
+    const actor = makeUnit();
+    const target = makeUnit({hp:10, debuffs:[{type:'corrupt', dur:99, value:5}]});
+    const { hits } = applyCorruptBurst(actor, [target], {dmgPerStack:22});
+    assert.equal(hits[0].died, true);
+    assert.equal(target.alive, false);
+  });
+});
+
+describe('回归测试：术士（warlock）在无头模拟中不再静默失效', () => {
+  // 这是本次重构要修的既有 bug：旧版 sim.js 手抄了一份战斗逻辑，
+  // 遗漏了 corruptBonus 被动、plague/corruptBurst 技能类型、以及
+  // damage/drain 技能的 skill.corrupt 字段处理，导致术士整套机制
+  // 在"平衡测试"模式里从未真正生效过。现在 sim.js 和 battle.js
+  // 共用 combat.js，这里直接用真实角色数据验证机制确实生效。
+  const warlockDef = CHARACTERS.find(c=>c.id==='warlock');
+
+  test('术士角色数据存在且带有腐化爆发/瘟疫技能与腐化侵蚀被动（回归测试的前提）', () => {
+    assert.ok(warlockDef, '未找到术士角色数据，回归测试前提不成立');
+    assert.ok(warlockDef.skills.some(s=>s.type==='corruptBurst'));
+    assert.ok(warlockDef.skills.some(s=>s.type==='plague'));
+    assert.equal(warlockDef.passive.effect, 'corruptBonus');
+  });
+
+  test('瘟疫技能通过 applyPlague 真正施加腐化层（旧 sim.js 里是死代码分支）', () => {
+    const plague = warlockDef.skills.find(s=>s.type==='plague');
+    const target = createUnit('swordsman', 2, 0);
+    const total = applyPlague(target, plague);
+    assert.equal(total, plague.corrupt);
+    assert.ok(target.debuffs.some(d=>d.type==='poison'));
+  });
+
+  test('腐化爆发按之前施加的层数真正结算伤害（旧 sim.js 里是死代码分支）', () => {
+    const corruptBurst = warlockDef.skills.find(s=>s.type==='corruptBurst');
+    const warlock = createUnit('warlock', 1, 0);
+    const target = createUnit('swordsman', 2, 0);
+    target.debuffs.push({type:'corrupt', dur:99, value:3});
+    const { hits, totalDmg } = applyCorruptBurst(warlock, [target], corruptBurst);
+    assert.equal(totalDmg, 3 * corruptBurst.dmgPerStack);
+    assert.equal(hits.length, 1);
+    assert.equal(target.hp, target.maxHp - totalDmg);
+  });
+
+  test('腐化侵蚀被动在造成伤害时真正触发额外伤害（旧 sim.js 里被动列表缺这一项）', () => {
+    const warlock = createUnit('warlock', 1, 0);
+    const target = createUnit('swordsman', 2, 0);
+    target.debuffs.push({type:'corrupt', dur:99, value:2});
+    const hpBefore = target.hp;
+    const ev = triggerPassive('onDamageDealt', warlock, {target});
+    assert.ok(ev, '腐化侵蚀被动应该触发');
+    assert.equal(ev.effect, 'corruptBonus');
+    assert.equal(target.hp, hpBefore - 2*8);
+  });
+});
+
+describe('createUnit / getEffectiveAtk / previewDmg / applyTurnRegen', () => {
+  test('createUnit 根据角色数据生成完整可用于战斗的单位', () => {
+    const u = createUnit('swordsman', 1, 0);
+    assert.equal(u.id, '1-0');
+    assert.equal(u.alive, true);
+    assert.ok(u.skills.length > 0);
+  });
+
+  test('getEffectiveAtk 叠加 atkUp/berserk buff', () => {
+    const u = makeUnit({atk:20, buffs:[{type:'atkUp', dur:1, value:0.5}]});
+    assert.equal(getEffectiveAtk(u), 30);
+  });
+
+  test('previewDmg 无伤害技能返回 null，场景加成会反映在预览里', () => {
+    const u = makeUnit({atk:20});
+    assert.equal(previewDmg(u, {power:0}, null), null);
+    assert.equal(previewDmg(u, {power:1}, null), 20);
+    assert.equal(previewDmg(u, {power:1}, {buff:'damageUp'}), 23);
+  });
+
+  test('applyTurnRegen 按 spRegen 回复，灵泉场景额外 +5', () => {
+    const u = makeUnit({sp:50, maxSp:100, spRegen:8});
+    applyTurnRegen(u, null);
+    assert.equal(u.sp, 58);
+    applyTurnRegen(u, {buff:'spRegen'});
+    assert.equal(u.sp, 71); // 58+8+5
+  });
+});
+
+describe('handleDeath', () => {
+  test('undying 触发时保留指定 HP，不算死亡', () => {
+    const u = makeUnit({hp:0, undying:40});
+    const r = handleDeath(u);
+    assert.equal(r.died, false);
+    assert.equal(r.undying, true);
+    assert.equal(u.hp, 40);
+    assert.equal(u.alive, true);
+  });
+
+  test('无 undying 时正常死亡', () => {
+    const u = makeUnit({hp:0});
+    const r = handleDeath(u);
+    assert.equal(r.died, true);
+    assert.equal(u.alive, false);
+  });
+});

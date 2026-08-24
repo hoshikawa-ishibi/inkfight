@@ -1,92 +1,27 @@
-// 纯逻辑战斗模拟器，无渲染无延迟
+// 纯逻辑战斗模拟器，无渲染无延迟。
+// 战斗规则（伤害公式/被动/腐化等）全部来自 combat.js，
+// 与 battle.js 共用同一份实现，避免两边数值再次漂移出 bug。
 import { CHARACTERS, SCENES } from './data.js';
+import { clamp } from './state.js';
+import {
+  createUnit as makeUnit, triggerPassive, calcDamage,
+  applyCorrupt, applyPlague, applyCorruptBurst, handleDeath as resolveDeath
+} from './combat.js';
 
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-
-function makeUnit(charId, player, slot){
-  const b = CHARACTERS.find(c=>c.id===charId);
-  return {
-    id:`${player}-${slot}`, charId:b.id, name:b.name, player,
-    maxHp:b.hp, hp:b.hp, maxSp:b.sp, sp:b.sp,
-    atk:b.atk, def:b.def, crit:b.crit, dodge:b.dodge, spRegen:b.spRegen,
-    skills: JSON.parse(JSON.stringify(b.skills)),
-    passive: b.passive||null, passiveStacks:0,
-    alive:true, shield:0, buffs:[], debuffs:[],
-    stunned:false, dodging:false, undying:0,
-  };
-}
-
-function getEffectiveAtk(u){
-  let a = u.atk;
-  u.buffs.forEach(b=>{
-    if(b.type==='atkUp'||b.type==='atkUp1'||b.type==='berserk') a*=(1+b.value);
-  });
-  if(u.charId==='berserker') a*=(1+(1-u.hp/u.maxHp)*0.5);
-  return a;
-}
-
-function triggerPassive(trigger, unit, ctx={}){
-  const p = unit.passive;
-  if(!p || p.trigger!==trigger) return;
-  switch(p.effect){
-    case 'spGain':
-      unit.sp = clamp(unit.sp+p.value, 0, unit.maxSp); break;
-    case 'overchargeBuff':
-      if(unit.sp/unit.maxSp>=0.8)
-        unit.buffs.push({type:'atkUp',dur:1,value:0.2}); break;
-    case 'allyHeal': {
-      const allies = (unit.player===1?ctx.p1:ctx.p2).filter(a=>a.alive&&a.hp/a.maxHp<0.3);
-      allies.forEach(a=>{ a.hp=clamp(a.hp+p.value,0,a.maxHp); }); break;
-    }
-    case 'critStack':
-      if((unit.passiveStacks||0)<p.maxStacks){ unit.passiveStacks=(unit.passiveStacks||0)+1; unit.crit+=p.value; } break;
-    case 'reflect':
-      if(ctx.attacker&&ctx.attacker.alive&&ctx.dmg>0){
-        const ref=Math.max(1,Math.floor(ctx.dmg*p.value));
-        ctx.attacker.hp=clamp(ctx.attacker.hp-ref,0,ctx.attacker.maxHp);
-        if(ctx.attacker.hp<=0) handleDeath(ctx.attacker,null,null);
-      } break;
-    case 'bloodRage':
-      if(unit.hp/unit.maxHp<0.4&&(unit.passiveStacks||0)<p.maxStacks){
-        unit.passiveStacks=(unit.passiveStacks||0)+1;
-        unit.buffs.push({type:'atkUp',dur:99,value:p.value});
-      } break;
-    case 'soulDrain':
-      if(ctx.target&&(ctx.target.debuffs.some(d=>d.type==='poison'||d.type==='cursed')))
-        unit.hp=clamp(unit.hp+p.value,0,unit.maxHp); break;
-  }
+function noteKill(died, killer, stats){
+  if(died && killer && stats) stats[killer.charId].kills++;
 }
 
 function handleDeath(u, killer, stats){
-  if(u.undying){ u.hp=u.undying; u.undying=0; return; }
-  u.alive=false;
-  if(killer&&stats) stats[killer.charId].kills++;
+  const { died } = resolveDeath(u);
+  noteKill(died, killer, stats);
 }
 
 function doDamage(actor, target, skill, scene, stats){
-  if(target.dodging||Math.random()*100<target.dodge){ target.dodging=false; return 0; }
-  let dmg = getEffectiveAtk(actor)*(skill.power||1);
-  let isCrit = false;
-  if(Math.random()*100<((skill.crit||0)+actor.crit)){ dmg*=1.5; isCrit=true; }
-  if(target.debuffs.some(d=>d.type==='cursed')) dmg*=1.25;
-  if(target.debuffs.some(d=>d.type==='defDown')) dmg*=1.2;
-  if(scene.buff==='damageUp') dmg*=1.15;
-  dmg*=(1-target.def/(target.def+50));
-  actor.buffs=actor.buffs.filter(b=>b.type!=='atkUp1');
-  dmg=Math.max(1,Math.floor(dmg));
-  if(target.shield>0){ const ab=Math.min(target.shield,dmg); target.shield-=ab; dmg-=ab; }
-  target.hp=clamp(target.hp-dmg,0,target.maxHp);
-  if(stats){ stats[actor.charId].dmg+=dmg; }
-  if(skill.dot) target.debuffs.push({type:'poison',dur:skill.dotDur,value:skill.dot});
-  if(skill.debuff==='defDown') target.debuffs.push({type:'defDown',dur:skill.debuffDur,value:0.2});
-  if(skill.selfHeal){ actor.hp=clamp(actor.hp+skill.selfHeal,0,actor.maxHp); }
-  if(target.hp<=0) handleDeath(target, actor, stats);
-  if(dmg>0){
-    triggerPassive('onDamageDealt', actor, {target});
-    triggerPassive('onTakeDamage', target, {attacker:actor, dmg});
-    if(isCrit) triggerPassive('onCrit', actor, {});
-  }
-  return dmg;
+  const r = calcDamage(actor, target, skill, scene);
+  if(stats && r.dmg > 0) stats[actor.charId].dmg += r.dmg;
+  noteKill(r.killed, actor, stats);
+  return r.dmg;
 }
 
 function pickSkill(u, enemies, allies, scene){
@@ -133,7 +68,10 @@ function executeSkill(actor, skill, target, scene, p1, p2, stats){
   const enemies = actor.player===1?p2:p1;
   const allies = actor.player===1?p1:p2;
   switch(skill.type){
-    case 'damage': doDamage(actor,target,skill,scene,stats); break;
+    case 'damage':
+      doDamage(actor,target,skill,scene,stats);
+      if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt);
+      break;
     case 'damageAll': enemies.filter(e=>e.alive).forEach(t=>doDamage(actor,t,skill,scene,stats)); break;
     case 'stun': {
       const prob=skill.basePct+skill.spScale*(target.sp/target.maxSp);
@@ -163,7 +101,20 @@ function executeSkill(actor, skill, target, scene, p1, p2, stats){
       const dmg=doDamage(actor,target,skill,scene,stats);
       const drain=Math.floor(dmg*(skill.drainPct/100));
       actor.hp=clamp(actor.hp+drain,0,actor.maxHp);
-      if(stats) stats[actor.charId].heals+=drain; break;
+      if(stats) stats[actor.charId].heals+=drain;
+      if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt);
+      break;
+    }
+    case 'plague':
+      enemies.filter(e=>e.alive).forEach(t=>applyPlague(t, skill));
+      break;
+    case 'corruptBurst': {
+      const { hits } = applyCorruptBurst(actor, enemies.filter(e=>e.alive), skill);
+      hits.forEach(({dmg, died})=>{
+        if(stats) stats[actor.charId].dmg += dmg;
+        noteKill(died, actor, stats);
+      });
+      break;
     }
     case 'revive': actor.undying=skill.hpRestore; break;
   }
@@ -185,7 +136,7 @@ function simOneBattle(p1ids, p2ids, scene){
     for(const u of order){
       if(!u.alive) continue;
       // 回合开始被动
-      triggerPassive('onTurnStart', u, {p1,p2});
+      triggerPassive('onTurnStart', u, {allies:u.player===1?p1:p2});
       // 毒/狂暴
       u.debuffs.forEach(d=>{
         if(d.type==='poison'){ u.hp=clamp(u.hp-d.value,0,u.maxHp); if(u.hp<=0) handleDeath(u,null,null); }
@@ -216,9 +167,20 @@ function simOneBattle(p1ids, p2ids, scene){
   return { winner: p1hp>=p2hp?1:2, stats };
 }
 
+// Fisher-Yates 洗牌。不要用 sort(()=>Math.random()-0.5)：那个比较函数不满足
+// 排序算法要求的传递性，V8 对小数组的插入排序会让元素明显倾向于留在原位，
+// 实测 8 个角色的入选率会从 50% 偏到 41%~58%，直接扭曲平衡统计的采样。
+export function shuffle(arr){
+  const r = arr.slice();
+  for(let i=r.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [r[i],r[j]] = [r[j],r[i]];
+  }
+  return r;
+}
+
 function randomPicks(){
-  const ids = CHARACTERS.map(c=>c.id);
-  const shuffled = ids.sort(()=>Math.random()-0.5);
+  const shuffled = shuffle(CHARACTERS.map(c=>c.id));
   return [shuffled.slice(0,2), shuffled.slice(2,4)];
 }
 

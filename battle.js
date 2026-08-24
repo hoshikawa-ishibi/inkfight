@@ -1,115 +1,80 @@
-import { CHARACTERS } from './data.js';
 import { Audio, playSfx } from './audio.js';
 import { gameState, clamp, getUnit, getEnemies, getAllies } from './state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
+import {
+  createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
+  processStartOfTurn as resolveStartOfTurn, calcDamage, calcStun,
+  applyCorrupt as applyCorruptCore, applyCorruptBurst
+} from './combat.js';
 
-// ── 被动技能触发 ──────────────────────────────────────────
-function triggerPassive(trigger, unit, ctx={}){
-  const p = unit.passive;
-  if(!p || p.trigger !== trigger) return;
-  switch(p.effect){
+export { createUnit, getEffectiveAtk };
+
+// ── 被动技能事件呈现（规则本身在 combat.js，这里只管日志/特效） ──────────
+function renderPassiveEvent(unit, event){
+  if(!event) return;
+  switch(event.effect){
     case 'spGain':
-      unit.sp = clamp(unit.sp + p.value, 0, unit.maxSp);
-      addLog(`【${p.name}】${unit.name} 回复 ${p.value} SP`, 'sp');
-      spawnFloatText(unit, `+${p.value} SP`, '#4fc3f7', 14);
+      addLog(`【${event.name}】${unit.name} 回复 ${event.value} SP`, 'sp');
+      spawnFloatText(unit, `+${event.value} SP`, '#4fc3f7', 14);
       break;
     case 'overchargeBuff':
-      if(unit.sp / unit.maxSp >= 0.8){
-        unit.buffs.push({type:'atkUp', dur:1, value:0.2});
-        addLog(`【${p.name}】${unit.name} 灵能充盈，下次技能伤害+20%`, 'buff');
-        spawnFloatText(unit, '法力涌动!', '#4fc3f7', 14);
-      }
+      addLog(`【${event.name}】${unit.name} 灵能充盈，下次技能伤害+20%`, 'buff');
+      spawnFloatText(unit, '法力涌动!', '#4fc3f7', 14);
       break;
-    case 'allyHeal': {
-      const allies = getAllies(unit.player).filter(a => a.alive && a.hp/a.maxHp < 0.3);
-      allies.forEach(a => {
-        a.hp = clamp(a.hp + p.value, 0, a.maxHp);
-        addLog(`【${p.name}】${unit.name} 圣光治疗 ${a.name} ${p.value} HP`, 'heal');
-        spawnFloatText(a, `+${p.value}`, '#66bb6a', 14);
+    case 'allyHeal':
+      event.targets.forEach(a => {
+        addLog(`【${event.name}】${unit.name} 圣光治疗 ${a.name} ${event.value} HP`, 'heal');
+        spawnFloatText(a, `+${event.value}`, '#66bb6a', 14);
         spawnHealColumn(a);
       });
       break;
-    }
-    case 'critStack': {
-      const stacks = unit.passiveStacks || 0;
-      if(stacks < p.maxStacks){
-        unit.passiveStacks = stacks + 1;
-        unit.crit += p.value;
-        addLog(`【${p.name}】${unit.name} 暴击率+${p.value}%（${unit.passiveStacks}层）`, 'buff');
-        spawnFloatText(unit, `鹰眼${unit.passiveStacks}层`, '#ffd54f', 13);
-      }
+    case 'critStack':
+      addLog(`【${event.name}】${unit.name} 暴击率+${event.value}%（${event.stacks}层）`, 'buff');
+      spawnFloatText(unit, `鹰眼${event.stacks}层`, '#ffd54f', 13);
       break;
-    }
-    case 'reflect': {
-      const attacker = ctx.attacker;
-      if(attacker && attacker.alive && ctx.dmg > 0){
-        const ref = Math.max(1, Math.floor(ctx.dmg * p.value));
-        attacker.hp = clamp(attacker.hp - ref, 0, attacker.maxHp);
-        addLog(`【${p.name}】${unit.name} 反弹 ${ref} 伤害给 ${attacker.name}`, 'dmg');
-        spawnFloatText(attacker, `-${ref}`, '#90caf9', 14);
-        if(attacker.hp <= 0) handleDeath(attacker);
-      }
+    case 'reflect':
+      addLog(`【${event.name}】${unit.name} 反弹 ${event.amount} 伤害给 ${event.attacker.name}`, 'dmg');
+      spawnFloatText(event.attacker, `-${event.amount}`, '#90caf9', 14);
+      presentDeath(event.attacker, null, event.died, event.undying);
       break;
-    }
-    case 'bloodRage': {
-      if(unit.hp / unit.maxHp < 0.4){
-        const stacks = unit.passiveStacks || 0;
-        if(stacks < p.maxStacks){
-          unit.passiveStacks = stacks + 1;
-          unit.buffs.push({type:'atkUp', dur:99, value:p.value});
-          addLog(`【${p.name}】${unit.name} 血怒觉醒！攻击+${p.value*100}%（${unit.passiveStacks}层）`, 'buff');
-          spawnFloatText(unit, '血怒!', '#ff7043', 16);
-          spawnAura(unit, '#ff5722');
-        }
-      }
+    case 'bloodRage':
+      addLog(`【${event.name}】${unit.name} 血怒觉醒！攻击+${event.value*100}%（${event.stacks}层）`, 'buff');
+      spawnFloatText(unit, '血怒!', '#ff7043', 16);
+      spawnAura(unit, '#ff5722');
       break;
-    }
-    case 'soulDrain': {
-      const target = ctx.target;
-      if(target && (target.debuffs.some(d=>d.type==='poison'||d.type==='cursed'))){
-        unit.hp = clamp(unit.hp + p.value, 0, unit.maxHp);
-        addLog(`【${p.name}】${unit.name} 灵魂侵蚀吸取 ${p.value} HP`, 'heal');
-        spawnFloatText(unit, `+${p.value}`, '#ce93d8', 14);
-      }
+    case 'soulDrain':
+      addLog(`【${event.name}】${unit.name} 灵魂侵蚀吸取 ${event.value} HP`, 'heal');
+      spawnFloatText(unit, `+${event.value}`, '#ce93d8', 14);
       break;
-    }
-    case 'corruptBonus': {
-      const target = ctx.target;
-      if(target){
-        const stacks = target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
-        if(stacks > 0){
-          const bonus = stacks * 8;
-          target.hp = clamp(target.hp - bonus, 0, target.maxHp);
-          addLog(`【${p.name}】腐化侵蚀 ${target.name} 额外 ${bonus} 伤害（${stacks}层）`, 'dmg');
-          spawnFloatText(target, `-${bonus}`, '#ce93d8', 16);
-          if(target.hp <= 0) handleDeath(target, unit);
-        }
-      }
+    case 'corruptBonus':
+      addLog(`【${event.name}】腐化侵蚀 ${event.target.name} 额外 ${event.amount} 伤害（${event.stacks}层）`, 'dmg');
+      spawnFloatText(event.target, `-${event.amount}`, '#ce93d8', 16);
+      presentDeath(event.target, event.killer, event.died, event.undying);
       break;
-    }
   }
 }
 
+function presentDeath(u, killer, died, undying){
+  if(undying){
+    addLog(`${u.name} 触发不屈，保留 ${u.hp} HP！`,'heal');
+    spawnFloatText(u,'不屈!','#ffd54f',20); spawnAura(u,'#ffd54f');
+    return;
+  }
+  if(!died) return;
+  addLog(`☠ ${u.name} 阵亡！`,'death'); playSfx('death'); _screenShake(12,400);
+  if(killer){
+    gameState.stats['p'+killer.player].kills++;
+    if(gameState.stats.units[killer.id]) gameState.stats.units[killer.id].kills++;
+  }
+}
 
 let _showScreen, _hideTooltip, _showTooltip, _screenShake, _onCampaignWin;
 export function initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin){
   _showScreen=showScreen; _hideTooltip=hideTooltip;
   _showTooltip=showTooltip; _screenShake=screenShake;
   _onCampaignWin=onCampaignWin;
-}
-
-export function createUnit(charId,player,slot){
-  const b=CHARACTERS.find(c=>c.id===charId);
-  return {
-    id:`${player}-${slot}`, charId:b.id, name:b.name, player, color:b.color, weapon:b.weapon,
-    maxHp:b.hp, hp:b.hp, maxSp:b.sp, sp:b.sp, atk:b.atk, def:b.def, crit:b.crit, dodge:b.dodge, spRegen:b.spRegen,
-    skills:JSON.parse(JSON.stringify(b.skills)),
-    passive:b.passive||null, passiveStacks:0,
-    alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
-    pose:'idle', blink:0
-  };
 }
 
 export function startBattle(){
@@ -194,8 +159,7 @@ function activateUnit(u){
   }
   processStartOfTurn(u);
   if(!u.alive){ setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
-  u.sp=clamp(u.sp+u.spRegen,0,u.maxSp);
-  if(gameState.scene.buff==='spRegen') u.sp=clamp(u.sp+5,0,u.maxSp);
+  applyTurnRegen(u, gameState.scene);
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
     `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
@@ -209,25 +173,18 @@ function activateUnit(u){
 }
 
 function processStartOfTurn(u){
-  // 被动：回合开始
-  triggerPassive('onTurnStart', u);
-  u.debuffs.forEach(d=>{
-    if(d.type==='poison'){
-      u.hp=clamp(u.hp-d.value,0,u.maxHp);
-      addLog(`${u.name} 受到中毒伤害 ${d.value}`,'dmg');
-      spawnFloatText(u,`-${d.value}`,'#9ccc65',14);
-      if(u.hp<=0) handleDeath(u);
-    }
-  });
-  const berserk=u.buffs.find(b=>b.type==='berserk');
-  if(berserk){
-    u.hp=clamp(u.hp-8,0,u.maxHp);
+  const r = resolveStartOfTurn(u, {allies:getAllies(u.player)});
+  renderPassiveEvent(u, r.passiveEvent);
+  if(r.poison){
+    addLog(`${u.name} 受到中毒伤害 ${r.poison.dmg}`,'dmg');
+    spawnFloatText(u,`-${r.poison.dmg}`,'#9ccc65',14);
+    presentDeath(u, null, r.poison.died, r.poison.undying);
+  }
+  if(r.berserk){
     addLog(`${u.name} 因狂暴失去 8 HP`,'dmg');
     spawnFloatText(u,'-8','#ff7043',14);
-    if(u.hp<=0) handleDeath(u);
+    presentDeath(u, null, r.berserk.died, r.berserk.undying);
   }
-  u.buffs=u.buffs.filter(b=>--b.dur>0);
-  u.debuffs=u.debuffs.filter(d=>--d.dur>0);
 }
 
 function nextTurn(){
@@ -319,21 +276,8 @@ export function confirmExit(){
   mask.querySelector('#ok-exit').onclick=()=>{ playSfx('click'); mask.remove(); location.reload(); };
 }
 
-export function getEffectiveAtk(u){
-  let a=u.atk;
-  u.buffs.forEach(b=>{
-    if(b.type==='atkUp'||b.type==='atkUp1') a*=(1+b.value);
-    if(b.type==='berserk') a*=(1+b.value);
-  });
-  if(u.charId==='berserker') a*=(1+(1-u.hp/u.maxHp)*0.5);
-  return a;
-}
-
 export function previewDmg(u,s){
-  if(!s.power) return null;
-  let d=getEffectiveAtk(u)*s.power;
-  if(gameState.scene.buff==='damageUp') d*=1.15;
-  return Math.floor(d);
+  return calcPreviewDmg(u,s,gameState.scene);
 }
 
 export function renderSkillPanel(u){
@@ -516,21 +460,14 @@ function executeSkill(actor,skill,target){
     }
     case 'corruptBurst': {
       const enemies=getEnemies(actor.player).filter(e=>e.alive);
-      let totalDmg=0;
-      enemies.forEach(t=>{
-        const stacks=t.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
-        if(stacks>0){
-          const dmg=stacks*skill.dmgPerStack;
-          t.debuffs=t.debuffs.filter(d=>d.type!=='corrupt');
-          t.hp=clamp(t.hp-dmg,0,t.maxHp);
-          totalDmg+=dmg;
-          gameState.stats['p'+actor.player].dmg+=dmg;
-          if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=dmg;
-          if(dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg,name:actor.name};
-          addLog(`腐化爆发！${t.name} 受到 ${dmg} 伤害（${stacks}层）`,'crit');
-          spawnFloatText(t,`-${dmg}`,'#ce93d8',24); spawnHitBurst(t,'#ce93d8'); _screenShake(10,300);
-          if(t.hp<=0) handleDeath(t,actor);
-        }
+      const { hits, totalDmg } = applyCorruptBurst(actor, enemies, skill);
+      hits.forEach(({target:t,dmg,stacks,died,undying})=>{
+        gameState.stats['p'+actor.player].dmg+=dmg;
+        if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=dmg;
+        if(dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg,name:actor.name};
+        addLog(`腐化爆发！${t.name} 受到 ${dmg} 伤害（${stacks}层）`,'crit');
+        spawnFloatText(t,`-${dmg}`,'#ce93d8',24); spawnHitBurst(t,'#ce93d8'); _screenShake(10,300);
+        presentDeath(t, actor, died, undying);
       });
       if(totalDmg===0){ addLog(`腐化爆发：无腐化层，无效果`,'miss'); spawnFloatText(actor,'无腐化','#888',14); }
       break;
@@ -545,64 +482,42 @@ function executeSkill(actor,skill,target){
 }
 
 function doDamage(actor,target,skill){
-  if(target.dodging||Math.random()*100<target.dodge){
+  const r = calcDamage(actor, target, skill, gameState.scene);
+  if(r.dodged){
     addLog(`${target.name} 闪避了攻击！`,'miss');
     spawnFloatText(target,'MISS','#888',18); playSfx('miss');
-    target.dodging=false; return 0;
+    return 0;
   }
-  let baseAtk=getEffectiveAtk(actor);
-  let dmg=baseAtk*(skill.power||1);
-  let isCrit=false;
-  const totalCrit=(skill.crit||0)+actor.crit;
-  if(Math.random()*100<totalCrit){
-    dmg*=1.5; isCrit=true;
+  if(r.isCrit){
     addLog(`💥 暴击！`,'crit'); playSfx('crit'); spawnCritBurst(target);
   }
-  if(target.debuffs.some(d=>d.type==='cursed')) dmg*=1.25;
-  if(target.debuffs.some(d=>d.type==='defDown')) dmg*=1.2;
-  if(gameState.scene.buff==='damageUp') dmg*=1.15;
-  const defReduce=target.def/(target.def+50);
-  dmg*=(1-defReduce);
-  actor.buffs=actor.buffs.filter(b=>b.type!=='atkUp1');
-  dmg=Math.max(1,Math.floor(dmg));
-  if(target.shield>0){
-    const ab=Math.min(target.shield,dmg);
-    target.shield-=ab; dmg-=ab;
-    if(ab>0){ addLog(`${target.name} 护盾吸收 ${ab}`,'info'); spawnFloatText(target,`🛡-${ab}`,'#90caf9',14); }
+  if(r.shieldAbsorbed > 0){
+    addLog(`${target.name} 护盾吸收 ${r.shieldAbsorbed}`,'info');
+    spawnFloatText(target,`🛡-${r.shieldAbsorbed}`,'#90caf9',14);
   }
-  target.hp=clamp(target.hp-dmg,0,target.maxHp);
-  gameState.stats['p'+actor.player].dmg+=dmg;
-  if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=dmg;
-  if(dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg,name:actor.name};
-  addLog(`${actor.name}(ATK ${baseAtk.toFixed(0)}) → ${target.name}: ${dmg} 伤害${isCrit?' [暴击]':''}`,isCrit?'crit':'dmg');
+  gameState.stats['p'+actor.player].dmg+=r.dmg;
+  if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=r.dmg;
+  if(r.dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg:r.dmg,name:actor.name};
+  addLog(`${actor.name}(ATK ${r.baseAtk.toFixed(0)}) → ${target.name}: ${r.dmg} 伤害${r.isCrit?' [暴击]':''}`,r.isCrit?'crit':'dmg');
   animateUnit(target.id,'anim-hit'); spawnHitBurst(target);
-  spawnFloatText(target,`-${dmg}`,isCrit?'#ffd54f':'#ff5252',isCrit?28:18+Math.min(12,dmg/8));
-  playSfx('hit'); _screenShake(isCrit?14:6,isCrit?400:200);
+  spawnFloatText(target,`-${r.dmg}`,r.isCrit?'#ffd54f':'#ff5252',r.isCrit?28:18+Math.min(12,r.dmg/8));
+  playSfx('hit'); _screenShake(r.isCrit?14:6,r.isCrit?400:200);
   target.pose='hurt'; setTimeout(()=>{target.pose='idle'; redrawUnit(target);},400);
-  if(skill.dot){ target.debuffs.push({type:'poison',dur:skill.dotDur,value:skill.dot}); addLog(`${target.name} 中毒了`,'buff'); }
-  if(skill.debuff==='defDown') target.debuffs.push({type:'defDown',dur:skill.debuffDur,value:0.2});
-  if(skill.selfHeal){
-    actor.hp=clamp(actor.hp+skill.selfHeal,0,actor.maxHp);
-    gameState.stats['p'+actor.player].heal+=skill.selfHeal;
-    if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal+=skill.selfHeal;
-    spawnFloatText(actor,`+${skill.selfHeal}`,'#16c79a',16);
+  if(r.dotApplied) addLog(`${target.name} 中毒了`,'buff');
+  if(r.selfHeal){
+    gameState.stats['p'+actor.player].heal+=r.selfHeal;
+    if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal+=r.selfHeal;
+    spawnFloatText(actor,`+${r.selfHeal}`,'#16c79a',16);
   }
-  if(target.hp<=0) handleDeath(target,actor);
-  // 被动触发
-  if(dmg > 0){
-    triggerPassive('onDamageDealt', actor, {target});
-    triggerPassive('onTakeDamage', target, {attacker:actor, dmg});
-    if(isCrit) triggerPassive('onCrit', actor, {target});
-  }
-  return dmg;
+  presentDeath(target, actor, r.killed, r.undying);
+  r.passiveEvents.forEach(({unit,event})=>renderPassiveEvent(unit,event));
+  return r.dmg;
 }
 
 function doStun(actor,target,skill){
-  const prob=skill.basePct+skill.spScale*(target.sp/target.maxSp);
-  const roll=Math.random()*100;
-  addLog(`${actor.name} 对 ${target.name} 施放${skill.name}，眩晕概率 ${prob.toFixed(1)}%`,'stun');
-  if(roll<prob){
-    target.stunned=true;
+  const r = calcStun(actor, target, skill);
+  addLog(`${actor.name} 对 ${target.name} 施放${skill.name}，眩晕概率 ${r.prob.toFixed(1)}%`,'stun');
+  if(r.success){
     addLog(`${target.name} 被眩晕了！`,'stun');
     spawnFloatText(target,'眩晕!','#f5a623',18); spawnHitBurst(target,'#f5a623');
     playSfx('stun'); _screenShake(8,250);
@@ -613,25 +528,10 @@ function doStun(actor,target,skill){
 }
 
 function applyCorrupt(target, stacks, actor){
-  target.debuffs.push({type:'corrupt', dur:99, value:stacks});
-  const total = target.debuffs.filter(d=>d.type==='corrupt').reduce((s,d)=>s+d.value,0);
+  const total = applyCorruptCore(target, stacks);
   addLog(`${actor.name} 给 ${target.name} 施加 ${stacks} 层腐化（共${total}层）`,'buff');
   spawnFloatText(target,`腐化${total}层`,'#7e57c2',14); spawnCurse(target);
-}
-
-function handleDeath(u,killer){
-  if(u.undying){
-    u.hp=u.undying; u.undying=0;
-    addLog(`${u.name} 触发不屈，保留 ${u.hp} HP！`,'heal');
-    spawnFloatText(u,'不屈!','#ffd54f',20); spawnAura(u,'#ffd54f');
-    return;
-  }
-  u.alive=false; u.pose='dead';
-  addLog(`☠ ${u.name} 阵亡！`,'death'); playSfx('death'); _screenShake(12,400);
-  if(killer){
-    gameState.stats['p'+killer.player].kills++;
-    if(gameState.stats.units[killer.id]) gameState.stats.units[killer.id].kills++;
-  }
+  return total;
 }
 
 const LOG_ICON={dmg:'⚔',heal:'💚',sp:'✨',stun:'💫',info:'•',miss:'✗',buff:'🔮',crit:'💥',death:'☠',divider:'━'};
