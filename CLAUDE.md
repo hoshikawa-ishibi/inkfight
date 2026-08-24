@@ -21,23 +21,24 @@ node fix-game.js         # 修复 ./game-output/ 里的游戏
 
 CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量。游戏本身无构建步骤。
 
-## 已知架构风险：存在两套 AI
+## ⚠ 进行中的工作：合并两套 AI（`AI_MERGE_PLAN.md`）
 
-`ai.js`（玩家对战的 AI，easy/normal/hard）和 `sim.js` 的 `pickSkill`（平衡测试的 AI）
-是**两套完全独立的技能评分实现**。这带来两个后果：
+**动手前先读 `AI_MERGE_PLAN.md`，从其中未勾选的第一项继续。**
 
-1. **平衡数据来自 `sim.js` 的 AI，而玩家面对的是 `ai.js`。** 两者决策逻辑不同，
-   所以 `npm run balance` 的结论未必适用于真实对局。
-2. **改一处忘另一处就会漂移。** 2026-08-24 给「狂暴」加 `power` 时只改了
-   `sim.js` 和 `battle.js`，漏掉 `ai.js`，结果 AI 放狂暴不造成伤害、玩家放却会——
-   同一个技能两种行为。已修，并把「是否需要敌方目标」的判断收敛为
-   `combat.js` 的 `needsEnemyTarget()`，三方共用，测试锁住。
+进度：Phase 1、2 已完成并提交，Phase 3～5 待做。
 
-**给技能加新字段时，务必检查 `ai.js` 是否也需要同步。** 这是目前最容易再次踩到的坑。
+已完成的部分：
+- 技能评分已收敛为 `ai-scoring.js` 一份，`ai.js`（玩家对战）和 `sim.js`（平衡测试）共用。
+- `ai.js` 已脱离浏览器（不再依赖 `gameState`，`scene` 由调用方显式传入），
+  可在 Node 中直接运行——`test/ai.test.js` 就是靠这一点写出来的。
+- `ai.js` 现在只负责「难度包装」：同一套评分 + 不同的噪声/机会成本权重/战术加成。
 
-彻底的解法是把技能评分抽成共享模块，`ai.js` 只负责难度包装（easy 加随机、hard 加
-额外判断），`sim.js` 直接调用 `aiHard` 跑模拟——那样平衡测试测的就是玩家真正面对的
-AI。尚未实施，属较大改动。
+**尚未完成：`sim.js` 目前仍用自己的 `pickSkill` 包装共享评分，还没直接调用 `aiHard`。**
+所以平衡数据仍不完全等于玩家面对的 AI（Phase 4 才会打通）。
+
+**给技能加新字段时，仍要检查三处是否需要同步：`ai-scoring.js` 的评分、
+`combat.js` 的执行、以及 `data.js` 的配置。** 历史教训：给「狂暴」加 `power`
+时漏改 `ai.js`，导致 AI 放狂暴不造成伤害、玩家放却会。
 
 ## 工作约定（重要）
 
@@ -78,13 +79,14 @@ npx serve .        # ou VS Code Live Server
 | `scene.js` | `applySceneBackground`, `startMenuBackground`, `stopMenuBackground`, `startSceneBgLayers`, `startSceneFx`, `drawScenePreview` |
 | `vfx.js` | `playSkillVfx`, `spawnFloatText`, `spawnHitBurst`, `spawnCritBurst`, `spawnHealColumn`, `spawnHexShield`, `spawnAura`, `spawnSmoke`, `spawnCurse`, `spawnDrainBeam`, `pushFx`, `getUnitScreenPos` |
 | `render.js` | `initRender`, `renderBattle`, `redrawUnit`, `animateUnit`, `lungeActor`（含 idle 动画 setInterval） |
-| `ai.js` | `initAi`, `aiEasy`, `aiNormal`, `aiHard`（`scoreSkill` 内部，`previewDmg` 注入） |
+| **`ai-scoring.js`** | **技能评分的唯一实现，`ai.js` 与 `sim.js` 共用**。`scoreSkill(u, s, foes, friends, scene, opts)` 把各类技能收益折算成「等效伤害」以便横向比较；`pickTarget` 负责选目标。`opts.tempo`（0~1）控制是否计入「占掉一回合」的机会成本 |
+| `ai.js` | 纯函数，可在 Node 运行。只做**难度包装**：`aiEasy`/`aiNormal`/`aiHard`(u, enemies, allies, scene)，三档的区别是噪声大小、`tempo` 权重、以及 hard 独有的 `tacticalBonus` |
 | **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`** |
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
-| `sim.js` | 无头战斗模拟器（平衡测试用）。复用 `combat.js`，另含 `shuffle`（Fisher-Yates）、`runSimulation` |
+| `sim.js` | 无头战斗模拟器（平衡测试用）。复用 `combat.js` 的规则与 `ai-scoring.js` 的评分，另含 `shuffle`（Fisher-Yates）、`runSimulation` |
+| `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`（共 62 条，`npm test`） |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关剧情数据：阵容、场景、难度、剧情文本） |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
-| `test/` | `combat.test.js`（39 例）、`shuffle.test.js`（4 例，含统计偏置检测） |
 | `balance-report.mjs` | `npm run balance` 的入口 |
 
 ### 近期改动记录
