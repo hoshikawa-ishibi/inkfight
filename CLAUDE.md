@@ -25,18 +25,22 @@ CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量
 
 **动手前先读 `AI_MERGE_PLAN.md`，从其中未勾选的第一项继续。**
 
-进度：Phase 1、2 已完成并提交，Phase 3～5 待做。
+进度：Phase 1～4 已完成并提交，只剩 Phase 5（收尾 + 浏览器实测）。
 
-已完成的部分：
-- 技能评分已收敛为 `ai-scoring.js` 一份，`ai.js`（玩家对战）和 `sim.js`（平衡测试）共用。
-- `ai.js` 已脱离浏览器（不再依赖 `gameState`，`scene` 由调用方显式传入），
-  可在 Node 中直接运行——`test/ai.test.js` 就是靠这一点写出来的。
-- `ai.js` 现在只负责「难度包装」：同一套评分 + 不同的噪声/机会成本权重/战术加成。
+**AI 现在只有一条链路**：
 
-**尚未完成：`sim.js` 目前仍用自己的 `pickSkill` 包装共享评分，还没直接调用 `aiHard`。**
-所以平衡数据仍不完全等于玩家面对的 AI（Phase 4 才会打通）。
+```
+data.js（技能配置）
+   └─ ai-scoring.js  scoreSkill / pickTarget / focusFoe  ← 唯一一份评分
+        └─ ai.js     aiEasy / aiNormal / aiHard          ← 只做难度包装
+             ├─ battle.js  玩家对战
+             └─ sim.js     npm run balance（直接调 aiHard）
+```
 
-**给技能加新字段时，仍要检查三处是否需要同步：`ai-scoring.js` 的评分、
+`npm run balance` 现在跑的就是玩家在困难难度下面对的那个 AI，
+胜率数字第一次真正代表实战平衡。
+
+**给技能加新字段时，要检查三处是否需要同步：`ai-scoring.js` 的评分、
 `combat.js` 的执行、以及 `data.js` 的配置。** 历史教训：给「狂暴」加 `power`
 时漏改 `ai.js`，导致 AI 放狂暴不造成伤害、玩家放却会。
 
@@ -48,9 +52,11 @@ CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量
 - **改完 `combat.js` / `battle.js` / `sim.js` 必须跑 `npm test`。**
 - **调整角色数值后跑 `npm run balance` 复验**，并留意输出里的"采样均匀度"一行
   （参战次数极差应 < 10%，否则统计不可信）。
-- `npm run balance` 用的是 `sim.js` 里的简易评分 AI，只看 cost 和 power，
-  代表不了 `ai.js` 里 hard 难度的真实水平。**这组数字适合发现离群角色，
-  不适合精调小数点后的差异。**
+- `npm run balance` 用的就是 `ai.js` 的 hard 难度（Phase 4 打通），
+  与玩家面对的 AI 完全一致。但**仍然只适合发现离群角色，不适合精调
+  小数点后的差异**——AI 是评分式的，评分模型本身的偏好会体现在胜率里。
+- 输出里的「节奏」一行是健康指标：平均回合数突然拉长、或超时局比例上升，
+  通常意味着治疗 / 护盾类技能被高估了。
 - 这是个人项目，**直接在 `main` 上提交即可**，不需要开分支走 PR。
 - **在浏览器里测试游戏时必须保持静音**——用户在旁边工作，测试音效会打扰他们。
   静音状态存在 `localStorage.inkfight_muted`（`'1'` = 静音），页面加载即生效。
@@ -79,12 +85,12 @@ npx serve .        # ou VS Code Live Server
 | `scene.js` | `applySceneBackground`, `startMenuBackground`, `stopMenuBackground`, `startSceneBgLayers`, `startSceneFx`, `drawScenePreview` |
 | `vfx.js` | `playSkillVfx`, `spawnFloatText`, `spawnHitBurst`, `spawnCritBurst`, `spawnHealColumn`, `spawnHexShield`, `spawnAura`, `spawnSmoke`, `spawnCurse`, `spawnDrainBeam`, `pushFx`, `getUnitScreenPos` |
 | `render.js` | `initRender`, `renderBattle`, `redrawUnit`, `animateUnit`, `lungeActor`（含 idle 动画 setInterval） |
-| **`ai-scoring.js`** | **技能评分的唯一实现，`ai.js` 与 `sim.js` 共用**。`scoreSkill(u, s, foes, friends, scene, opts)` 把各类技能收益折算成「等效伤害」以便横向比较；`pickTarget` 负责选目标。`opts.tempo`（0~1）控制是否计入「占掉一回合」的机会成本 |
-| `ai.js` | 纯函数，可在 Node 运行。只做**难度包装**：`aiEasy`/`aiNormal`/`aiHard`(u, enemies, allies, scene)，三档的区别是噪声大小、`tempo` 权重、以及 hard 独有的 `tacticalBonus` |
+| **`ai-scoring.js`** | **技能评分的唯一实现，`ai.js`（并经由它被 `sim.js`）共用**。`scoreSkill(u, s, foes, friends, scene, opts)` 把各类技能收益折算成「等效伤害」以便横向比较；`pickTarget` 选目标；`focusFoe` 定集火目标；`makeTeamContext()` 造队伍战术上下文。`opts.tempo`（0~1）控制是否计入「占掉一回合」的机会成本，`opts.teamwork`（0~1）控制配合意识强度 |
+| `ai.js` | 纯函数，可在 Node 运行。只做**难度包装**：`aiEasy`/`aiNormal`/`aiHard`(u, enemies, allies, scene, ctx)，三档的区别是噪声大小、`tempo` 权重、`teamwork` 权重、以及 hard 独有的 `tacticalBonus`。`ctx` 是本方队伍的战术上下文，同队单位共享才能集火 |
 | **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`** |
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
-| `sim.js` | 无头战斗模拟器（平衡测试用）。复用 `combat.js` 的规则与 `ai-scoring.js` 的评分，另含 `shuffle`（Fisher-Yates）、`runSimulation` |
-| `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`（共 62 条，`npm test`） |
+| `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
+| `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 87 条，`npm test`） |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关剧情数据：阵容、场景、难度、剧情文本） |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
 | `balance-report.mjs` | `npm run balance` 的入口 |
@@ -142,6 +148,32 @@ npx serve .        # ou VS Code Live Server
     跨度 11.6，无离群角色。
   - 仍属低使用率但**合理**的技能：免费普攻（有更好技能时自然不用）、
     刺客「消失」/ 狂战士「不屈」等保命技能（本就是情境技能）。
+- **合并两套 AI + 让 AI 学会配合**（2026-08-24，`AI_MERGE_PLAN.md` Phase 1～4）。
+  技能评分收敛为 `ai-scoring.js` 一份，`ai.js` 只做难度包装，`sim.js` 直接调
+  `aiHard`。**平衡测试第一次真正测的是玩家面对的那个 AI。**
+  - **AI 配合**：集火（按「威胁 / 有效血量」选目标，选定后整队不换人）、
+    不重复上 buff、队友濒危时坦克顶上去、按产出选治疗目标、
+    不用大招收残血（伤害按目标有效血量封顶）。
+    强度由 `teamwork` 权重分档：easy 0 / normal 0.5 / hard 1。
+  - **过程中挖出两个 AI 盲区**（都是评分的错，不是角色强弱）：
+    (1) 威胁度只算攻击力，牧师是全场最低，**敌方奶妈从来没被列入过集火名单**，
+    胜率虚高到 65.2%；改为 `max(伤害产出, 治疗量)`。
+    (2) 「优先救输出高的队友」的权重误乘进了分数，等于让治疗整体涨价 50%。
+    **教训：排序用的权重和绝对分数必须分开**——混在一起会让「在 A、B 之间选 A」
+    悄悄变成「A 这件事整体更值得做」。
+  - **当前基线（10000 局，AI=hard，采样极差 3.7%，平均 8.7 回合分胜负、
+    0.5% 超时）**：牧师 63.6% / 弓手 55.3% / 术士 54.0% / 守卫 53.3% /
+    剑士 46.3% / 法师 45.2% / 刺客 43.2% / 狂战士 39.1%。
+    跨度 24.5。**这组数字和 Phase 4 之前的不可比**（换了 AI），也不是回归——
+    以前的数字测的是另一个 AI。
+  - **AI 变强会放大角色差距**：集火让脆皮更吃亏（法师、刺客下滑），
+    不浪费回合让辅助更受益（牧师上升）。狂战士 39.1% 最低，
+    因为它的 `getEffectiveAtk` 随掉血上升、有效血量随掉血下降，
+    在「威胁 / 有效血量」的集火模型里会被越打越优先，形成死亡螺旋。
+  - 已确认**不是**评分盲区：净化 / 腐化爆发在条件满足时使用率 100%；
+    「狂暴」使用率 0% 是技能本身算不过账（3 回合多打约 7 点伤害，
+    却要自损 18 HP 并放弃「鲜血之力」的吸血），属角色数值问题。
+  - **角色数值调整留到下一轮**，不在合并 AI 这条线里做。
 
 ---
 
