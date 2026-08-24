@@ -5,7 +5,6 @@ import { gameState, rand, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from './scene.js';
 import { initRender, renderBattle } from './render.js';
-import { initAi } from './ai.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause } from './battle.js';
 import { runSimulation } from './sim.js';
 
@@ -470,7 +469,6 @@ syncMuteButton();   // 让静音按钮图标反映上次保存的状态
 
 initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
 initRender(getEffectiveAtk, onTargetClick);
-initAi(previewDmg);
 startMenuBackground();
 
 // ── 雷达图 ────────────────────────────────────────────────

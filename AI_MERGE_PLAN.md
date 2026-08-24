@@ -63,13 +63,13 @@ buff 强度（三份硬编码）。这是第三次，也是最后一处。
 
 目的：`ai.js` 能在 Node 里跑，才谈得上被 `sim.js` 复用。
 
-- [ ] `ai.js` 删除 `import { gameState }`（确认无使用后直接删）
-- [ ] 删除 `initAi()` 与模块级 `_previewDmg`，改为 `import { previewDmg } from './combat.js'`
-- [ ] `aiEasy/aiNormal/aiHard` 与内部 `scoreSkill` 签名加 `scene` 参数：
+- [x] `ai.js` 删除 `import { gameState }`（确认无使用后直接删）
+- [x] 删除 `initAi()` 与模块级 `_previewDmg`，改为 `import { previewDmg } from './combat.js'`
+- [x] `aiEasy/aiNormal/aiHard` 与内部 `scoreSkill` 签名加 `scene` 参数：
       `aiHard(u, enemies, allies, scene)`
-- [ ] `battle.js:360-362` 调用处传 `gameState.scene`
-- [ ] `main.js` 删除 `initAi(previewDmg)` 调用与 import
-- [ ] 加测试 `test/ai.test.js`：在 Node 中直接调用 `aiHard`，断言它能返回
+- [x] `battle.js:360-362` 调用处传 `gameState.scene`
+- [x] `main.js` 删除 `initAi(previewDmg)` 调用与 import
+- [x] 加测试 `test/ai.test.js`：在 Node 中直接调用 `aiHard`，断言它能返回
       合法的 `{skill, target}`（这条测试本身就证明了"已脱离浏览器"）
 
 **验证**：`npm test` 通过；浏览器里人机对战仍正常（AI 会出手、不报错）。
@@ -158,4 +158,11 @@ buff 强度（三份硬编码）。这是第三次，也是最后一处。
 ## 进度记录
 
 - 2026-08-24：完成调研（确认 `ai.js` 未真正使用 `gameState`、依赖极少、调用点仅两处），
-  写下本计划。尚未开始执行。
+  写下本计划。
+- 2026-08-24：**Phase 1 完成。** `ai.js` 已脱离浏览器——删掉未使用的 `gameState` import、
+  移除 `initAi()` 注入改为直接 import `combat.js` 的 `previewDmg`、三个 ai 函数与
+  `scoreSkill` 统一加 `scene` 参数。调用方 `battle.js` 传 `gameState.scene`，
+  `main.js` 删除 `initAi` 调用。新增 `test/ai.test.js`（9 条），该文件能在 Node 里
+  import 并调用 ai.js 本身即是「已脱离浏览器」的证明。
+  验证：npm test 59/59；浏览器困难难度实测两回合，AI 正常决策（第二回合术士放瘟疫），
+  场景加成显示正确，零控制台报错。

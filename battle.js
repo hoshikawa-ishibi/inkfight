@@ -357,9 +357,9 @@ function aiAct(u){
   if(enemies.length===0){ setTimeout(nextTurn,400); return; }
   const d=gameState.difficulty;
   let chosen;
-  if(d==='easy') chosen=aiEasy(u,enemies,allies);
-  else if(d==='hard') chosen=aiHard(u,enemies,allies);
-  else chosen=aiNormal(u,enemies,allies);
+  if(d==='easy') chosen=aiEasy(u,enemies,allies,gameState.scene);
+  else if(d==='hard') chosen=aiHard(u,enemies,allies,gameState.scene);
+  else chosen=aiNormal(u,enemies,allies,gameState.scene);
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`,'info');
   executeSkill(u,chosen.skill,chosen.target);

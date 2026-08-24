@@ -1,10 +1,10 @@
-import { gameState, rand } from './state.js';
-import { needsEnemyTarget } from './combat.js';
+// 纯函数 AI：不依赖 DOM 也不依赖 gameState，因此可以直接在 Node 中运行，
+// 让平衡测试（sim.js）驱动玩家真正面对的这套 AI。
+// scene 一律由调用方显式传入，不再从全局状态里取。
+import { rand } from './state.js';
+import { needsEnemyTarget, previewDmg } from './combat.js';
 
-let _previewDmg;
-export function initAi(previewDmg){ _previewDmg=previewDmg; }
-
-export function aiEasy(u,enemies,allies){
+export function aiEasy(u,enemies,allies,scene){
   const usable=u.skills.filter(s=>u.sp>=s.cost&&!(s.hpCost&&u.hp<=s.hpCost));
   if(usable.length===0) return null;
   let skill=Math.random()<0.7?u.skills[0]:usable[rand(0,usable.length-1)];
@@ -19,33 +19,33 @@ export function aiEasy(u,enemies,allies){
   return {skill,target};
 }
 
-export function aiNormal(u,enemies,allies){
+export function aiNormal(u,enemies,allies,scene){
   let best=null,bestScore=-Infinity,bestTarget=null;
   for(const s of u.skills){
     if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) continue;
-    const r=scoreSkill(u,s,enemies,allies,'normal');
+    const r=scoreSkill(u,s,enemies,allies,'normal',scene);
     if(r.score>bestScore){ bestScore=r.score; best=s; bestTarget=r.target; }
   }
   return best?{skill:best,target:bestTarget}:null;
 }
 
-export function aiHard(u,enemies,allies){
+export function aiHard(u,enemies,allies,scene){
   let best=null,bestScore=-Infinity,bestTarget=null;
   for(const s of u.skills){
     if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) continue;
-    const r=scoreSkill(u,s,enemies,allies,'hard');
+    const r=scoreSkill(u,s,enemies,allies,'hard',scene);
     if(r.score>bestScore){ bestScore=r.score; best=s; bestTarget=r.target; }
   }
   return best?{skill:best,target:bestTarget}:null;
 }
 
-function scoreSkill(u,s,enemies,allies,level){
+function scoreSkill(u,s,enemies,allies,level,scene){
   let score=0,target=null;
   const lowEnemy=enemies.slice().sort((a,b)=>a.hp-b.hp)[0];
   const lowAlly=allies.slice().sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
   const highSpEnemy=enemies.slice().sort((a,b)=>b.sp/b.maxSp-a.sp/a.maxSp)[0];
   const fragileEnemy=enemies.slice().sort((a,b)=>a.maxHp-b.maxHp)[0];
-  const dmgEst=_previewDmg(u,s);
+  const dmgEst=previewDmg(u,s,scene);
   switch(s.type){
     case 'damage':
       target=lowEnemy; score=(s.power||1)*30;
