@@ -112,7 +112,7 @@ npx serve .        # ou VS Code Live Server
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 91 条，`npm test`） |
-| `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容、场景、AI档、`enemyMod` 属性加成、剧情文本）+ `enemyIds(stage)` |
+| `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `enemyIds(stage)` |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
 | `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。用 `simOneBattle` 的 `p1Mod/p2Mod/p1Ai/p2Ai` 做非对称对局，属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
@@ -233,6 +233,33 @@ npx serve .        # ou VS Code Live Server
   **教训：重构掉一个状态字段时，要 grep 干净所有读取方。** 这三处的共同点是
   「读到 undefined 之后走了一条看似正常的分支」（`if(u)` 直接跳过、
   `===` 恒为 false），不抛异常，所以能潜伏很久。
+- **战役敌人有身份 + 墨皇是真 BOSS + 剧情分段**（2026-08-25，`CAMPAIGN_PLAN.md` Phase 2/3/5）。
+  - `createUnit(charId, player, slot, override)` 加了第四个参数，可覆盖
+    name/color/hp/sp/atk/def/crit/dodge/spRegen/passive。**同一个角色、不同身份**
+    靠它实现，不新增角色数据。另有 `unitSpec(entry)` 把「字符串 or {id,name,…} 对象」
+    的解析收敛成一处，`battle.js` 和 `sim.js` 共用。
+  - 16 个战役敌人都有了剧情名；`gameState` 拆成 `p2Picks`（纯 id，雷达图按 id 读）
+    和 `p2Roster`（带身份的原始条目，建单位时用）。
+  - **最终关改成墨皇独战**。依据是一条实测出来的机制事实：
+    **本作回合流程是「双方各行动一个单位」，队伍人数不影响行动次数、只影响血池。**
+    所以两人队里 BOSS 只能隔回合出手一次，单人则每回合都出手——
+    「165 血的换皮术士」和「每回合都出手的 260 血墨皇」，只有后者像 BOSS。
+    属性 260/22/8 是 `campaign-check.mjs` 校到 42% 的结果（实测 40.7%）。
+  - **血量预算比想象中紧**：给墨皇 +40% 血就吃掉 24 个百分点。
+    165/19/7 的双人版本只给玩家 6.1%，远超目标。
+  - 过场支持多段文本（`intro`/`outro` 改成数组，字符串仍兼容），
+    8 关剧情从不到 40 行扩到 52 段，并串了一条主线。
+    **没做打字机效果**：分段推进本身就是节奏控制，再加打字机会让「点一下」
+    产生两种含义（补完本段 vs 翻页），把最简单的交互复杂化。
+  - 修掉两个既有 bug：(1) 战役赢了直接跳过场，**看不到任何战斗结算**——
+    现在赢下一关也走完整结算界面，看完点「继续剧情 →」再进过场；
+    (2) 「最终战役统计」显示的其实是**最后一关单场**数据——
+    现在按关卡 id 存每关一份（`inkfight_campaign_totals`）、展示时求和。
+    按 id 存而不是直接累加，是因为通关的关卡可以重打，重打只该覆盖那一关。
+  - 顺手修掉一个藏了很久的显示 bug：结算界面的数字滚动动画用
+    `isNaN(parseInt(v))` 判断该不该滚，于是「22（守卫）」这种也被当数字滚了一遍，
+    滚完括号里的名字就没了——「最高单次伤害」那行**一直没显示过是谁打的**。
+    改成只滚纯数字（`/^[0-9]+$/`）。
 - **战役难度曲线重排**（2026-08-24，`CAMPAIGN_PLAN.md` Phase 1）。
   起因：8 关的敌方阵容是按剧情随手写的，没人算过强度账，实测曲线是锯齿——
   最终 BOSS（62.5%）比第三关（40.1%）还好打，真正最难的是第七关（23.1%）。

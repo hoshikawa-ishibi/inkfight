@@ -180,16 +180,17 @@ if(gameState.mode==='ai'){
 
 ## Phase 3 — 剧情扩写 + 分段播放
 
-- [ ] `main.js` 的 `showCutscene(stageTitle, text, btnLabel, callback)` 改造成
+- [x] `main.js` 的 `showCutscene(stageTitle, text, btnLabel, callback)` 改造成
       支持**多段文本数组**，点击逐段推进，最后一段才触发 callback。
       现在是一次性 `textContent = text` 糊一整段。
-- [ ] `campaign.js` 的 `intro`/`outro` 从字符串改成字符串数组（分段）。
+- [x] `campaign.js` 的 `intro`/`outro` 从字符串改成字符串数组（分段）。
       保持向后兼容：字符串自动包成单元素数组。
-- [ ] 扩写文本：每关 intro 3~5 段、outro 2~3 段。
+- [x] 扩写文本：每关 intro 3~5 段、outro 2~3 段。
       **写作要求**：敌人要用 Phase 2 给的身份名说话，让"你打的人"和"说话的人"是同一个。
-- [ ] 加一条贯穿的主线（墨皇为何统治墨境 / 主角为何而来），
+- [x] 加一条贯穿的主线（墨皇为何统治墨境 / 主角为何而来），
       在 8 关里分段揭示，而不是每关各讲各的。
-- [ ] 打字机效果（可选，锦上添花，不做也行）。
+- [~] 打字机效果——**决定不做**。分段推进本身已经是节奏控制，再加打字机会让「点一下」
+      产生两种含义（补完这段 vs 翻到下一段），把最简单的交互复杂化。计划里本就标了「可选」。
 
 **验证**：浏览器走完第 1 关的完整 intro→战斗→outro 流程，分段推进正常。
 
@@ -222,9 +223,9 @@ if(gameState.mode==='ai'){
 
 ## Phase 5 — 收尾与既有 bug
 
-- [ ] 修「最终战役统计」：现在显示的是最后一关单场数据。
+- [x] 修「最终战役统计」：现在显示的是最后一关单场数据。
       需要跨关累计（存在 `gameState.campaignTotals` 或 localStorage）。
-- [ ] 战役打赢一关后加战斗结算（现在直接跳 cutscene，看不到伤害/MVP）。
+- [x] 战役打赢一关后加战斗结算（现在直接跳 cutscene，看不到伤害/MVP）。
       建议：结算界面加一个"继续剧情"按钮，而不是跳过结算。
 - [ ] 更新 `CLAUDE.md`：模块表补 `campaign-check.mjs`，
       记录新的难度曲线和战役设计约定。

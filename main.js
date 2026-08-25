@@ -287,16 +287,80 @@ function saveCampaignProgress(n){
   localStorage.setItem('inkfight_campaign', String(n));
 }
 
+// 战役累计统计。以前「最终战役统计」显示的其实是**最后一关单场**的数据，
+// 名不副实。这里按关卡 id 存每关一份，展示时求和——
+// 按 id 存（而不是直接累加）是因为已通关的关卡可以重打，
+// 重打只该覆盖那一关的数据，不该把总数越刷越高。
+const TOTALS_KEY = 'inkfight_campaign_totals';
+
+function getCampaignTotals(){
+  try { return JSON.parse(localStorage.getItem(TOTALS_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function recordStageStats(stageId, stats, rounds){
+  const all = getCampaignTotals();
+  const mine = {};   // 只记玩家这边的单位
+  Object.values(stats.units).filter(u => u.player === 1).forEach(u => {
+    mine[u.name] = { dmg:u.dmg, heal:u.heal, kills:u.kills };
+  });
+  all[stageId] = {
+    dmg: stats.p1.dmg, heal: stats.p1.heal, kills: stats.p1.kills,
+    rounds, maxHit: { ...stats.maxHit }, units: mine,
+  };
+  localStorage.setItem(TOTALS_KEY, JSON.stringify(all));
+}
+
+// 把每关一份的记录汇总成一份战役总账
+function sumCampaignTotals(){
+  const all = getCampaignTotals();
+  const sum = { dmg:0, heal:0, kills:0, rounds:0, stages:0, maxHit:{dmg:0,name:''}, units:{} };
+  for(const rec of Object.values(all)){
+    sum.dmg += rec.dmg; sum.heal += rec.heal; sum.kills += rec.kills;
+    sum.rounds += rec.rounds; sum.stages += 1;
+    if(rec.maxHit && rec.maxHit.dmg > sum.maxHit.dmg) sum.maxHit = { ...rec.maxHit };
+    for(const [name, u] of Object.entries(rec.units || {})){
+      const t = sum.units[name] || (sum.units[name] = { dmg:0, heal:0, kills:0 });
+      t.dmg += u.dmg; t.heal += u.heal; t.kills += u.kills;
+    }
+  }
+  return sum;
+}
+
+// 过场支持**多段文本**：传数组就逐段推进，最后一段才触发 callback。
+// 以前是一次性 textContent = 整段，8 关的剧情全糊在一屏里，没有节奏可言。
+// 传字符串仍然可以（自动包成单元素数组），向后兼容。
 let _cutsceneCallback = null;
+let _cutsceneParts = [];
+let _cutsceneIdx = 0;
+let _cutsceneBtnLabel = '继续';
+
 function showCutscene(stageTitle, text, btnLabel, callback){
-  document.getElementById('cutscene-stage').textContent = stageTitle;
-  document.getElementById('cutscene-text').textContent = text;
-  document.getElementById('btn-cutscene').textContent = btnLabel;
+  _cutsceneParts = (Array.isArray(text) ? text.slice() : [text]).filter(t => t != null && t !== '');
+  if(!_cutsceneParts.length) _cutsceneParts = [''];
+  _cutsceneIdx = 0;
+  _cutsceneBtnLabel = btnLabel;
   _cutsceneCallback = callback;
+  document.getElementById('cutscene-stage').textContent = stageTitle;
+  renderCutscenePart();
   showScreen('screen-cutscene');
 }
+
+function renderCutscenePart(){
+  const isLast = _cutsceneIdx === _cutsceneParts.length - 1;
+  document.getElementById('cutscene-text').textContent = _cutsceneParts[_cutsceneIdx];
+  document.getElementById('btn-cutscene').textContent = isLast ? _cutsceneBtnLabel : '继续 ▾';
+  document.getElementById('cutscene-dots').textContent =
+    _cutsceneParts.length > 1 ? `${_cutsceneIdx + 1} / ${_cutsceneParts.length}` : '';
+}
+
 export function onCutsceneNext(){
-  if(_cutsceneCallback){ const cb=_cutsceneCallback; _cutsceneCallback=null; cb(); }
+  if(_cutsceneIdx < _cutsceneParts.length - 1){
+    _cutsceneIdx++;
+    renderCutscenePart();
+    return;
+  }
+  if(_cutsceneCallback){ const cb = _cutsceneCallback; _cutsceneCallback = null; cb(); }
 }
 
 function initCampaignScreen(){
@@ -348,11 +412,15 @@ function launchCampaignStage(stage){
   });
 }
 
-function onCampaignWin(){
+// 分两个阶段：battle.js 赢下来的当场调 'record' 记进度和统计
+// （中途关掉页面不该丢），玩家在结算界面点「继续剧情」才调 'continue'。
+function onCampaignWin(phase){
   const stage = CAMPAIGN_STAGES.find(s => s.id === gameState.campaignStage);
-  const progress = getCampaignProgress();
-  const newProgress = Math.max(progress, stage.id);
-  saveCampaignProgress(newProgress);
+  if(phase === 'record'){
+    saveCampaignProgress(Math.max(getCampaignProgress(), stage.id));
+    recordStageStats(stage.id, gameState.stats, gameState.round);
+    return;
+  }
   const isLast = stage.id === CAMPAIGN_STAGES.length;
   showCutscene(
     stage.title,
@@ -373,17 +441,29 @@ function showCampaignComplete(){
   document.getElementById('result-title').textContent = '战役通关！';
   document.getElementById('result-title').style.color = '#ffd54f';
   document.getElementById('result-desc').textContent = '你击败了墨皇，墨境迎来了自由的曙光。';
-  const s = gameState.stats;
-  document.getElementById('result-stats').innerHTML = `
-    <h3>最终战役统计</h3>
-    <div class="row"><span>总伤害</span><span>${s.p1.dmg}</span></div>
-    <div class="row"><span>总治疗</span><span>${s.p1.heal}</span></div>
-    <div class="row"><span>击杀数</span><span>${s.p1.kills}</span></div>
-    <div class="row"><span>总回合数</span><span>${gameState.round}</span></div>`;
+  // 这里过去读的是 gameState.stats，那只是**最后一关单场**的数据。
+  // 现在读跨关累计。
+  const t = sumCampaignTotals();
+  const roster = Object.entries(t.units).sort((a,b) =>
+    (b[1].dmg + b[1].heal * 1.5 + b[1].kills * 80) - (a[1].dmg + a[1].heal * 1.5 + a[1].kills * 80));
+  const rows = [
+    ['通关关卡数', `${t.stages} / ${CAMPAIGN_STAGES.length}`],
+    ['累计伤害', t.dmg],
+    ['累计治疗', t.heal],
+    ['累计击杀', t.kills],
+    ['累计回合', t.rounds],
+    ['全程最高单次伤害', `${t.maxHit.dmg}（${t.maxHit.name}）`],
+    ['─────────────', '─────────────'],
+    ...roster.map(([name, u]) => [name, `伤害 ${u.dmg} / 治疗 ${u.heal} / 击杀 ${u.kills}`]),
+  ];
+  document.getElementById('result-stats').innerHTML =
+    `<h3>战役总战绩</h3>` +
+    rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
 }
 
 export function resetCampaign(){
   localStorage.removeItem('inkfight_campaign');
+  localStorage.removeItem(TOTALS_KEY);   // 进度和战绩要一起清，否则重开一遍战绩还是旧的
   initCampaignScreen();
 }
 

@@ -224,38 +224,12 @@ function checkVictory(){
   return false;
 }
 
-function showResult(w){
-  Audio.stopBgm();
-  if(gameState.mode==='campaign'){
-    if(w===1&&_onCampaignWin){ _onCampaignWin(); return; }
-    // 战役失败
-    playSfx('defeat');
-    _showScreen('screen-result');
-    document.getElementById('result-title').textContent='战败...';
-    document.getElementById('result-title').style.color='#888';
-    document.getElementById('result-desc').textContent='墨境的黑暗尚未散去，再试一次吧。';
-    const s=gameState.stats;
-    document.getElementById('result-stats').innerHTML=`
-      <h3>战斗统计</h3>
-      <div class="row"><span>造成伤害</span><span>${s.p1.dmg}</span></div>
-      <div class="row"><span>治疗量</span><span>${s.p1.heal}</span></div>
-      <div class="row"><span>坚持回合</span><span>${gameState.round}</span></div>
-      <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
-        <button class="btn btn-confirm" onclick="playSfx('click'); showScreen('screen-campaign')">返回地图</button>
-        <button class="btn" onclick="playSfx('click'); location.reload()">重新开始</button>
-      </div>`;
-    return;
-  }
-  _showScreen('screen-result');
-  document.getElementById('result-title').textContent=`玩家 ${w} 胜利！`;
-  document.getElementById('result-title').style.color=w===1?'#e94560':'#16c79a';
-  document.getElementById('result-desc').textContent=
-    w===1?'黑墨团赢得了墨境的统治权！':'白线派守护了墨境的秩序！';
-  const isPlayerWin=(gameState.mode==='ai'&&w===1)||gameState.mode==='pvp';
-  playSfx(isPlayerWin?'victory':'defeat');
+// 结算表格 + 数字滚动动画。战役和人机/PVP 共用这一份——
+// 以前战役赢了直接跳过场，打完一关看不到任何伤害/MVP 统计。
+function renderStatsPanel(extraRows, actionsHtml){
   const s=gameState.stats;
-  // MVP：综合评分 = 伤害 + 治疗×1.5 + 击杀×80
   const allUnits=Object.values(s.units);
+  // MVP：综合评分 = 伤害 + 治疗×1.5 + 击杀×80
   const mvp=allUnits.reduce((best,u)=>{
     const score=u.dmg+u.heal*1.5+u.kills*80;
     return score>(best.score||0)?{...u,score}:best;
@@ -266,20 +240,67 @@ function showResult(w){
     ['─────────────','─────────────'],
     ...allUnits.map(u=>[u.name, `伤害 ${u.dmg} / 治疗 ${u.heal} / 击杀 ${u.kills}`]),
     ['─────────────','─────────────'],
-    ['玩家1 总伤害', s.p1.dmg],['玩家2 总伤害', s.p2.dmg],
+    ...(extraRows||[]),
     ['总回合数', gameState.round],
   ];
   const statsEl=document.getElementById('result-stats');
   statsEl.innerHTML=`<h3>战斗统计</h3>`+rows.map(([k,v])=>
     `<div class="row"><span>${k}</span><span class="stat-val" data-val="${v}">${typeof v==='number'?0:v}</span></div>`
-  ).join('');
-  // 数字滚动动画
+  ).join('')+(actionsHtml||'');
   statsEl.querySelectorAll('.stat-val[data-val]').forEach(el=>{
+    // 只滚**纯数字**的行。以前用 parseInt(...) 是否 NaN 来判断，
+    // 于是「22（守卫）」这种也被当成数字滚了一遍，滚完括号里的名字就没了
+    // ——「最高单次伤害」那一行一直显示不出是谁打的。
+    if(!/^[0-9]+$/.test(el.dataset.val)) return;
     const target=parseInt(el.dataset.val);
-    if(isNaN(target)) return;
     let cur=0; const step=Math.max(1,Math.floor(target/30));
     const t=setInterval(()=>{ cur=Math.min(cur+step,target); el.textContent=cur; if(cur>=target) clearInterval(t); },30);
   });
+}
+
+function showResult(w){
+  Audio.stopBgm();
+  _showScreen('screen-result');
+  const actions=document.getElementById('result-actions');
+
+  if(gameState.mode==='campaign'){
+    if(actions) actions.style.display='none';       // 战役自己出按钮
+    const won=w===1;
+    playSfx(won?'victory':'defeat');
+    const title=document.getElementById('result-title');
+    title.textContent=won?'关卡通过！':'战败...';
+    title.style.color=won?'#ffd54f':'#888';
+    document.getElementById('result-desc').textContent=
+      won?'看完战绩，继续剧情。':'墨境的黑暗尚未散去，再试一次吧。';
+    // 通关立刻记进度和累计统计，别等玩家点按钮——中途关掉页面不该丢进度
+    if(won&&_onCampaignWin) _onCampaignWin('record');
+    renderStatsPanel(
+      [['敌方总伤害', gameState.stats.p2.dmg]],
+      won
+        ? `<div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+             <button class="btn btn-confirm" id="btn-stage-continue">继续剧情 →</button>
+           </div>`
+        : `<div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+             <button class="btn btn-confirm" onclick="playSfx('click'); showScreen('screen-campaign')">返回地图</button>
+             <button class="btn" onclick="playSfx('click'); location.reload()">重新开始</button>
+           </div>`
+    );
+    const cont=document.getElementById('btn-stage-continue');
+    if(cont) cont.onclick=()=>{ playSfx('click'); if(_onCampaignWin) _onCampaignWin('continue'); };
+    return;
+  }
+
+  if(actions) actions.style.display='flex';
+  document.getElementById('result-title').textContent=`玩家 ${w} 胜利！`;
+  document.getElementById('result-title').style.color=w===1?'#e94560':'#16c79a';
+  document.getElementById('result-desc').textContent=
+    w===1?'黑墨团赢得了墨境的统治权！':'白线派守护了墨境的秩序！';
+  const isPlayerWin=(gameState.mode==='ai'&&w===1)||gameState.mode==='pvp';
+  playSfx(isPlayerWin?'victory':'defeat');
+  renderStatsPanel([
+    ['玩家1 总伤害', gameState.stats.p1.dmg],
+    ['玩家2 总伤害', gameState.stats.p2.dmg],
+  ]);
 }
 
 export function confirmExit(){
