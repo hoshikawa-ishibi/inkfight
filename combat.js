@@ -178,7 +178,6 @@ export function calcDamage(actor, target, skill, scene){
   let isCrit = false;
   const totalCrit = (skill.crit||0) + actor.crit;
   if(Math.random()*100 < totalCrit){ dmg *= 1.5; isCrit = true; }
-  if(target.debuffs.some(d=>d.type==='cursed')) dmg *= 1.25;
   if(target.debuffs.some(d=>d.type==='defDown')) dmg *= 1.2;
   if(scene && scene.buff==='damageUp') dmg *= 1.15;
   const defReduce = target.def/(target.def+50);

@@ -401,12 +401,12 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
 `['spSteal','debuff']`，现在断言**这个名单必须是空的**——
 「switch 里不许有任何技能都触达不到的 case」。变异测试复跑：15 个 case 全被盯住。
 
-**还剩一个没动，需要你拍板**：状态类型 `cursed`（诅咒）。
-`combat.js` 的 `calcDamage` 给带 `cursed` 的目标 ×1.25 伤害，
-`render.js` 会显示「👁诅咒」，`combat.test.js` 还有一条测试——
-但**全仓库没有任何代码会产生 `cursed`**（唯一可能的生产者就是刚删掉的
-`makeDebuff`）。它是死的，但删它等于删一条游戏机制，
-而 `Game todo.html` 的 #4「更多状态效果」正好会用上它，所以留着等你决定。
+- **状态类型 `cursed`（诅咒）**：`calcDamage` 给带 `cursed` 的目标 ×1.25 伤害、
+  `render.js` 显示「👁诅咒」、`combat.test.js` 有一条测试——但全仓库没有任何
+  代码能产生它（唯一可能的生产者就是同批删掉的 `makeDebuff`）。
+  **用户拍板一起清掉**。三处全删，那条测试改成只测 `defDown`。
+  将来做 `Game todo.html` 的 #4「更多状态效果」时重写这 4 行即可——
+  `defDown` 就在旁边，是现成的活样板。
 
 ### 从这次清理里学到的
 

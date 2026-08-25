@@ -28,7 +28,6 @@ function statusChips(u){
   if(u.buffs.some(b=>b.type==='atkUp')) list.push('⚔️攻↑');
   if(u.buffs.some(b=>b.type==='atkUp1')) list.push('🎯专注');
   if(u.debuffs.some(d=>d.type==='poison')) list.push('☠中毒');
-  if(u.debuffs.some(d=>d.type==='cursed')) list.push('👁诅咒');
   if(u.debuffs.some(d=>d.type==='defDown')) list.push('🛡↓');
   if(u.undying) list.push('💀不屈');
   return list.map(t=>`<span class="stat-chip">${t}</span>`).join('');

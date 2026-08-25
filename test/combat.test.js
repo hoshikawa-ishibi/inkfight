@@ -59,11 +59,9 @@ describe('calcDamage', () => {
     assert.equal(r.dmg, 30);
   });
 
-  test('cursed 目标额外 1.25 倍，defDown 目标额外 1.2 倍', () => {
+  test('defDown 目标额外 1.2 倍', () => {
     const actor = makeUnit({atk:20});
-    const cursed = makeUnit({debuffs:[{type:'cursed', dur:1}]});
     const defDown = makeUnit({debuffs:[{type:'defDown', dur:1}]});
-    assert.equal(calcDamage(actor, cursed, {power:1}, null).dmg, 25);
     assert.equal(calcDamage(actor, defDown, {power:1}, null).dmg, 24);
   });
 
