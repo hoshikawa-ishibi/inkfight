@@ -134,18 +134,22 @@ describe('哨兵：别让上面那组悄悄变成空跑', () => {
       `data.js 里有技能用了这些类型，但 sim.js 的 switch 没接：${missing.join(', ')}`);
   });
 
-  // 变异测试（逐个把 case 标签改名，看测试红不红）的结果：17 个 case 里
-  // **15 个被上面那组盯住，2 个盯不住**——因为 data.js 里根本没有技能用这两种类型。
-  // 它们在 sim.js / battle.js / ai-scoring.js 三处都有实现，却谁也调不到。
-  // 记在这里而不是删掉：删要三个文件一起动，属于另一条任务。
-  // （注意别和 `skill.debuff:'defDown'` 那个**字段**搞混——那个是活的，
-  //   破甲突刺在用，由 combat.js 的 calcDamage 处理，不走 switch。）
-  test('已知盲区：这两个 case 没有任何技能能触达', () => {
+  // 反过来的方向：switch 里不许有任何技能都触达不到的 case。
+  // 这条一开始是「已知盲区」名单——变异测试发现 `spSteal` 和 `debuff` 两个 case
+  // 谁也调不到（data.js 里没有技能用这两种类型），却在 sim.js / battle.js /
+  // ai-scoring.js 三处各有一份实现。它们后来被清掉了，这条就从「记录盲区」
+  // 升级成了「不许再长出盲区」。
+  //
+  // 死 case 不是无害的：它让人以为游戏有这个机制，也让人在改技能系统时
+  // 多维护三份永远不会执行的代码。
+  // （别和 `skill.debuff:'defDown'` 那个**字段**搞混——那个是活的，破甲突刺在用，
+  //   由 combat.js 的 calcDamage 处理，根本不走这个 switch。）
+  test('switch 里没有任何技能都触达不到的死 case', () => {
     const used = new Set(CHARACTERS.flatMap(c => c.skills.map(s => s.type)));
-    assert.deepEqual(handledTypes().filter(t => !used.has(t)), ['spSteal', 'debuff'],
-      '触达不到的 case 名单变了：要么新加的技能用上了其中一种（好事，' +
-      '把它从这行名单里删掉，上面那组会自动开始盯它），要么有人把死 case 清了' +
-      '（也是好事，同样改这行名单）');
+    const orphan = handledTypes().filter(t => !used.has(t));
+    assert.deepEqual(orphan, [],
+      `sim.js 的 switch 有 case 但没有任何技能用：${orphan.join(', ')}。` +
+      `要么给它配个技能，要么删掉——留着只会让人以为游戏有这个机制`);
   });
 
   test('局面确实造对了：不满血、不满蓝、有 debuff、有腐化层', () => {

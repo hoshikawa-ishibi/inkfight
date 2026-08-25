@@ -174,12 +174,6 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       return damageWorth(d, mainFoe, s) + healed * 0.8;
     }
 
-    case 'spSteal': {
-      const d = dmgOf(s.power);
-      const avgFoeSp = foes.reduce((n,f)=>n+f.sp,0)/foes.length;
-      return d + Math.min(s.stealAmt, avgFoeSp) * 0.4;
-    }
-
     case 'stun': {
       // 挑最容易晕到的目标（SP 越满命中率越高），收益 = 对方少打的那一回合，
       // 要按它能放出来的最强技能估，而不是裸 atk。
@@ -273,10 +267,6 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const hpRisk = (s.hpCost||0) * (hpFrac < 0.35 ? 6 : hpFrac < 0.6 ? 1.8 : 0.6);
       return (unlockWorth + (s.spGain||0) * 0.35) * starved - hpRisk - tempo * 0.5;
     }
-
-    case 'debuff':
-      // 诅咒：让后续伤害按 debuffValue 提升，折算成接下来几回合的额外输出
-      return atk * (s.debuffValue ?? BUFF_DEFAULTS.debuff) * (s.dur||1);
 
     default:
       return s.cost * 0.5;

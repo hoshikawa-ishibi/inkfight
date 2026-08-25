@@ -157,7 +157,7 @@ describe('calcStun', () => {
   });
 });
 
-describe('triggerPassive - 8 种被动效果', () => {
+describe('triggerPassive - 7 种被动效果', () => {
   test('spGain：无条件回复 SP', () => {
     const u = makeUnit({sp:50, passive:{name:'剑意', trigger:'onCrit', effect:'spGain', value:8}});
     const ev = triggerPassive('onCrit', u);
@@ -219,19 +219,6 @@ describe('triggerPassive - 8 种被动效果', () => {
     const ev = triggerPassive('onTurnStart', hurt);
     assert.ok(ev);
     assert.ok(hurt.buffs.some(b=>b.type==='atkUp' && b.value===0.3));
-  });
-
-  test('soulDrain：目标带毒/诅咒才吸血', () => {
-    const p = {name:'灵魂侵蚀', trigger:'onDamageDealt', effect:'soulDrain', value:15};
-    const u = makeUnit({hp:50, passive:p});
-    const cleanTarget = makeUnit({debuffs:[]});
-    assert.equal(triggerPassive('onDamageDealt', u, {target:cleanTarget}), null);
-    assert.equal(u.hp, 50);
-
-    const poisoned = makeUnit({debuffs:[{type:'poison', dur:1, value:1}]});
-    const ev = triggerPassive('onDamageDealt', u, {target:poisoned});
-    assert.ok(ev);
-    assert.equal(u.hp, 65);
   });
 
   test('corruptBonus：按腐化层数造成额外伤害，可致命', () => {

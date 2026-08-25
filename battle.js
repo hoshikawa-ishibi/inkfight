@@ -8,7 +8,7 @@ import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
-  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget,
+  resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
   applyDifficulty, applyStageMod, unitSpec
 } from './combat.js';
 
@@ -50,10 +50,6 @@ function renderPassiveEvent(unit, event){
       addLog(`【${event.name}】${unit.name} 血怒觉醒！攻击+${event.value*100}%（${event.stacks}层）`, 'buff');
       spawnFloatText(unit, '血怒!', '#ff7043', 16);
       spawnAura(unit, '#ff5722');
-      break;
-    case 'soulDrain':
-      addLog(`【${event.name}】${unit.name} 灵魂侵蚀吸取 ${event.value} HP`, 'heal');
-      spawnFloatText(unit, `+${event.value}`, '#ce93d8', 14);
       break;
     case 'corruptBonus':
       addLog(`【${event.name}】腐化侵蚀 ${event.target.name} 额外 ${event.amount} 伤害（${event.stacks}层）`, 'dmg');
@@ -480,19 +476,6 @@ function executeSkill(actor,skill,target){
       target.buffs.push(makeAllyBuff(skill));
       addLog(`${actor.name} 给予 ${target.name} 攻击祝福`,'buff');
       spawnFloatText(target,'ATK↑','#ce93d8',16); spawnAura(target,'#ffd54f');
-      break;
-    case 'spSteal': {
-      const stolen=Math.min(skill.stealAmt,target.sp);
-      target.sp-=stolen; actor.sp=clamp(actor.sp+stolen,0,actor.maxSp);
-      addLog(`${actor.name} 偷取 ${target.name} ${stolen} SP`,'sp');
-      spawnFloatText(target,`-${stolen} SP`,'#4fc3f7',14);
-      playSkillVfx(actor,target,skill,()=>doDamage(actor,target,skill));
-      break;
-    }
-    case 'debuff':
-      target.debuffs.push(makeDebuff(skill));
-      addLog(`${actor.name} 诅咒了 ${target.name}`,'buff');
-      spawnFloatText(target,'诅咒','#7e57c2',16); spawnCurse(target);
       break;
     case 'drain':
       playSkillVfx(actor,target,skill,()=>{

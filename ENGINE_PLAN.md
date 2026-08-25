@@ -372,3 +372,47 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
 重新捡起来的条件写在上面那一节，别在条件没成立时捡回来。
 
 **基线更新为**：`npm test` 188/188。
+
+## 收尾之后：把「记着没清」的死代码清了（2026-08-25）
+
+任务 3 和 4b 各留了一笔「发现了但超出本条任务范围」的账，一起结掉。
+**行为零变更是量出来的**：删之前用固定随机数序列跑 3000 局压出一个 sha256，
+删完再跑一次，哈希一模一样（`e299011b…`）——不可达的代码删掉当然不影响结果，
+但这件事要证明，不能靠"看着像"。`npm test` 188 → **187**（删了一条测试，见下）。
+
+清掉的东西，都是「实现存在但没有任何配置能触达」这一个物种：
+
+- **技能类型 `spSteal` / `debuff`**：`data.js` 里没有任何技能用这两种类型，
+  却在 `sim.js` / `battle.js` / `ai-scoring.js` **三处**各有一份实现。
+  连带删掉随之变成死代码的 `combat.js` 的 `makeDebuff()`、
+  `BUFF_DEFAULTS.debuff`、以及 `needsEnemyTarget` 里的那两个类型名。
+- **被动效果 `soulDrain`**：`combat.js` 的 `triggerPassive` 有完整实现、
+  `battle.js` 有对应的日志和特效分支，但 `data.js` / `campaign.js` 里
+  **没有任何角色配 `effect:'soulDrain'`**。这个是清 spSteal 时顺藤摸出来的，
+  4b 的变异测试没覆盖到它（那条测试只扫技能类型，不扫被动效果）。
+  `test/combat.test.js` 里那条 `soulDrain` 测试跟着删——**它测的是一个
+  游戏里永远不会发生的机制**，绿着反而给人虚假的安全感。
+- **`package.json` 的 `@anthropic-ai/sdk` 依赖**（任务 3 记过一笔）：
+  是给两个从未存在过的 CLI 脚本装的，全仓库 0 处 import。
+  `npm install` 同步掉 lock 和 node_modules（removed 4 packages）。
+- 文档跟手：`CLAUDE.md` 的 `makeDebuff` 和测试条数。
+
+**4b 那条「已知盲区」测试升级成了不变量**：原本断言死 case 名单
+`['spSteal','debuff']`，现在断言**这个名单必须是空的**——
+「switch 里不许有任何技能都触达不到的 case」。变异测试复跑：15 个 case 全被盯住。
+
+**还剩一个没动，需要你拍板**：状态类型 `cursed`（诅咒）。
+`combat.js` 的 `calcDamage` 给带 `cursed` 的目标 ×1.25 伤害，
+`render.js` 会显示「👁诅咒」，`combat.test.js` 还有一条测试——
+但**全仓库没有任何代码会产生 `cursed`**（唯一可能的生产者就是刚删掉的
+`makeDebuff`）。它是死的，但删它等于删一条游戏机制，
+而 `Game todo.html` 的 #4「更多状态效果」正好会用上它，所以留着等你决定。
+
+### 从这次清理里学到的
+
+- **变异测试只覆盖它扫的那一维。** 4b 扫的是"技能类型"，
+  于是"被动效果"这一维的死代码 `soulDrain` 完整地漏了过去。
+  同一个物种，换个维度就照不到——**照妖镜要对准才有用**。
+- **仓库里 `combat.js` 是 CRLF，`sim.js` / `battle.js` / `ai-scoring.js` 是 LF。**
+  写批量补丁脚本时按 LF 写的模式在 combat.js 上会静默匹配 0 次。
+  补丁脚本一定要断言"命中次数 == 1"，否则会安静地什么都没改还报成功。

@@ -123,15 +123,6 @@ export function triggerPassive(trigger, unit, ctx={}){
       return null;
     }
 
-    case 'soulDrain': {
-      const target = ctx.target;
-      if(target && target.debuffs.some(d=>d.type==='poison'||d.type==='cursed')){
-        unit.hp = clamp(unit.hp + p.value, 0, unit.maxHp);
-        return { name:p.name, effect:'soulDrain', value:p.value };
-      }
-      return null;
-    }
-
     case 'corruptBonus': {
       const target = ctx.target;
       if(!target) return null;
@@ -254,7 +245,7 @@ export function resolveStun(actor, target, skill, scene){
 // 强度以前硬编码在 sim.js 和 battle.js 各一份（共三处），
 // 想调狂暴的加成得同时改代码三个地方。集中到这里，并允许
 // data.js 用 buffValue / selfDmg 覆盖，数值调整不必再动代码。
-export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, debuff:0.25, berserkSelfDmg:8 };
+export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSelfDmg:8 };
 
 // ── 难度档位给 AI 单位的属性加成 ─────────────────────────
 // **这是「叠在 AI 决策水平之上的第二层难度」**，两层要一起看。
@@ -308,7 +299,7 @@ export function applyStageMod(unit, mod){
 // 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。
 // 收敛到这里，三方共用，并由测试锁住。
 export function needsEnemyTarget(skill){
-  if(['damage','stun','spSteal','debuff','drain'].includes(skill.type)) return true;
+  if(['damage','stun','drain'].includes(skill.type)) return true;
   if(skill.type === 'selfBuff' && skill.power) return true;   // 边打边上 buff
   return false;
 }
@@ -335,9 +326,6 @@ export function makeAllyBuff(skill){
 }
 export function makeSpBuff(skill){
   return { type:skill.buffType, dur:skill.dur, value:skill.buffValue ?? BUFF_DEFAULTS.spBuff };
-}
-export function makeDebuff(skill){
-  return { type:skill.debuffType, dur:skill.dur, value:skill.debuffValue ?? BUFF_DEFAULTS.debuff };
 }
 
 // 腐化层上限。腐化层 dur:99 实际上永不过期（战斗上限 60 回合），

@@ -10,7 +10,7 @@ import { clamp } from './state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
@@ -69,12 +69,6 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
     }
     case 'cleanse': target.debuffs=[]; target.stunned=false; break;
     case 'buff': target.buffs.push(makeAllyBuff(skill)); break;
-    case 'spSteal': {
-      const stolen=Math.min(skill.stealAmt,target.sp);
-      target.sp-=stolen; actor.sp=clamp(actor.sp+stolen,0,actor.maxSp);
-      doDamage(actor,target,skill,scene,stats); break;
-    }
-    case 'debuff': target.debuffs.push(makeDebuff(skill)); break;
     case 'drain': {
       const dmg=doDamage(actor,target,skill,scene,stats);
       const drain=Math.floor(dmg*(skill.drainPct/100));
