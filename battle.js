@@ -98,7 +98,7 @@ export function startBattle(){
     });
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
-  gameState.round=1; gameState.currentIdx=0;
+  gameState.round=1; gameState.activeUnitId=null;
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
     maxHit:{dmg:0,name:''}, units:{}
@@ -157,6 +157,10 @@ function showUnitPicker(player,units,cb){
 }
 
 function activateUnit(u){
+  // 谁在行动的唯一真相来源：行动高亮、数字键快捷键、取消选目标后
+  // 恢复技能面板，三处都读它。被眩晕/中毒倒下的单位也算「轮到它了」，
+  // 所以这一行要在下面的提前 return 之前。
+  gameState.activeUnitId=u.id;
   if(u.player===1) gameState.p1LastActed=u.id;
   else gameState.p2LastActed=u.id;
   if(u.stunned){
@@ -348,13 +352,16 @@ export function onTargetClick(t){
 }
 
 export function cancelTargeting(){
-  if(gameState.waitingForTarget){
-    gameState.waitingForTarget=false;
-    gameState.pendingSkill=null; gameState.pendingActor=null;
-    const u=getUnit(gameState.turnOrder[gameState.currentIdx]);
-    if(u) renderSkillPanel(u);
-    renderBattle();
-  }
+  if(!gameState.waitingForTarget) return;
+  // 要把技能面板还给「正在选目标的那个人」——pendingActor 就是他，
+  // 所以得在清空之前先抓住。清了之后再去别处找，正是之前卡死的原因：
+  // waitingForTarget 已经置 false（点角色不再有反应），面板却没重绘，
+  // 玩家这一回合既点不了角色也点不了技能。
+  const actor=gameState.pendingActor||getUnit(gameState.activeUnitId);
+  gameState.waitingForTarget=false;
+  gameState.pendingSkill=null; gameState.pendingActor=null;
+  if(actor) renderSkillPanel(actor);
+  renderBattle();
 }
 
 function aiAct(u){

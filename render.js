@@ -36,7 +36,7 @@ function statusChips(u){
 
 function renderUnit(u){
   const div=document.createElement('div');
-  const isActive=gameState.turnOrder[gameState.currentIdx]===u.id&&!gameState.waitingForTarget;
+  const isActive=gameState.activeUnitId===u.id&&!gameState.waitingForTarget;
   const isTargetable=gameState.waitingForTarget&&(
     gameState.pendingSkillFriendly?u.player===gameState.pendingActor.player:u.player!==gameState.pendingActor.player
   )&&u.alive;

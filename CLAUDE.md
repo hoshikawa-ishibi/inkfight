@@ -82,7 +82,7 @@ npx serve .        # ou VS Code Live Server
 | `inkfight.html` | Structure HTML + CSS uniquement |
 | `data.js` | `SCENES`, `CHARACTERS` (données statiques) |
 | `audio.js` | `Audio`（含 `startMenuBgm`/`startBgm`/`stopBgm`）, `SFX`, `playSfx()`, `toggleMute()` |
-| `state.js` | `gameState`, `clamp`, `rand`, `pct`, `getAllUnits`, `getUnit`, `getEnemies`, `getAllies` |
+| `state.js` | `gameState`, `clamp`, `rand`, `pct`, `getAllUnits`, `getUnit`, `getEnemies`, `getAllies`。回合状态：`currentPlayer` + `p1LastActed`/`p2LastActed` 决定轮到谁，`activeUnitId` 记录当前行动单位（高亮 / 快捷键 / 取消选目标都读它） |
 | `stickman.js` | `drawStickman`, `drawWeapon` (纯Canvas绘图，无副作用) |
 | `scene.js` | `applySceneBackground`, `startMenuBackground`, `stopMenuBackground`, `startSceneBgLayers`, `startSceneFx`, `drawScenePreview` |
 | `vfx.js` | `playSkillVfx`, `spawnFloatText`, `spawnHitBurst`, `spawnCritBurst`, `spawnHealColumn`, `spawnHexShield`, `spawnAura`, `spawnSmoke`, `spawnCurse`, `spawnDrainBeam`, `pushFx`, `getUnitScreenPos` |
@@ -185,6 +185,20 @@ npx serve .        # ou VS Code Live Server
   - **角色数值调整留到下一轮**，不在合并 AI 这条线里做。
     当前跨度 24.5：牧师 63.4% 偏强、狂战士 38.9% 偏弱（后者有明确机制原因，
     见 `AI_MERGE_PLAN.md` 文末）。
+- **修掉 `gameState.turnOrder` 的三处死读**（2026-08-24）。回合流程早先从
+  「turnOrder 数组 + 下标」改成了 `currentPlayer` + `p1/p2LastActed`，但三个读取方
+  没跟着改，读到的永远是 `undefined`——**而且全都静默失败，不报错**：
+  - `cancelTargeting()` 拿不到当前单位 → 按 ESC 取消选目标后，`waitingForTarget`
+    已置 false（点角色没反应）而技能面板没重绘（还停在「请选择敌方目标」），
+    **这一回合彻底无法行动**。
+  - 数字键 1~4 快捷键**完全失效**，尽管技能按钮上就写着 `[1] [2] [3] [4]`。
+  - 当前行动单位的 `active-turn` 高亮**永远不亮**。
+  改法：新增 `gameState.activeUnitId`，由 `activateUnit()` 单点写入，三处统一读它；
+  `cancelTargeting` 优先用手上就有的 `pendingActor`（更精确）。
+  删除 `turnOrder`/`currentIdx`。
+  **教训：重构掉一个状态字段时，要 grep 干净所有读取方。** 这三处的共同点是
+  「读到 undefined 之后走了一条看似正常的分支」（`if(u)` 直接跳过、
+  `===` 恒为 false），不抛异常，所以能潜伏很久。
 
 ---
 

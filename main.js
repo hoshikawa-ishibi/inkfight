@@ -447,8 +447,11 @@ document.addEventListener('keydown',e=>{
   if(document.getElementById('screen-battle').classList.contains('active')&&!gameState.waitingForTarget){
     const n=parseInt(e.key);
     if(n>=1&&n<=4){
-      const u=getUnit(gameState.turnOrder[gameState.currentIdx]);
-      if(u&&!(gameState.mode==='ai'&&u.player===2)&&u.skills[n-1]){
+      const u=getUnit(gameState.activeUnitId);
+      // AI 控场的单位不接受键盘输入。战役模式的玩家2 也是 AI，
+      // 这里的判断要和 activateUnit() 里决定「是否交给 aiAct」的那个保持一致。
+      const aiControlled=(gameState.mode==='ai'||gameState.mode==='campaign')&&u?.player===2;
+      if(u&&!aiControlled&&u.skills[n-1]){
         const btns=document.querySelectorAll('#skill-panel .skill-btn');
         if(btns[n-1]&&!btns[n-1].disabled) btns[n-1].click();
       }
