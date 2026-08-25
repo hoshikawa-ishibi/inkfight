@@ -7,6 +7,8 @@ export let gameState = {
   // 之后就再也没人往里写过，但还有三处在读——读到的永远是 undefined，
   // 于是「按 ESC 取消选目标」会把回合卡死、数字键快捷键全哑、行动高亮不亮。
   activeUnitId:null, round:1,
+  // 战役关卡的敌方属性加成（campaign.js 的 enemyMod），由 launchCampaignStage 写入
+  stageMod:null,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   busy:false, logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }

@@ -9,6 +9,7 @@ npm test                 # 跑单元测试（Node 内置 node --test，无外部
 npm run balance          # 无头模拟 4000 局，输出各角色胜率 + 采样均匀度
 npm run balance 10000    # 指定局数
 node difficulty-check.mjs 6000   # 难度公平性：玩家打各档 AI 的胜率
+node campaign-check.mjs 3000     # 战役难度曲线：玩家打 8 关各自的胜率
 
 npx serve .              # 起本地服务器，然后打开 inkfight.html
 node serve-game.mjs      # 零依赖静态服务器（launch-game.vbs 用的就是它）
@@ -111,10 +112,11 @@ npx serve .        # ou VS Code Live Server
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 91 条，`npm test`） |
-| `campaign.js` | `CAMPAIGN_STAGES`（8关剧情数据：阵容、场景、难度、剧情文本） |
+| `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容、场景、AI档、`enemyMod` 属性加成、剧情文本）+ `enemyIds(stage)` |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
 | `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。用 `simOneBattle` 的 `p1Mod/p2Mod/p1Ai/p2Ai` 做非对称对局，属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
+| `campaign-check.mjs` | 战役难度曲线诊断（8 关分别有多难）。阵容 / AI档 / `enemyMod` 全读 `campaign.js`，属性加成走 `combat.js` 的 `applyStageMod`。**改完战役数据必跑** |
 
 ### 近期改动记录
 
@@ -231,6 +233,34 @@ npx serve .        # ou VS Code Live Server
   **教训：重构掉一个状态字段时，要 grep 干净所有读取方。** 这三处的共同点是
   「读到 undefined 之后走了一条看似正常的分支」（`if(u)` 直接跳过、
   `===` 恒为 false），不抛异常，所以能潜伏很久。
+- **战役难度曲线重排**（2026-08-24，`CAMPAIGN_PLAN.md` Phase 1）。
+  起因：8 关的敌方阵容是按剧情随手写的，没人算过强度账，实测曲线是锯齿——
+  最终 BOSS（62.5%）比第三关（40.1%）还好打，真正最难的是第七关（23.1%）。
+  - **新尺子 `campaign-check.mjs`**：每关跑 N 局，报玩家胜率、目标偏差、单调性。
+    和 `difficulty-check.mjs` 一样先量公平线（这次量到 60.8%）再报相对偏差。
+  - **新旋钮 `enemyMod`**（`campaign.js` 数据 → `combat.js` 的 `applyStageMod`）。
+    战役此前完全不吃 `applyDifficulty`，难度杠杆只剩 3 档 AI；
+    现在多了一条 campaign 专用的属性路径。
+    **两条路径不能合并**——叠加会让校准好的曲线整体跳变。
+  - **当前曲线（5000 局/关，目标 ±2.5 以内，单调下降）**：
+    92.4% → 83.8% → 75.9% → 73.4% → 64.0% → 57.1% → 47.9% → **39.5%**。
+    阵容按实测强度排，每个角色恰好出场两次。
+  - **推翻了一个想当然的代理指标**：「两名敌人在 `npm run balance` 里的胜率之和」
+    预测不了关卡难度。实测 狂战士+守卫（和 93.5）只给玩家 41.9%，
+    比 守卫+牧师（和 116.7，52.0%）还难打。**真正的驱动是队伍续航**——
+    平均 15~23 回合的对局都是硬仗，6~8 回合的都是送。
+    排关卡要用 `campaign-check.mjs` 实测，不要用胜率相加。
+  - **场景 buff 本身就是很强的难度杠杆**，而且以前从没被当成杠杆用过。
+    同样是 术士+牧师 + hard AI：在墨色虚空（无效果）玩家只有 26.2%，
+    在赤焰熔岩（+15% 伤害）有 47.7%——**+15% 伤害正好破续航流**。
+    校准时**必须锁定该关自己的场景**，用随机场景量出来的数会差 10 个百分点
+    （这个坑当场踩到了）。
+  - **选 atk 还是 hp 做旋钮，要看这一关的敌方靠什么赢。** 靠伤害的用 atk，
+    靠续航的用 hp：第 8 关（术士+牧师）对 atk 几乎免疫
+    （0.80~1.25 只从 39.1% 走到 24.8%），对 hp 却极敏感（0.80 → 58.4%）。
+    项目原有的「攻击是最强杠杆」只在对称随机阵容下成立，不能照搬到具体关卡。
+  - **简单 AI 拉不出低难度台阶**：不管配什么阵容都给玩家 90%~99%，
+    所以 8 关里只有第 1 关用 easy，第 2 关起就是 normal / hard 加属性微调。
 
 ---
 

@@ -261,6 +261,31 @@ export function applyDifficulty(unit, level){
   return unit;
 }
 
+// ── 战役关卡的属性微调旋钮 ─────────────────────────────────
+// 和 DIFFICULTY_MODS 的关键区别：那边是**函数**（三档写死在代码里），
+// 这边是**数据**（每关一份 enemyMod，写在 campaign.js）。
+// 理由：8 关的难度曲线要靠反复微调逼近目标，数值散进代码里就调不动了；
+// 而且 campaign-check.mjs 必须和游戏读同一份数值，否则又是
+// 「调了一处、量的却是另一套数」——这个项目已经因此出过三次 bug。
+//
+// 倍率含义：atk / def / hp / spRegen 是乘在原属性上的倍率；
+// sp 特殊，是**起手蓝量占蓝条的比例**（0~1），和 DIFFICULTY_MODS.easy 同一个路子。
+//
+// 注意：战役模式**不**走 applyDifficulty，stage.difficulty 只决定 AI 决策档位。
+// 两套加成叠在一起会让 enemyMod 调出来的曲线整体跳变。
+export function applyStageMod(unit, mod){
+  if(!mod) return unit;
+  if(mod.atk     != null) unit.atk     = Math.round(unit.atk * mod.atk);
+  if(mod.def     != null) unit.def     = Math.round(unit.def * mod.def);
+  if(mod.spRegen != null) unit.spRegen = Math.round(unit.spRegen * mod.spRegen);
+  if(mod.hp      != null){
+    unit.maxHp = Math.round(unit.maxHp * mod.hp);
+    unit.hp    = unit.maxHp;
+  }
+  if(mod.sp      != null) unit.sp = Math.floor(unit.maxSp * mod.sp);
+  return unit;
+}
+
 // 这个技能是否需要一个敌方目标。
 // 判断以前分散在 ai.js / battle.js / sim.js 三处，给「狂暴」加 power 时
 // 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。

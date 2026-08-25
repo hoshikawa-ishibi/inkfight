@@ -4,7 +4,7 @@ import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
   triggerPassive, processStartOfTurn, calcDamage, calcStun,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
-  needsEnemyTarget, AOE_TYPES, resolveSelfBuff
+  needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod
 } from '../combat.js';
 import { CHARACTERS } from '../data.js';
 
@@ -466,5 +466,47 @@ describe('handleDeath', () => {
     const r = handleDeath(u);
     assert.equal(r.died, true);
     assert.equal(u.alive, false);
+  });
+});
+
+describe('applyStageMod（战役关卡的属性旋钮）', () => {
+  test('mod 为 null 时原样返回，不动任何属性', () => {
+    const u = makeUnit({atk:20, maxHp:100, hp:80});
+    applyStageMod(u, null);
+    assert.equal(u.atk, 20);
+    assert.equal(u.maxHp, 100);
+    assert.equal(u.hp, 80);
+  });
+
+  test('atk / def / spRegen 是乘在原属性上的倍率', () => {
+    const u = makeUnit({atk:20, def:10, spRegen:8});
+    applyStageMod(u, {atk:1.10, def:0.9, spRegen:1.25});
+    assert.equal(u.atk, 22);
+    assert.equal(u.def, 9);
+    assert.equal(u.spRegen, 10);
+  });
+
+  test('hp 同时改 maxHp 并把 hp 拉满——关卡开局不能是残血', () => {
+    const u = makeUnit({maxHp:100, hp:60});
+    applyStageMod(u, {hp:1.15});
+    assert.equal(u.maxHp, 115);
+    assert.equal(u.hp, 115);
+  });
+
+  test('sp 是「起手蓝量占蓝条的比例」，不是倍率', () => {
+    const u = makeUnit({maxSp:80, sp:80});
+    applyStageMod(u, {sp:0.5});
+    assert.equal(u.sp, 40);
+    assert.equal(u.maxSp, 80);
+  });
+
+  test('只写了一个字段时，其它属性一律不动', () => {
+    const u = makeUnit({atk:20, def:10, maxHp:100, spRegen:8, maxSp:60, sp:60});
+    applyStageMod(u, {hp:1.2});
+    assert.equal(u.atk, 20);
+    assert.equal(u.def, 10);
+    assert.equal(u.spRegen, 8);
+    assert.equal(u.sp, 60);
+    assert.equal(u.maxHp, 120);
   });
 });

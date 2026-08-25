@@ -339,6 +339,7 @@ function launchCampaignStage(stage){
     gameState.difficulty = stage.difficulty;
     gameState.scene = scene;
     gameState.campaignStage = stage.id;
+    gameState.stageMod = stage.enemyMod || null;   // battle.js 建 p2 单位时读它
     applySceneBackground(scene);
     // 玩家选角
     gameState.p2Picks = stage.enemy;

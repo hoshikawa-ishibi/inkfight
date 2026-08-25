@@ -9,7 +9,7 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget,
-  applyDifficulty
+  applyDifficulty, applyStageMod
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -95,6 +95,13 @@ export function startBattle(){
   // 与 difficulty-check.mjs 共用同一份，避免调了一处量的却是另一套数
   if(gameState.mode==='ai'){
     gameState.p2Units.forEach(u=>applyDifficulty(u, gameState.difficulty));
+  }
+  // 战役是另一条路径：stage.difficulty 只决定 AI 决策档位，属性加成来自关卡
+  // 自己的 enemyMod（campaign.js），由 campaign-check.mjs 逐关校准过。
+  // **不要**把上面那个 mode==='ai' 改成包含 campaign——两套加成叠在一起
+  // 会让校准好的 8 关曲线整体跳变。
+  if(gameState.mode==='campaign'){
+    gameState.p2Units.forEach(u=>applyStageMod(u, gameState.stageMod));
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
