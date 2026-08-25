@@ -89,7 +89,9 @@ export function startBattle(){
   _hideTooltip();
   const fx=document.getElementById('fx-canvas');
   fx.width=window.innerWidth; fx.height=window.innerHeight;
-  gameState.p1Units=gameState.p1Picks.map((id,i)=>createUnit(id,1,i));
+  // 战役里玩家这边也有剧情名（主角墨白 + 同伴），存在 p1Roster
+  const p1Roster = (gameState.mode==='campaign' && gameState.p1Roster) || gameState.p1Picks;
+  gameState.p1Units=p1Roster.map((e,i)=>{ const [id,ov] = unitSpec(e); return createUnit(id,1,i,ov); });
   // 战役的敌人带剧情身份（名字，墨皇还带属性和被动），存在 p2Roster；
   // p2Picks 仍然是纯 id 数组，选角雷达图那边还在按 id 读它。
   const p2Roster = (gameState.mode==='campaign' && gameState.p2Roster) || gameState.p2Picks;

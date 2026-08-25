@@ -1,5 +1,6 @@
 import { SCENES, CHARACTERS } from './data.js';
-import { CAMPAIGN_STAGES, enemyIds } from './campaign.js';
+import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
+         availableAllies, unlockedAfter } from './campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
 import { gameState, rand, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
@@ -201,6 +202,8 @@ function doBan(id){
 let selectPhase=1, tempPicks=[];
 function startSelection(){
   selectPhase=1; tempPicks=[];
+  // 战役有固定主角（墨白），预选好且不可取消，玩家只挑 1 名同伴
+  if(gameState.mode==='campaign') tempPicks=[CAMPAIGN_HERO.id];
   gameState.p1Picks=[];
   if(gameState.mode!=='campaign') gameState.p2Picks=[];
   if(gameState.mode!=='pvp') gameState.bannedIds=[];
@@ -212,31 +215,58 @@ function buildCharTooltip(c){
     暴击:${c.crit}% | 闪避:${c.dodge}% | SP/回合:${c.spRegen}<br><br>
     ${c.skills.map(s=>`<span style="color:${s.iconColor}">${s.icon}</span> <b>${s.name}</b>(${s.cost}SP): ${s.desc}`).join('<br>')}`;
 }
+// 战役模式下每个角色的状态：主角锁定出战、未解锁的锁着、本关敌方不能选。
+// 「能选到和敌人一模一样的角色」以前是战役最出戏的一点。
+function campaignSlot(c){
+  const stage = CAMPAIGN_STAGES.find(s => s.id === gameState.campaignStage);
+  if(!stage) return null;
+  if(c.id === CAMPAIGN_HERO.id) return { kind:'hero', label:CAMPAIGN_HERO.name, note:'主角 · 固定出战' };
+  const ally = CAMPAIGN_ALLIES.find(a => a.id === c.id);
+  if(!ally) return { kind:'blocked', label:c.name, note:'不可用' };
+  if(enemyIds(stage).includes(c.id)) return { kind:'foe', label:ally.name, note:'本关敌方' };
+  if(availableAllies(stage, getCampaignProgress()).some(a => a.id === c.id))
+    return { kind:'ready', label:ally.name, note:c.role };
+  return { kind:'locked', label:'？？？', note:'未解锁' };
+}
+
 function renderCharGrid(){
   const grid=document.getElementById('char-grid');
   grid.innerHTML='';
   const banned=gameState.bannedIds||[];
+  const campaign=gameState.mode==='campaign';
   CHARACTERS.forEach(c=>{
+    const slot=campaign?campaignSlot(c):null;
     const taken=selectPhase===2&&gameState.mode==='pvp'?false:gameState.p1Picks.includes(c.id);
     const selected=tempPicks.includes(c.id);
     const isBanned=banned.includes(c.id);
+    const isHero=!!slot&&slot.kind==='hero';
+    const frozen=slot?(slot.kind!=='ready'):(taken||isBanned);
+    const dim=isBanned||(!!slot&&slot.kind!=='ready'&&!isHero);
+    const title=slot?slot.label:c.name;
+    const sub=isBanned?'已禁用':(slot?slot.note:c.role);
+    const showStats=!isBanned&&!(slot&&slot.kind==='locked');
     const card=document.createElement('div');
-    card.className='char-card'+(selected?' selected':'')+(taken||isBanned?' disabled':'');
-    card.innerHTML=`
-      <div class="stick-preview"><canvas width="80" height="90" id="prev-${c.id}"></canvas></div>
-      <div class="cname" style="color:${isBanned?'#555':c.color}">${c.name}</div>
-      <div class="crole" style="color:${isBanned?'#444':'#aaa'}">${isBanned?'已禁用':c.role}</div>
-      <div class="cstats">${isBanned?'':(`HP:${c.hp} SP:${c.sp}<br>ATK:${c.atk} DEF:${c.def}`)}</div>`;
-    if(!taken&&!isBanned){
+    card.className='char-card'
+      +(selected?' selected':'')
+      +(isHero?' hero-locked':'')
+      +(((frozen&&!isHero)||isBanned)?' disabled':'');
+    card.innerHTML=
+      '<div class="stick-preview"><canvas width="80" height="90" id="prev-'+c.id+'"></canvas></div>'
+      +'<div class="cname" style="color:'+(dim?'#555':c.color)+'">'+title+'</div>'
+      +'<div class="crole" style="color:'+(dim?'#444':'#aaa')+'">'+sub+'</div>'
+      +'<div class="cstats">'+(showStats?('HP:'+c.hp+' SP:'+c.sp+'<br>ATK:'+c.atk+' DEF:'+c.def):'')+'</div>';
+    if(!frozen&&!isBanned){
       card.onclick=()=>{ playSfx('select'); togglePick(c.id); };
       card.onmouseenter=(e)=>{ playSfx('hover'); showTooltip(buildCharTooltip(c), e.clientX, e.clientY); };
       card.onmouseleave=hideTooltip;
     }
     grid.appendChild(card);
-    setTimeout(()=>drawStickman(document.getElementById('prev-'+c.id),c,'idle'),10);
+    if(!(slot&&slot.kind==='locked'))
+      setTimeout(()=>drawStickman(document.getElementById('prev-'+c.id),c,'idle'),10);
   });
 }
 function togglePick(id){
+  if(gameState.mode==='campaign'&&id===CAMPAIGN_HERO.id) return;   // 主角固定出战
   const i=tempPicks.indexOf(id);
   if(i>=0) tempPicks.splice(i,1);
   else if(tempPicks.length<2) tempPicks.push(id);
@@ -244,7 +274,7 @@ function togglePick(id){
 }
 function updateSelectUI(){
   const t=document.getElementById('select-title');
-  if(gameState.mode==='campaign') t.textContent='选择你的 2 名战士';
+  if(gameState.mode==='campaign') t.textContent=CAMPAIGN_HERO.name+' 固定出战 — 再挑 1 名同伴';
   else if(selectPhase===1) t.textContent='玩家 1（黑墨团）选择 2 名角色';
   else t.textContent=gameState.mode==='ai'?'AI（白线派）选择 2 名角色（自动随机）':'玩家 2（白线派）选择 2 名角色';
   document.getElementById('select-count').textContent=`已选: ${tempPicks.length}/2`;
@@ -253,6 +283,11 @@ function updateSelectUI(){
 export function confirmSelection(){
   if(selectPhase===1){
     gameState.p1Picks=[...tempPicks];
+    if(gameState.mode==='campaign'){
+      // 带剧情名的原始条目，battle.js 建 p1 单位时用（和 p2Roster 同一套机制）
+      gameState.p1Roster=gameState.p1Picks.map(id =>
+        id===CAMPAIGN_HERO.id ? CAMPAIGN_HERO : (CAMPAIGN_ALLIES.find(a=>a.id===id) || id));
+    }
     tempPicks=[]; selectPhase=2;
     if(gameState.mode==='campaign'){
       showRadar(); return;
@@ -422,9 +457,13 @@ function onCampaignWin(phase){
     return;
   }
   const isLast = stage.id === CAMPAIGN_STAGES.length;
+  // 解锁事件直接接在 outro 后面，玩家看完剧情就知道多了谁
+  const unlocked = isLast ? null : unlockedAfter(stage.id);
+  const outro = Array.isArray(stage.outro) ? stage.outro.slice() : [stage.outro];
+  if(unlocked) outro.push(['「'+unlocked.name+'」决定与你同行。', '下一关起，可以带上它。'].join(String.fromCharCode(10)));
   showCutscene(
     stage.title,
-    stage.outro,
+    outro,
     isLast ? '查看战绩' : '返回地图',
     () => {
       if(isLast){

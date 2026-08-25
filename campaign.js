@@ -25,8 +25,8 @@ export const CAMPAIGN_STAGES = [
       { id: 'assassin',  name: '拾荒影盗·乌' },
     ],
     difficulty: 'easy',
-    // 简单 AI 弱到不管什么阵容都给玩家 96%+，只能靠加血把它压到 92
-    enemyMod: { hp: 1.10 },
+    // 主角固定成剑士之后整条曲线都重算过了（见 CAMPAIGN_PLAN.md Phase 4）
+    enemyMod: { hp: 0.95 },
     intro: [
       "你睁开眼时，天是墨色的。\n没有太阳，只有一层缓慢流动的灰。",
       "脚下的地面像未干的宣纸，踩下去会晕开。\n你不记得自己是谁，只记得一个词——墨境。",
@@ -47,8 +47,8 @@ export const CAMPAIGN_STAGES = [
       { id: 'mage',      name: '焰纹术士·灼' },
     ],
     difficulty: 'normal',
-    // 简单 AI 顶不到 85%（atk 拉到 1.25 也才 88.4%），改用普通 AI 再减血
-    enemyMod: { hp: 0.90 },
+    // 剑士打剑士+法师太顺，得给敌方加三成血才压到 85
+    enemyMod: { hp: 1.30 },
     intro: [
       "往前是一片赤焰熔岩。\n岩浆里浮着无数细小的黑点——像被烧化的字。",
       "熔炉立在火海中央，日夜不停。\n炉守铁衣横刀拦在炉前，焰纹术士灼站在他身后。",
@@ -90,7 +90,9 @@ export const CAMPAIGN_STAGES = [
       { id: 'archer',   name: '隘口游猎·苍' },
     ],
     difficulty: 'normal',
-    enemyMod: null,
+    // 0.84→75.3% 与 0.85→66.7% 之间有个真实断崖（「几刀砍得死」的整数阈值），
+    // 目标 72 正好卡在缝里，取偏易的一侧
+    enemyMod: { hp: 0.84 },
     intro: [
       "灵泉之后是一段虚空。\n没有地，没有天，只有一道悬在中间的关隘。",
       "守将磐举起盾，苍的箭已经上弦。\n\"过了这道关，就没有回头路了。\"",
@@ -110,7 +112,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'warlock', name: '先锋将·蚀骨' },
     ],
     difficulty: 'normal',
-    enemyMod: null,
+    enemyMod: { hp: 1.10 },
     intro: [
       "第二片熔岩比第一片更红。\n岩浆表面浮着成片的黑字，像整页整页被撕下来的纸。",
       "墨皇的两名先锋将等在这里。\n断雁的弓已经拉满，蚀骨的手里缠着黑气。",
@@ -131,7 +133,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'guardian', name: '盾卫长·钧' },
     ],
     difficulty: 'hard',
-    enemyMod: null,
+    enemyMod: { hp: 0.85 },
     intro: [
       "回到灵泉，水已经浑了。\n最后一道防线立在这里。",
       "守法者澜看了你很久，才开口：\n\"你走到这里，应该已经听过一半的真相了。\"",
@@ -153,7 +155,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'berserker', name: '近卫狂将·黑潮' },
     ],
     difficulty: 'hard',
-    enemyMod: { hp: 1.10 },
+    enemyMod: { hp: 0.95 },
     intro: [
       "宫殿门前没有守军，只有两个人。",
       "祭司白鸦低头念着什么，黑潮拖着一柄比人还高的斧。\n他们身上的墨色比别处都深。",
@@ -181,7 +183,8 @@ export const CAMPAIGN_STAGES = [
       { id: 'warlock', name: '墨皇', hp: 260, sp: 130, atk: 22, def: 8 },
     ],
     difficulty: 'hard',
-    enemyMod: null,
+    // 墨皇独战：属性写在 enemy 里（260/22/8），这里再减 9% 血校到 42%
+    enemyMod: { hp: 0.91 },
     intro: [
       "殿内没有王座，只有一片烧到尽头的熔岩。\n墨皇独自立在上面，没有近卫，没有随从。",
       "\"你已经知道了吧。\"他没有回头，\n\"你不是掉进墨境的。你是我写下来的。\"",
@@ -198,8 +201,48 @@ export const CAMPAIGN_STAGES = [
   },
 ];
 
-// 关卡敌方阵容的统一读法。Phase 2 会把 enemy 扩展成带身份的对象（{id, name}），
-// 这里先收敛成一个入口，免得 battle.js 和 campaign-check.mjs 各写一份解析。
+// 关卡敌方阵容的统一读法：条目可以是纯 id 字符串，也可以是带身份的 {id, name}。
+// 收敛成一个入口，免得 battle.js 和 campaign-check.mjs 各写一份解析。
 export function enemyIds(stage){
   return stage.enemy.map(e => typeof e === 'string' ? e : e.id);
+}
+
+// ── 战役主角与队友解锁 ─────────────────────────────────────
+//
+// 主角固定是剑士，剧情名「墨白」，每关必选、不可替换。
+// 以前战役每关都能重选 2 人、甚至能选到和敌人一模一样的角色，
+// 「角色和剧情对应」根本无从谈起。
+export const CAMPAIGN_HERO = { id: 'swordsman', name: '墨白' };
+
+// 队友池，按「弱的先给」排，牧师（全场最强）放最后。
+// **解锁顺序本身就是难度曲线的一部分**——解锁一个强队友对后续关卡的影响
+// 比任何 enemyMod 都大，所以改这个数组必须重跑 campaign-check.mjs。
+export const CAMPAIGN_ALLIES = [
+  { id: 'guardian',  name: '铁山' },
+  { id: 'mage',      name: '青梧' },
+  { id: 'berserker', name: '野火' },
+  { id: 'assassin',  name: '无声' },
+  { id: 'archer',    name: '白羽' },
+  { id: 'warlock',   name: '墨蛇' },
+  { id: 'priest',    name: '素问' },
+];
+export const INITIAL_ALLIES = 2;   // 第 1 关就有前两个，之后每通一关解锁一个
+
+// 打第 stage 关时可选的队友（progress = 已通关数）。
+// 解锁进度直接从 progress 推，**不另存一份 localStorage**——
+// 两份状态迟早有对不上的一天，这个项目已经因为「同一份知识两份实现」出过三次 bug。
+export function availableAllies(stage, progress){
+  const n = Math.min(CAMPAIGN_ALLIES.length, INITIAL_ALLIES + progress);
+  const foes = enemyIds(stage);
+  return CAMPAIGN_ALLIES.slice(0, n).filter(a => !foes.includes(a.id));
+}
+
+// 本关还没解锁的队友（选角界面显示成锁定态）
+export function lockedAllies(progress){
+  return CAMPAIGN_ALLIES.slice(Math.min(CAMPAIGN_ALLIES.length, INITIAL_ALLIES + progress));
+}
+
+// 通关第 stage 关之后新解锁的那个队友，没有则 null（用来在 outro 里报喜）
+export function unlockedAfter(stage){
+  return CAMPAIGN_ALLIES[INITIAL_ALLIES + stage - 1] || null;
 }
