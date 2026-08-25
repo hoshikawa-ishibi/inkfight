@@ -3,15 +3,11 @@ node_modules/
 # Claude Code 的本地个人设置（launch.json 是共享的开发服务器配置，保留）
 .claude/settings.local.json
 
-# 环境变量与密钥（generate-game.js / fix-game.js 需要 ANTHROPIC_AUTH_TOKEN）
+# 环境变量与密钥
 .env
 .env.*
 *.key
 *.pem
-
-# CLI 脚本的输出目录
-newgame/
-game-output/
 
 # 系统文件
 .DS_Store

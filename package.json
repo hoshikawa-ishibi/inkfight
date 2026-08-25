@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "type": "module",
   "description": "",
-  "main": "generate-game.js",
   "scripts": {
     "test": "node --test",
     "balance": "node balance-report.mjs"

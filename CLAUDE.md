@@ -25,14 +25,7 @@ node serve-game.mjs      # 零依赖静态服务器（launch-game.vbs 用的就�
 - `serve-game.mjs` 端口被占用（`EADDRINUSE`）时直接退出而不报错，这样重复
   点桌面图标不会弹错误——已经在跑就什么都不用做。
 
-CLI 脚本（与游戏本身无关）：
-
-```bash
-node generate-game.js    # 生成新游戏到 ./newgame/
-node fix-game.js         # 修复 ./game-output/ 里的游戏
-```
-
-CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量。游戏本身无构建步骤。
+游戏本身无构建步骤。
 
 ## AI 架构（`AI_MERGE_PLAN.md` 已全部完成）
 
@@ -315,24 +308,3 @@ npx serve .        # ou VS Code Live Server
     项目原有的「攻击是最强杠杆」只在对称随机阵容下成立，不能照搬到具体关卡。
   - **简单 AI 拉不出低难度台阶**：不管配什么阵容都给玩家 90%~99%，
     所以 8 关里只有第 1 关用 easy，第 2 关起就是 normal / hard 加属性微调。
-
----
-
-## CLI Scripts
-
-Two independent CLI scripts, both using `@anthropic-ai/sdk` with `claude-opus-4-6`:
-
-**`generate-game.js`**
-- Prompts user for a game description
-- Streams Claude's response directly to `./newgame/index.html` (single-file HTML5 game, no external deps)
-- Makes a second non-streaming call to generate `./newgame/README.md`
-- Output dir: `./newgame/`
-
-**`fix-game.js`**
-- Reads all files from `./game-output/`
-- Collects console errors and/or behavior description from user (double-Enter to submit)
-- Scores files by relevance to the problem, sends top 4 (truncated to 4000 chars each) to Claude
-- Claude returns JSON `{ analysis, fixes[] }` — fixes are written back to `./game-output/`
-- Output dir: `./game-output/`
-
-The two scripts use different output directories and are not connected to each other.

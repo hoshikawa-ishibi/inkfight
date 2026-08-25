@@ -7,7 +7,7 @@
 
 ---
 
-## ▶ 当前进度：**任务 1 / 2 已完成，从任务 3 开始做**
+## ▶ 当前进度：**任务 1 / 2 / 3 已完成，从任务 4a 开始做**
 
 接手时先跑一遍确认基线：
 
@@ -137,15 +137,15 @@ node campaign-check.mjs 5000    # 93.7 → 86.0 → 78.8 → 74.2 → 65.8 → 5
 主逻辑早就拆成 16 个模块了。完全没提战役模式、桌面快捷方式、
 `npm test`、`npm run balance`、`campaign-check.mjs`。
 
-- [ ] `CLAUDE.md`：删掉整节 `## CLI Scripts`、命令区那两行、
+- [x] `CLAUDE.md`：删掉整节 `## CLI Scripts`、命令区那两行、
       以及「CLI 脚本需要 ANTHROPIC_AUTH_TOKEN」那句。
       **只删不存在的东西，别动其它内容。**
-- [ ] `README.md` 重写。这是给人看的入口，要覆盖：
+- [x] `README.md` 重写。这是给人看的入口，要覆盖：
       - 怎么跑（桌面快捷方式「墨境之战.lnk」是用户日常入口；命令行 `node serve-game.mjs`）
       - 四种模式（双人 / 人机三档 / **战役 8 关** / 平衡测试）
       - 模块结构表（照 CLAUDE.md 那张表精简，别再写「主逻辑在 html 里」）
       - 开发者命令：`npm test` / `npm run balance` / `difficulty-check` / `campaign-check`
-- [ ] 顺手核对 README 里「SP 越满越容易被眩晕」这句是不是真的
+- [x] 顺手核对 README 里「SP 越满越容易被眩晕」这句是不是真的
       （去 `combat.js` 的 `calcStun` 看公式），不对就改掉。
 
 **验证**：人读一遍；`ls` 一遍 README 提到的每个文件，确认都存在。
@@ -287,3 +287,29 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
     控制台无报错、16 个模块全 200。
     （跑不完整局是因为**内置浏览器面板隐藏时定时器被降频**，26 秒才走一个回合，
     这是环境限制不是游戏问题。）
+- 2026-08-25：**任务 3 完成**。`CLAUDE.md` 删掉幽灵 CLI 脚本，`README.md` 重写。
+  - `CLAUDE.md` 328 → 310 行：删掉末尾整节 `## CLI Scripts`（20 行）、命令区那个
+    `node generate-game.js` / `node fix-game.js` 代码块，「CLI 脚本需要
+    `ANTHROPIC_AUTH_TOKEN`」那句只留下「游戏本身无构建步骤。」。
+    删完 `grep generate-game|fix-game|ANTHROPIC|CLI 脚本` 在 CLAUDE.md 里 0 命中。
+  - **同一条假信息还渗到了另外两个文件**（计划里没预料到，顺手一起清）：
+    `package.json` 的 `"main": "generate-game.js"`（指向从未存在的文件，
+    这个包不发布也没 bin，字段本身是死的）、`.gitignore` 里
+    「（generate-game.js / fix-game.js 需要 ANTHROPIC_AUTH_TOKEN）」这句注释
+    以及为这两个脚本准备的 `newgame/` / `game-output/` 忽略项。
+  - **留了一个没动**：`package.json` 里的 `@anthropic-ai/sdk` 依赖也是给那两个脚本
+    装的，全仓库 0 处 import，是死依赖。没删是因为卸载会动 `package-lock.json`
+    和 `node_modules`，超出「改文档」这条任务的范围。要清是独立一条。
+  - `README.md` 22 → 119 行。原文只有 2 行模块表，还写着「`inkfight.html` =
+    HTML 结构 + CSS + 主逻辑」——主逻辑早就拆成一堆独立模块了。
+    新版覆盖：桌面快捷方式 + `node serve-game.mjs`（端口 5566）、四种模式
+    （含「BAN 阶段只有 PVP 有」）、难度两层表、玩法规则、8 角色属性与被动、
+    3 张战场效果、模块结构表、开发者命令、`localStorage` 键。
+  - **「SP 越满越容易被眩晕」核对结果：是真的，保留。**
+    `combat.js:236` `prob = skill.basePct + skill.spScale*(target.sp/target.maxSp)`，
+    两个眩晕技能的 `spScale` 都是正数（灵能过载 35、束缚箭 30）。
+    README 里顺手把公式写清楚了，不再只给结论。
+  - 校对时抓到自己写错一处：`inkfight_sim` 我先写成「测试局数」，
+    实际存的是最近 10 次平衡测试的完整结果（`main.js:540`）。已改。
+  - 验证：按计划「写完 `ls` 一遍提到的每个文件」——脚本抽出 README 里所有
+    反引号文件名逐个 `-e` 检查，23 个全部存在，0 个 MISS。`npm test` 150/150 绿。
