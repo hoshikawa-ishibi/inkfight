@@ -11,7 +11,18 @@ npm run balance 10000    # 指定局数
 node difficulty-check.mjs 6000   # 难度公平性：玩家打各档 AI 的胜率
 
 npx serve .              # 起本地服务器，然后打开 inkfight.html
+node serve-game.mjs      # 零依赖静态服务器（launch-game.vbs 用的就是它）
 ```
+
+**用户日常启动游戏走桌面快捷方式，不走命令行**：桌面上的「墨境之战.lnk」
+指向 `launch-game.vbs`（隐藏窗口启动 `serve-game.mjs` + 自动打开浏览器）。
+改这条链路时注意：
+- `launch-game.vbs` 必须**纯 ASCII**，不能有中文注释——VBScript 对文件编码
+  很敏感，中文注释被当 GBK 误读会直接把脚本解析炸掉（`Object required: 'fso'`），
+  改完必须用 `cscript //nologo launch-game.vbs` 跑一遍确认没报错（wscript 双击
+  不出错误对话框，看不出来）。
+- `serve-game.mjs` 端口被占用（`EADDRINUSE`）时直接退出而不报错，这样重复
+  点桌面图标不会弹错误——已经在跑就什么都不用做。
 
 CLI 脚本（与游戏本身无关）：
 
