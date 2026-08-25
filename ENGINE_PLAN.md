@@ -7,7 +7,7 @@
 
 ---
 
-## ▶ 当前进度：**任务 1 / 2 / 3 已完成，从任务 4a 开始做**
+## ▶ 当前进度：**任务 1 / 2 / 3 / 4a 已完成，从任务 4b 开始做**
 
 接手时先跑一遍确认基线：
 
@@ -168,12 +168,12 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
 `plague` / `corruptBurst`，几千局里瘟疫一次都没被用过，
 牧师胜率从 39.6% 一路修正到 58.2%，**修复前的所有数据都是错的**。
 
-- [ ] `sim.js` 删掉手抄的那段（回合开始的毒 / 狂暴 / buff 递减 / 回蓝 / 场景回蓝），
+- [x] `sim.js` 删掉手抄的那段（回合开始的毒 / 狂暴 / buff 递减 / 回蓝 / 场景回蓝），
       改成调 `processStartOfTurn(u, {allies})` 和 `applyTurnRegen(u, scene)`。
       **注意**：combat.js 那份**内部已经调了 `triggerPassive('onTurnStart')`**，
       所以 sim.js 上面那句 `triggerPassive` 要一并删掉，否则被动会触发两次。
-- [ ] 返回值 `{passiveEvent, poison, berserk}` sim.js 用不上，忽略即可。
-- [ ] 眩晕那两行（`if(u.stunned){ u.stunned=false; continue; }`）留在 sim.js 的循环里
+- [x] 返回值 `{passiveEvent, poison, berserk}` sim.js 用不上，忽略即可。
+- [x] 眩晕那两行（`if(u.stunned){ u.stunned=false; continue; }`）留在 sim.js 的循环里
       ——那是回合流程编排，不是战斗规则。
 
 **验证**：`npm run balance 10000` 八个角色胜率与上面基线一致（±1.5 个百分点内）；
@@ -313,3 +313,26 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
     实际存的是最近 10 次平衡测试的完整结果（`main.js:540`）。已改。
   - 验证：按计划「写完 `ls` 一遍提到的每个文件」——脚本抽出 README 里所有
     反引号文件名逐个 `-e` 检查，23 个全部存在，0 个 MISS。`npm test` 150/150 绿。
+- 2026-08-25：**任务 4a 完成**。`sim.js` 回合开始那 13 行手抄副本换成
+  `processStartOfTurn(u, {allies})` + `applyTurnRegen(u, scene)`，净减 8 行。
+  `triggerPassive` 按计划一并删掉（combat 那份内部已经调了，留着会触发两次）。
+  - **顺手删掉两个因此变成死代码的东西**：sim.js 本地的 `handleDeath(u,killer,stats)`
+    包装（只有手抄块调它，killer/stats 恒为 null，等于白转一层）以及它用的
+    `handleDeath as resolveDeath` 导入。`BUFF_DEFAULTS` 导入同样没人用了，也删了。
+    `noteKill` 留着——executeSkill 里还有 4 处在用。
+  - **验证方式没按计划走，改用了更硬的一种。** 计划说拿 `npm run balance 10000`
+    前后对比，但第一次跑完狂战士 38.5%（基线 40.6%），超出计划写的 ±1.5 噪声带。
+    光看这个数没法判断是「抄漏了」还是「噪声带估窄了」，于是写了个临时脚本
+    `equiv_tmp.mjs`：用 mulberry32 固定随机数序列，**同一批阵容 / 场景 / 种子分别跑
+    新旧两份 `sim.js`，逐局比对 winner / rounds / timeout / 每角色的 dmg-heals-kills**。
+    `git show HEAD:sim.js > sim_old_tmp.mjs` 拿到旧版，两份同时 import。
+    结果 **2000 局全部一致，0 处差异**——行为等价，是证明不是统计。验完两个临时文件都删了。
+  - 回过头看噪声：第二次 `npm run balance 10000` 狂战士 41.0% / 刺客 41.6%，
+    和第一次的 38.5% / 42.9% 一比，**弱势角色的run-to-run 波动实测有 2~2.5 个百分点**，
+    计划里写的 ±1.5 偏乐观。基线那一行的数字建议按 ±2.5 读。
+  - `node campaign-check.mjs 5000`：93.3 → 85.3 → 78.7 → 75.7 → 65.4 → 58.2 → 48.0 → 42.7，
+    仍单调下降、最大偏差 3.7（第 4 关，正好是计划里记着「hp×0.84/0.85 差 0.01 掉 8.6 个
+    百分点」那个断崖附近，本来就抖）。`npm test` 150/150 绿。
+  - **给后面几条留个方法**：这种「重构应当零行为变更」的任务，
+    固定随机数直接对拍比跑统计快得多也准得多——统计只能告诉你「大概没变」，
+    对拍能告诉你「一步都没变」。任务 4b 之后若再动 sim.js 的规则链路，照这个套路来。

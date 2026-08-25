@@ -8,20 +8,15 @@
 import { CHARACTERS, SCENES } from './data.js';
 import { clamp } from './state.js';
 import {
-  createUnit as makeUnit, unitSpec, triggerPassive, calcDamage,
-  applyCorrupt, applyPlague, applyCorruptBurst, handleDeath as resolveDeath,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS
+  createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen,
+  applyCorrupt, applyPlague, applyCorruptBurst,
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 
 function noteKill(died, killer, stats){
   if(died && killer && stats) stats[killer.charId].kills++;
-}
-
-function handleDeath(u, killer, stats){
-  const { died } = resolveDeath(u);
-  noteKill(died, killer, stats);
 }
 
 function doDamage(actor, target, skill, scene, stats){
@@ -131,23 +126,15 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
   for(let round=0; round<MAX_ROUNDS; round++){
     for(const u of order){
       if(!u.alive) continue;
-      // 回合开始被动
-      triggerPassive('onTurnStart', u, {allies:u.player===1?p1:p2});
-      // 毒/狂暴
-      u.debuffs.forEach(d=>{
-        if(d.type==='poison'){ u.hp=clamp(u.hp-d.value,0,u.maxHp); if(u.hp<=0) handleDeath(u,null,null); }
-      });
-      const berserk=u.buffs.find(b=>b.type==='berserk');
-      if(berserk){
-        u.hp=clamp(u.hp-(berserk.selfDmg ?? BUFF_DEFAULTS.berserkSelfDmg),0,u.maxHp);
-        if(u.hp<=0) handleDeath(u,null,null);
-      }
-      u.buffs=u.buffs.filter(b=>--b.dur>0);
-      u.debuffs=u.debuffs.filter(d=>--d.dur>0);
+      // 回合开始（被动 / 中毒 / 狂暴自损 / buff-debuff 递减）走 combat.js 那一份。
+      // 这里以前是手抄的副本，往 processStartOfTurn 里加机制时很容易漏掉这边，
+      // 于是 npm run balance 跑的是「机制不全的世界」，胜率表看着正常却是错的。
+      // 返回的 {passiveEvent, poison, berserk} 只给 battle.js 做日志/特效，无头模拟不需要。
+      processStartOfTurn(u, {allies:u.player===1?p1:p2});
       if(!u.alive) continue;
+      // 眩晕跳过是回合流程编排（battle.js 那边在 activateUnit 里做），不是战斗规则，留在这
       if(u.stunned){ u.stunned=false; continue; }
-      u.sp=clamp(u.sp+u.spRegen,0,u.maxSp);
-      if(scene.buff==='spRegen') u.sp=clamp(u.sp+5,0,u.maxSp);
+      applyTurnRegen(u, scene);
 
       const enemies=(u.player===1?p2:p1).filter(e=>e.alive);
       const allies=(u.player===1?p1:p2).filter(a=>a.alive);
