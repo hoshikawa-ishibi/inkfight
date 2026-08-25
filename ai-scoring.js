@@ -99,11 +99,17 @@ function healPriority(f, skill, topThreat, tw){
   return healGain(f, skill) * value;
 }
 
+// 注意：全队满血时也**必须**返回一个合法队友，不能返回 null。
+// 评分那边已经把「没人受伤」的治疗算成 0 收益（healGain 为 0，再减 tempo 就是负分），
+// 但负分不等于不会被选中——简单难度的噪声高达 30，照样可能挑中它。
+// 早期版本这里返回 null，结果 battle.js 的 `target.hp` 直接崩：
+// 「AI 蠢到给满血队友放治疗」是可以接受的，「AI 一放治疗就抛异常」不行。
 function healTarget(friends, skill, tw){
+  if(!friends.length) return null;
   const hurt = friends.filter(f => f.hp < f.maxHp);
-  if(!hurt.length) return null;
+  const pool = hurt.length ? hurt : friends;
   const topThreat = Math.max(...friends.map(threatOf));
-  return hurt.reduce((a,b)=>
+  return pool.reduce((a,b)=>
     healPriority(a, skill, topThreat, tw) >= healPriority(b, skill, topThreat, tw) ? a : b);
 }
 
@@ -201,8 +207,8 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
 
     case 'heal': {
       const target = healTarget(friends, s, tw);
-      if(!target) return 0;                       // 满血就别治
-      return healGain(target, s) - tempo * 0.6;
+      // 全队满血时 healGain 为 0，减掉机会成本就是负分，AI 自然不会选它
+      return target ? healGain(target, s) - tempo * 0.6 : 0;
     }
 
     case 'cleanse': {
@@ -296,9 +302,12 @@ export function pickTarget(actor, skill, enemies, allies, opts = {}){
     case 'heal':
       return healTarget(friends, skill, tw);
     case 'cleanse': {
-      // 只对真正带负面状态的队友净化，否则这一回合就白费了
+      // 只对真正带负面状态的队友净化，否则这一回合就白费了。
+      // 没人中负面时仍要给个合法目标（理由同 healTarget：低难度照样可能选中它，
+      // 返回 null 会让 battle.js 的 `target.debuffs=[]` 抛异常）。
       const afflicted = friends.filter(f => f.debuffs.length > 0 || f.stunned);
-      return afflicted.sort((a,b)=>
+      const pool = afflicted.length ? afflicted : friends;
+      return pool.slice().sort((a,b)=>
         (b.debuffs.length + (b.stunned?1:0)) - (a.debuffs.length + (a.stunned?1:0)))[0] || null;
     }
     case 'buff':

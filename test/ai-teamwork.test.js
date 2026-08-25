@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiHard } from '../ai.js';
+import { aiEasy, aiNormal, aiHard } from '../ai.js';
 import { createUnit } from '../combat.js';
 import { scoreSkill, pickTarget, focusFoe, makeTeamContext } from '../ai-scoring.js';
 import { SCENES, CHARACTERS } from '../data.js';
@@ -262,6 +262,43 @@ describe('过量杀伤：不用大招去收最后一丝血', () => {
     assert.ok(scoreSkill(mine[0], basic, bare, mine, VOID) >
               scoreSkill(mine[0], basic, shielded, mine, VOID),
       '带盾的残血目标不该被算成「一刀能收」');
+  });
+});
+
+describe('AI 选中的技能一定拿得到合法目标（防 battle.js 空指针）', () => {
+  // 真实踩过的坑：`pickTarget` 对治疗/净化在「没人受伤 / 没人中负面」时返回 null，
+  // 而评分给 0 分**并不能保证不被选中**——简单难度的噪声高达 30，照样会挑中它。
+  // 结果 battle.js 执行到 `target.hp` / `target.debuffs=[]` 直接抛
+  // TypeError，回合卡死。AI 蠢到给满血队友放治疗可以接受，一放就崩不行。
+  const ALLY_TARGETED = ['heal', 'cleanse', 'buff'];
+
+  for(const [level, fn] of [['简单', aiEasy], ['普通', aiNormal], ['困难', aiHard]]){
+    test(`${level}难度：全员满血满蓝时，选中的技能都有合法目标`, () => {
+      for(const c of CHARACTERS){
+        for(const mate of CHARACTERS){
+          if(mate.id === c.id) continue;
+          for(let i = 0; i < 12; i++){
+            const mine = [createUnit(c.id,1,0), createUnit(mate.id,1,1)];
+            const foes = [createUnit('guardian',2,0), createUnit('archer',2,1)];
+            const d = fn(mine[0], foes, mine, VOID);
+            if(!d || !d.skill) continue;
+            if(ALLY_TARGETED.includes(d.skill.type)){
+              assert.ok(d.target,
+                `${c.name}·${d.skill.name}（${d.skill.type}）在全员满血时返回了 null 目标`);
+              assert.equal(d.target.player, 1, '增益类技能的目标应当是己方');
+            }
+          }
+        }
+      }
+    });
+  }
+
+  test('全员满血时治疗是负分（不会被困难难度选中）', () => {
+    const heal = skillOf('priest', 'heal');
+    const mine = [createUnit('priest',1,0), createUnit('mage',1,1)];
+    const foes = [createUnit('guardian',2,0)];
+    assert.ok(scoreSkill(mine[0], heal, foes, mine, VOID, { teamwork: 1 }) < 0,
+      '没人受伤时治疗应当算成亏本买卖');
   });
 });
 

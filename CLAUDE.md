@@ -21,13 +21,9 @@ node fix-game.js         # 修复 ./game-output/ 里的游戏
 
 CLI 脚本需要 `ANTHROPIC_AUTH_TOKEN`（或 `ANTHROPIC_API_KEY`）环境变量。游戏本身无构建步骤。
 
-## ⚠ 进行中的工作：合并两套 AI（`AI_MERGE_PLAN.md`）
+## AI 架构（`AI_MERGE_PLAN.md` 已全部完成）
 
-**动手前先读 `AI_MERGE_PLAN.md`，从其中未勾选的第一项继续。**
-
-进度：Phase 1～4 已完成并提交，只剩 Phase 5（收尾 + 浏览器实测）。
-
-**AI 现在只有一条链路**：
+**AI 只有一条链路**：
 
 ```
 data.js（技能配置）
@@ -43,6 +39,12 @@ data.js（技能配置）
 **给技能加新字段时，要检查三处是否需要同步：`ai-scoring.js` 的评分、
 `combat.js` 的执行、以及 `data.js` 的配置。** 历史教训：给「狂暴」加 `power`
 时漏改 `ai.js`，导致 AI 放狂暴不造成伤害、玩家放却会。
+
+**改 `pickTarget` 时记住：「评分为 0」是软约束，不是硬保证。** 简单难度的噪声
+高达 30，0 分甚至负分的技能照样可能被选中。所以只要一个技能**有可能被选中**，
+目标解析就必须给得出合法目标——返回 `null` 会让 `battle.js` 在 `target.hp` /
+`target.debuffs` 上抛异常，AI 回合的 setTimeout 里没人接，整局直接卡死。
+（治疗和净化都踩过这个坑，见 `test/ai-teamwork.test.js` 最后一组测试。）
 
 ## 工作约定（重要）
 
@@ -90,7 +92,7 @@ npx serve .        # ou VS Code Live Server
 | **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`** |
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
-| `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 87 条，`npm test`） |
+| `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 91 条，`npm test`） |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关剧情数据：阵容、场景、难度、剧情文本） |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
 | `balance-report.mjs` | `npm run balance` 的入口 |
@@ -173,7 +175,16 @@ npx serve .        # ou VS Code Live Server
   - 已确认**不是**评分盲区：净化 / 腐化爆发在条件满足时使用率 100%；
     「狂暴」使用率 0% 是技能本身算不过账（3 回合多打约 7 点伤害，
     却要自损 18 HP 并放弃「鲜血之力」的吸血），属角色数值问题。
+  - **浏览器实测（困难）实录到完整配合链条**：`牧师 祝福 → 刺客`（加给输出最高的
+    队友而非自己）、`刺客 暗影突袭 → 法师` + `牧师 光击 → 法师`（两个单位集火同一
+    目标）、法师阵亡后两人同时改打守卫（集火目标随死亡切换）、收人头用免费的
+    「匕首」而不是 30SP 的「暗影突袭」。简单难度则连续平A，守卫全程不开铁壁嘲讽。
+  - **实测抓到一个单测没覆盖的回归**：`pickTarget` 在全队满血时给治疗返回 `null`
+    （净化同理），简单难度的噪声照样会选中它，于是 `battle.js` 在 `target.hp`
+    上抛异常、整局卡死。已修并补了 4 条测试。详见上面的「评分为 0 是软约束」。
   - **角色数值调整留到下一轮**，不在合并 AI 这条线里做。
+    当前跨度 24.5：牧师 63.4% 偏强、狂战士 38.9% 偏弱（后者有明确机制原因，
+    见 `AI_MERGE_PLAN.md` 文末）。
 
 ---
 
