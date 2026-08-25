@@ -12,7 +12,7 @@
 import { simOneBattle, shuffle } from './sim.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 import { applyStageMod } from './combat.js';
-import { CAMPAIGN_STAGES, enemyIds } from './campaign.js';
+import { CAMPAIGN_STAGES } from './campaign.js';
 import { CHARACTERS, SCENES } from './data.js';
 
 const N = Number(process.argv[2] || 3000);
@@ -41,7 +41,8 @@ function measureFairLine(){
 
 function runStage(stage){
   const scene = SCENES.find(s => s.id === stage.scene);
-  const foes = enemyIds(stage);
+  // 直接把关卡条目原样喂给模拟器：带身份/属性覆盖的墨皇也会被如实模拟
+  const foes = stage.enemy;
   const p2Mod = stage.enemyMod ? (u => applyStageMod(u, stage.enemyMod)) : null;
   let wins = 0, rounds = 0, timeouts = 0;
   for(let i = 0; i < N; i++){
@@ -77,7 +78,7 @@ for(const stage of CAMPAIGN_STAGES){
   const diff = r.wr - target;
   const flag = Math.abs(diff) <= 4 ? ' ' : (diff > 0 ? '↑太易' : '↓太难');
   rows.push({ id: stage.id, wr: r.wr });
-  const foes = enemyIds(stage).map(id => NAME[id]).join('+');
+  const foes = stage.enemy.map(e => typeof e === 'string' ? NAME[e] : (e.name || NAME[e.id])).join('+');
   console.log(
     `  ${stage.title.padEnd(12)} ${foes.padEnd(14)} ${DIFF_LABEL[stage.difficulty]}  ` +
     `${modText(stage.enemyMod).padEnd(15)} ${r.wr.toFixed(1).padStart(5)}%  ` +

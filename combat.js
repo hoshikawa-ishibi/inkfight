@@ -4,16 +4,33 @@
 import { CHARACTERS } from './data.js';
 import { clamp } from './state.js';
 
-export function createUnit(charId, player, slot){
+// override（可选）用来做「同一个角色、不同身份」：战役里敌人有剧情名，
+// 最终关的墨皇更是直接改属性和被动，而**不新增一份角色数据**。
+// 可覆盖 name / color / hp / sp / atk / def / crit / dodge / spRegen / passive；
+// 传 `{id, name}` 这种只带名字的对象也行（id 字段会被忽略，单位 id 另算）。
+// 缺省 undefined 时走原路径，其它模式的行为一点不变。
+export function createUnit(charId, player, slot, override){
   const b = CHARACTERS.find(c=>c.id===charId);
+  const o = override || {};
+  const hp = o.hp ?? b.hp;
+  const sp = o.sp ?? b.sp;
   return {
-    id:`${player}-${slot}`, charId:b.id, name:b.name, player, color:b.color, weapon:b.weapon,
-    maxHp:b.hp, hp:b.hp, maxSp:b.sp, sp:b.sp, atk:b.atk, def:b.def, crit:b.crit, dodge:b.dodge, spRegen:b.spRegen,
+    id:`${player}-${slot}`, charId:b.id, name:o.name ?? b.name, player,
+    color:o.color ?? b.color, weapon:b.weapon,
+    maxHp:hp, hp, maxSp:sp, sp,
+    atk:o.atk ?? b.atk, def:o.def ?? b.def, crit:o.crit ?? b.crit, dodge:o.dodge ?? b.dodge,
+    spRegen:o.spRegen ?? b.spRegen,
     skills:JSON.parse(JSON.stringify(b.skills)),
-    passive:b.passive||null, passiveStacks:0,
+    passive:(o.passive !== undefined ? o.passive : (b.passive||null)), passiveStacks:0,
     alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
     pose:'idle', blink:0
   };
+}
+
+// 关卡敌人条目 → [角色id, override]。字符串和 {id,name,...} 对象都吃，
+// battle.js 和 sim.js 共用，免得两边各写一份解析（这个项目已经因此出过三次 bug）。
+export function unitSpec(entry){
+  return typeof entry === 'string' ? [entry, null] : [entry.id, entry];
 }
 
 export function getEffectiveAtk(u){

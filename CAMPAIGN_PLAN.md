@@ -7,12 +7,12 @@
 
 ---
 
-## ▶ 当前进度：**Phase 1 已完成，从 Phase 2 开始做**
+## ▶ 当前进度：**Phase 1、2 已完成，接着做 Phase 5 的前两条 bug**
 
 接手时先跑一遍确认基线：
 
 ```bash
-npm test                          # 应为 96/96 通过（Phase 1 补了 5 条 applyStageMod 测试）
+npm test                          # 应为 103/103 通过
 npm run balance 10000             # 角色强度表（Phase 1 排关卡要用）
 node difficulty-check.mjs 6000    # 难度公平性，确认公平线仍 ≈60%
 node campaign-check.mjs 3000      # 战役曲线，应单调下降 92% → 40%
@@ -164,14 +164,14 @@ if(gameState.mode==='ai'){
 
 ## Phase 2 — 敌人有身份，BOSS 是真 BOSS
 
-- [ ] `campaign.js` 每关的 `enemy` 从 `['swordsman','archer']` 扩展为带身份的对象：
+- [x] `campaign.js` 每关的 `enemy` 从 `['swordsman','archer']` 扩展为带身份的对象：
       `[{id:'swordsman', name:'流浪剑士·墨白'}, {id:'archer', name:'游猎者·苍'}]`
       （保持向后兼容：也接受纯字符串，缺省用角色原名）
-- [ ] `combat.js` 的 `createUnit(charId, player, slot, override)` 支持 `override`：
+- [x] `combat.js` 的 `createUnit(charId, player, slot, override)` 支持 `override`：
       `{name, atk, hp, def, passive}`。BOSS 就是靠它实现，不新增角色数据。
-- [ ] `battle.js` 建 p2 单位时把身份传进去；确认战斗日志、单位名牌、
+- [x] `battle.js` 建 p2 单位时把身份传进去；确认战斗日志、单位名牌、
       结算界面显示的都是剧情名而不是"法师"。
-- [ ] 最终关加真正的墨皇：单人或双人，属性显著高于普通角色，
+- [x] 最终关加真正的墨皇：单人或双人，属性显著高于普通角色，
       建议复用现有被动（如 `corruptBonus` / `reflect`）而不是写新机制。
       **强度用 `campaign-check.mjs` 校准到目标曲线的 42%，不要凭感觉给数值。**
 - [x] 顺手修：第六关标题「灵泉四卫」改成和实际敌人数一致的名字。
@@ -316,3 +316,31 @@ if(gameState.mode==='ai'){
 
   **留给 Phase 2 的坑**：第 8 关现在是 `hp×1.05` 的普通术士+牧师。
   加入墨皇 override 后属性会变，**必须重跑 `campaign-check.mjs` 重新校准到 42%**。
+
+- 2026-08-25：**Phase 2 完成**。敌人有身份了，墨皇是真 BOSS。
+  - `combat.js` 的 `createUnit(charId, player, slot, override)` 加了第四个参数
+    （可覆盖 name/color/hp/sp/atk/def/crit/dodge/spRegen/passive），另加 `unitSpec(entry)`
+    把「字符串 or {id,name,...} 对象」这件事收敛成一处，`battle.js` 和 `sim.js` 共用。
+    缺省 undefined 走原路径，其它模式行为不变（单测锁住）。
+  - `campaign.js` 16 个敌人全部有了剧情名（荒野狂徒·赤牙、炉守·铁衣、伏影·青蝉、
+    关隘守将·磐、先锋将·断雁、守法者·澜、近卫祭司·白鸦……）。
+  - `main.js` 拆成两个字段：`p2Picks` 仍是纯 id 数组（雷达图那边按 id 读），
+    新增 `p2Roster` 存带身份的原始条目，`battle.js` 建单位时用后者。
+  - **最终关改成墨皇独战**（术士底子，260/22/8，被动沿用「腐化侵蚀」）。
+    理由是实测出来的机制事实：**本作回合流程是「双方各行动一个单位」，
+    队伍人数不影响行动次数，只影响血池和技能池。**
+    所以两人队里 BOSS 只能隔回合出手一次，单人则每回合都出手——
+    「165 血的换皮术士」和「每回合都放大招的 260 血墨皇」，后者才叫 BOSS。
+  - 校准过程：165/19/7 + 圣女 → 6.1%（远超目标）。血量预算极紧，
+    +40% 血就吃掉 24 个百分点。最后 260/22/8 独战 = 40.7%，落在目标 42% 的 −1.3。
+  - 补 7 条单测（96 → 103 全绿）。
+  - 浏览器实测：最终关单人 BOSS 渲染正常（HP 260/260、SP 130/130），
+    墨皇每回合出手，瘟疫 / 灵魂收割 / 暗影弹整套术士机制可用，
+    守卫的「铁甲反弹」对他照常生效；普通关名牌与日志显示的都是剧情名，
+    `enemyMod` 叠在 override 之上仍然正确（狂徒 140×1.1=154）。
+
+  **当前曲线（5000 局/关，公平线 59.2%）**：
+  92.5 → 84.0 → 76.2 → 73.5 → 63.2 → 56.2 → 46.8 → **40.7**（单调，最大偏差 3.2）。
+
+  **留给 Phase 3 的坑**：第 8 关的圣女·素雪已经不是战斗单位了，
+  但她仍是个可用的剧情角色（可在过场里出现），写文本时注意别写成「她在场战斗」。

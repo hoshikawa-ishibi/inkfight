@@ -1,5 +1,5 @@
 import { SCENES, CHARACTERS } from './data.js';
-import { CAMPAIGN_STAGES } from './campaign.js';
+import { CAMPAIGN_STAGES, enemyIds } from './campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
 import { gameState, rand, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
@@ -342,7 +342,8 @@ function launchCampaignStage(stage){
     gameState.stageMod = stage.enemyMod || null;   // battle.js 建 p2 单位时读它
     applySceneBackground(scene);
     // 玩家选角
-    gameState.p2Picks = stage.enemy;
+    gameState.p2Picks = enemyIds(stage);      // 纯 id，给雷达图等按 id 读的地方
+    gameState.p2Roster = stage.enemy;         // 带身份的原始条目，battle.js 建单位时用
     showScreen('screen-select');
   });
 }

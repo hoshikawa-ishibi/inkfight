@@ -9,7 +9,7 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget,
-  applyDifficulty, applyStageMod
+  applyDifficulty, applyStageMod, unitSpec
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -90,7 +90,10 @@ export function startBattle(){
   const fx=document.getElementById('fx-canvas');
   fx.width=window.innerWidth; fx.height=window.innerHeight;
   gameState.p1Units=gameState.p1Picks.map((id,i)=>createUnit(id,1,i));
-  gameState.p2Units=gameState.p2Picks.map((id,i)=>createUnit(id,2,i));
+  // 战役的敌人带剧情身份（名字，墨皇还带属性和被动），存在 p2Roster；
+  // p2Picks 仍然是纯 id 数组，选角雷达图那边还在按 id 读它。
+  const p2Roster = (gameState.mode==='campaign' && gameState.p2Roster) || gameState.p2Picks;
+  gameState.p2Units=p2Roster.map((e,i)=>{ const [id,ov] = unitSpec(e); return createUnit(id,2,i,ov); });
   // 难度加成的具体数值在 combat.js 的 DIFFICULTY_MODS，
   // 与 difficulty-check.mjs 共用同一份，避免调了一处量的却是另一套数
   if(gameState.mode==='ai'){

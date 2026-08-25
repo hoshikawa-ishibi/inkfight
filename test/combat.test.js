@@ -4,7 +4,7 @@ import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
   triggerPassive, processStartOfTurn, calcDamage, calcStun,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
-  needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod
+  needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec
 } from '../combat.js';
 import { CHARACTERS } from '../data.js';
 
@@ -508,5 +508,59 @@ describe('applyStageMod（战役关卡的属性旋钮）', () => {
     assert.equal(u.spRegen, 8);
     assert.equal(u.sp, 60);
     assert.equal(u.maxHp, 120);
+  });
+});
+
+describe('createUnit 的 override（战役身份 / 墨皇）', () => {
+  test('不传 override 时行为和以前完全一致', () => {
+    const u = createUnit('warlock', 2, 0);
+    const b = CHARACTERS.find(c => c.id === 'warlock');
+    assert.equal(u.name, b.name);
+    assert.equal(u.maxHp, b.hp);
+    assert.equal(u.atk, b.atk);
+    assert.equal(u.passive.name, b.passive.name);
+  });
+
+  test('只给 name 时，只有名字变，属性一律照旧', () => {
+    const u = createUnit('berserker', 2, 0, { id:'berserker', name:'荒野狂徒·赤牙' });
+    const b = CHARACTERS.find(c => c.id === 'berserker');
+    assert.equal(u.name, '荒野狂徒·赤牙');
+    assert.equal(u.charId, 'berserker');       // 技能/被动仍按角色 id 走
+    assert.equal(u.maxHp, b.hp);
+    assert.equal(u.atk, b.atk);
+  });
+
+  test('墨皇：改属性但沿用术士的技能组和被动', () => {
+    const u = createUnit('warlock', 2, 0, { id:'warlock', name:'墨皇', hp:260, sp:130, atk:22, def:8 });
+    assert.equal(u.name, '墨皇');
+    assert.equal(u.maxHp, 260);
+    assert.equal(u.hp, 260);
+    assert.equal(u.maxSp, 130);
+    assert.equal(u.sp, 130);
+    assert.equal(u.atk, 22);
+    assert.equal(u.def, 8);
+    assert.equal(u.passive.effect, 'corruptBonus');
+    assert.equal(u.skills.length, CHARACTERS.find(c=>c.id==='warlock').skills.length);
+  });
+
+  test('override 可以把 passive 显式置空', () => {
+    const u = createUnit('warlock', 2, 0, { id:'warlock', passive:null });
+    assert.equal(u.passive, null);
+  });
+
+  test('单位 id 仍由 player/slot 决定，不受 override.id 影响', () => {
+    const u = createUnit('warlock', 2, 1, { id:'warlock', name:'墨皇' });
+    assert.equal(u.id, '2-1');
+  });
+});
+
+describe('unitSpec（关卡条目 → [角色id, override]）', () => {
+  test('字符串条目：没有 override', () => {
+    assert.deepEqual(unitSpec('mage'), ['mage', null]);
+  });
+
+  test('对象条目：原样当 override 传下去', () => {
+    const e = { id:'mage', name:'焰纹术士·灼' };
+    assert.deepEqual(unitSpec(e), ['mage', e]);
   });
 });

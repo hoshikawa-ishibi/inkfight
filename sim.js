@@ -8,7 +8,7 @@
 import { CHARACTERS, SCENES } from './data.js';
 import { clamp } from './state.js';
 import {
-  createUnit as makeUnit, triggerPassive, calcDamage,
+  createUnit as makeUnit, unitSpec, triggerPassive, calcDamage,
   applyCorrupt, applyPlague, applyCorruptBurst, handleDeath as resolveDeath,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS
 } from './combat.js';
@@ -111,8 +111,9 @@ const MAX_ROUNDS = 60;
 // 有了这两个口子，「困难难度到底公不公平」就能直接量，
 // 而不必在别处另抄一份战斗循环——那正是这个项目反复踩的坑。
 export function simOneBattle(p1ids, p2ids, scene, opts = {}){
-  const p1 = p1ids.map((id,i)=>makeUnit(id,1,i));
-  const p2 = p2ids.map((id,i)=>makeUnit(id,2,i));
+  // 条目可以是角色 id 字符串，也可以是带身份/属性的对象（战役关卡就是后者）
+  const p1 = p1ids.map((e,i)=>{ const [id,ov] = unitSpec(e); return makeUnit(id,1,i,ov); });
+  const p2 = p2ids.map((e,i)=>{ const [id,ov] = unitSpec(e); return makeUnit(id,2,i,ov); });
   if(opts.p1Mod) p1.forEach(opts.p1Mod);
   if(opts.p2Mod) p2.forEach(opts.p2Mod);
   const aiOf = { 1: opts.p1Ai || aiHard, 2: opts.p2Ai || aiHard };

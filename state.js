@@ -9,6 +9,8 @@ export let gameState = {
   activeUnitId:null, round:1,
   // 战役关卡的敌方属性加成（campaign.js 的 enemyMod），由 launchCampaignStage 写入
   stageMod:null,
+  // 战役敌人的原始条目（带剧情名 / 墨皇的属性覆盖），由 launchCampaignStage 写入
+  p2Roster:null,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   busy:false, logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }
