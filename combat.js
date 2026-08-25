@@ -239,6 +239,28 @@ export function resolveStun(actor, target, skill, scene){
 // data.js 用 buffValue / selfDmg 覆盖，数值调整不必再动代码。
 export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, debuff:0.25, berserkSelfDmg:8 };
 
+// ── 难度档位给 AI 单位的属性加成 ─────────────────────────
+// **这是「叠在 AI 决策水平之上的第二层难度」**，两层要一起看。
+// 合并两套 AI 之后困难的决策水平本身涨了一大截（会集火、不浪费回合），
+// 原来的攻 +15% 于是变成双重加成：实测玩家胜率只有 42.4%，
+// 而先手对镜的公平线是 59.9%，等于倒欠 17.5 个百分点。
+// 攻击加成是压垮玩家的那一半（单独就值 -13.8），回蓝几乎无害（-2.3），
+// 所以两项一起减半，落在 52.6%。
+//
+// 调这里的数之前先跑 `node difficulty-check.mjs`——它和 battle.js 读的是
+// 这同一份表，不会出现「改了一处、量的却是另一套数」。
+export const DIFFICULTY_MODS = {
+  easy:   u => { u.atk = Math.round(u.atk * 0.85); u.sp = Math.floor(u.maxSp * 0.5); },
+  normal: null,
+  hard:   u => { u.atk = Math.round(u.atk * 1.07); u.spRegen = Math.round(u.spRegen * 1.1); },
+};
+
+export function applyDifficulty(unit, level){
+  const mod = DIFFICULTY_MODS[level];
+  if(mod) mod(unit);
+  return unit;
+}
+
 // 这个技能是否需要一个敌方目标。
 // 判断以前分散在 ai.js / battle.js / sim.js 三处，给「狂暴」加 power 时
 // 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。

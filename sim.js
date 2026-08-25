@@ -13,7 +13,7 @@ import {
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, BUFF_DEFAULTS
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
-import { aiHard } from './ai.js';
+import { aiEasy, aiNormal, aiHard } from './ai.js';
 
 function noteKill(died, killer, stats){
   if(died && killer && stats) stats[killer.charId].kills++;
@@ -105,9 +105,17 @@ function executeSkill(actor, skill, target, scene, p1, p2, stats){
 // 磨血磨不动，多半是治疗/护盾被高估了。
 const MAX_ROUNDS = 60;
 
-function simOneBattle(p1ids, p2ids, scene){
+// opts 用来做「非对称」实验（平衡报告本身不传，两边完全对等）：
+//   p1Mod / p2Mod — 建好单位后调一次，用来复现难度档位给 AI 的属性加成
+//   p1Ai / p2Ai   — 换掉某一方的 AI 档位
+// 有了这两个口子，「困难难度到底公不公平」就能直接量，
+// 而不必在别处另抄一份战斗循环——那正是这个项目反复踩的坑。
+export function simOneBattle(p1ids, p2ids, scene, opts = {}){
   const p1 = p1ids.map((id,i)=>makeUnit(id,1,i));
   const p2 = p2ids.map((id,i)=>makeUnit(id,2,i));
+  if(opts.p1Mod) p1.forEach(opts.p1Mod);
+  if(opts.p2Mod) p2.forEach(opts.p2Mod);
+  const aiOf = { 1: opts.p1Ai || aiHard, 2: opts.p2Ai || aiHard };
   const order = [];
   const max = Math.max(p1.length,p2.length);
   for(let i=0;i<max;i++){
@@ -144,7 +152,7 @@ function simOneBattle(p1ids, p2ids, scene){
       const allies=(u.player===1?p1:p2).filter(a=>a.alive);
       if(!enemies.length) break;
 
-      const chosen=aiHard(u,enemies,allies,scene,ctx[u.player]);
+      const chosen=aiOf[u.player](u,enemies,allies,scene,ctx[u.player]);
       if(!chosen||!chosen.skill) continue;
       executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
     }

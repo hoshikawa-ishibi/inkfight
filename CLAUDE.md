@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm test                 # 跑单元测试（Node 内置 node --test，无外部依赖）
 npm run balance          # 无头模拟 4000 局，输出各角色胜率 + 采样均匀度
 npm run balance 10000    # 指定局数
+node difficulty-check.mjs 6000   # 难度公平性：玩家打各档 AI 的胜率
 
 npx serve .              # 起本地服务器，然后打开 inkfight.html
 ```
@@ -59,6 +60,12 @@ data.js（技能配置）
   小数点后的差异**——AI 是评分式的，评分模型本身的偏好会体现在胜率里。
 - 输出里的「节奏」一行是健康指标：平均回合数突然拉长、或超时局比例上升，
   通常意味着治疗 / 护盾类技能被高估了。
+- **先手值约 10 个百分点。** 同一个 AI、同样属性、随机阵容，先手方赢 ≈59.8%。
+  所以判断「某一档难度公不公平」时，基准线是 **60% 不是 50%**——
+  拿 50% 当尺子会把每一档都误判成偏难。`difficulty-check.mjs` 会先把这条线量出来
+  再报相对偏差。（这条先手优势本身也许值得单独处理，属于未做的事。）
+- **难度 = AI 决策水平 + 属性加成，两层。** 调其中一层前先想清楚另一层：
+  合并两套 AI 之后困难的决策水平涨了一大截，原来配的攻 +15% 就成了双重加成。
 - 这是个人项目，**直接在 `main` 上提交即可**，不需要开分支走 PR。
 - **在浏览器里测试游戏时必须保持静音**——用户在旁边工作，测试音效会打扰他们。
   静音状态存在 `localStorage.inkfight_muted`（`'1'` = 静音），页面加载即生效。
@@ -89,13 +96,14 @@ npx serve .        # ou VS Code Live Server
 | `render.js` | `initRender`, `renderBattle`, `redrawUnit`, `animateUnit`, `lungeActor`（含 idle 动画 setInterval） |
 | **`ai-scoring.js`** | **技能评分的唯一实现，`ai.js`（并经由它被 `sim.js`）共用**。`scoreSkill(u, s, foes, friends, scene, opts)` 把各类技能收益折算成「等效伤害」以便横向比较；`pickTarget` 选目标；`focusFoe` 定集火目标；`makeTeamContext()` 造队伍战术上下文。`opts.tempo`（0~1）控制是否计入「占掉一回合」的机会成本，`opts.teamwork`（0~1）控制配合意识强度 |
 | `ai.js` | 纯函数，可在 Node 运行。只做**难度包装**：`aiEasy`/`aiNormal`/`aiHard`(u, enemies, allies, scene, ctx)，三档的区别是噪声大小、`tempo` 权重、`teamwork` 权重、以及 hard 独有的 `tacticalBonus`。`ctx` 是本方队伍的战术上下文，同队单位共享才能集火 |
-| **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`** |
+| **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`**。另含 `DIFFICULTY_MODS` / `applyDifficulty`（难度档位给 AI 的属性加成，改数值只改这一处） |
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 91 条，`npm test`） |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关剧情数据：阵容、场景、难度、剧情文本） |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
-| `balance-report.mjs` | `npm run balance` 的入口 |
+| `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
+| `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。用 `simOneBattle` 的 `p1Mod/p2Mod/p1Ai/p2Ai` 做非对称对局，属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
 
 ### 近期改动记录
 
@@ -185,6 +193,19 @@ npx serve .        # ou VS Code Live Server
   - **角色数值调整留到下一轮**，不在合并 AI 这条线里做。
     当前跨度 24.5：牧师 63.4% 偏强、狂战士 38.9% 偏弱（后者有明确机制原因，
     见 `AI_MERGE_PLAN.md` 文末）。
+- **困难难度属性加成减半**（2026-08-24）。用户反馈"完全打不过困难"，实测确认：
+  玩家胜率只有 42.4%，而**先手对镜的公平线是 59.8%**（先手值约 10 个百分点，
+  以前一直拿 50% 当基准，等于把难度判断建立在错的尺子上）。
+  - **根因是双重加成**：攻 +15% 是给合并 AI 之前那个笨 AI 配的，
+    现在 AI 本身会集火、不浪费回合，两层难度叠在一起就过头了。
+  - **拆开量才发现攻击是罪魁**：只留攻 +15% 是 -13.8，只留回蓝 +20% 只有 -2.3。
+  - 改为攻 +7% / 回蓝 +10%，落在 52.5%（相对公平线 -7.3）。
+    梯度：简单 99.1% / 普通 64.2% / 困难 52.5%。
+  - 当时也考虑过全去掉（60.4%），但那样普通和困难只差 3 个百分点，
+    难度选项名存实亡——**AI 决策水平本身拉开的差距比想象中小**，
+    之前一直是那个 +15% 攻击在撑"困难"的体感。
+  - 数值收敛到 `combat.js` 的 `DIFFICULTY_MODS`，`battle.js` 与
+    `difficulty-check.mjs` 共用，避免"调了一处、量的却是另一套数"。
 - **修掉 `gameState.turnOrder` 的三处死读**（2026-08-24）。回合流程早先从
   「turnOrder 数组 + 下标」改成了 `currentPlayer` + `p1/p2LastActed`，但三个读取方
   没跟着改，读到的永远是 `undefined`——**而且全都静默失败，不报错**：

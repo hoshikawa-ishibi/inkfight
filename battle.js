@@ -8,7 +8,8 @@ import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
-  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget
+  resolveSelfBuff, makeAllyBuff, makeSpBuff, makeDebuff, needsEnemyTarget,
+  applyDifficulty
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -90,12 +91,10 @@ export function startBattle(){
   fx.width=window.innerWidth; fx.height=window.innerHeight;
   gameState.p1Units=gameState.p1Picks.map((id,i)=>createUnit(id,1,i));
   gameState.p2Units=gameState.p2Picks.map((id,i)=>createUnit(id,2,i));
+  // 难度加成的具体数值在 combat.js 的 DIFFICULTY_MODS，
+  // 与 difficulty-check.mjs 共用同一份，避免调了一处量的却是另一套数
   if(gameState.mode==='ai'){
-    const d=gameState.difficulty;
-    gameState.p2Units.forEach(u=>{
-      if(d==='easy'){ u.atk=Math.round(u.atk*0.85); u.sp=Math.floor(u.maxSp*0.5); }
-      else if(d==='hard'){ u.atk=Math.round(u.atk*1.15); u.spRegen=Math.round(u.spRegen*1.2); }
-    });
+    gameState.p2Units.forEach(u=>applyDifficulty(u, gameState.difficulty));
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
