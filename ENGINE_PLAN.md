@@ -7,12 +7,12 @@
 
 ---
 
-## ▶ 当前进度：**从任务 1 开始做**
+## ▶ 当前进度：**任务 1 已完成，从任务 2 开始做**
 
 接手时先跑一遍确认基线：
 
 ```bash
-npm test                        # 应为 103/103 通过
+npm test                        # 应为 150/150 通过
 git log --oneline -3
 ```
 
@@ -67,7 +67,7 @@ git log --oneline -3
 这个项目有现成的行为回归网，比单测更能覆盖整体行为。**基线数字**（2026-08-25 实测）：
 
 ```bash
-npm test                        # 103/103
+npm test                        # 150/150（任务 1 之后；此前是 103/103）
 npm run balance 10000           # 牧师63.8 弓手54.4 术士54.3 守卫52.9
                                 # 法师45.5 剑士45.1 刺客43.2 狂战士40.6（±1.5 噪声）
 node campaign-check.mjs 5000    # 93.7 → 86.0 → 78.8 → 74.2 → 65.8 → 59.0 → 50.1 → 41.6
@@ -91,14 +91,14 @@ node campaign-check.mjs 5000    # 93.7 → 86.0 → 78.8 → 74.2 → 65.8 → 5
 只有打开浏览器才会发现。**
 （2026-08-25 那晚就这样弄坏 main.js 两次，都是靠浏览器报错才发现的。）
 
-- [ ] 新增 `test/syntax.test.js`：对仓库根目录下所有 `.js` / `.mjs` 跑 `node --check`，
+- [x] 新增 `test/syntax.test.js`：对仓库根目录下所有 `.js` / `.mjs` 跑 `node --check`，
       任何一个解析失败就让测试红。用 `child_process.execFileSync('node', ['--check', file])`。
       `node --check` **只解析不执行**，所以 `document` / `window` 这些浏览器全局量不影响。
-- [ ] **先确认 `package.json` 有 `"type": "module"`**——没有的话 `node --check`
+- [x] **先确认 `package.json` 有 `"type": "module"`**——没有的话 `node --check`
       会按 CommonJS 解析 `import`，全部误报。有就直接用，没有就加 `--input-type=module`。
-- [ ] （可选，顺手）再加一条：扫描每个文件的 import 语句，确认目标文件存在
+- [x] （可选，顺手）再加一条：扫描每个文件的 import 语句，确认目标文件存在
       且确实导出了那些名字。能挡住「改名了但漏改调用方」。
-- [ ] 排除 `node_modules`；`test/` 下的文件也一并检查。
+- [x] 排除 `node_modules`；`test/` 下的文件也一并检查。
 
 **验证**：故意在 `main.js` 里写一行坏语法，`npm test` 必须变红；改回来必须变绿。
 **工作量**：20 分钟。
@@ -250,3 +250,18 @@ buff-debuff 回合数递减）和 `applyTurnRegen(u, scene)`（回蓝 + 场景�
   ——其中 3 条（任务 1 / 2 / 3）是审查过程中新发现的，原 todo 里根本没有。
   第一版提的 4 个重构 Phase 砍掉 3 个，理由和「重新考虑的条件」记在上面，
   免得以后又被当成好主意捡回来。
+- 2026-08-25：**任务 1 完成**。新增 `test/syntax.test.js`，`npm test` 103 → 150 条。
+  两组：(1) 全仓库 21 个 `.js`/`.mjs` 各跑一次 `node --check`；
+  (2) 每个文件的相对 import 逐条核对——目标文件在不在、那边有没有导出这个名字。
+  - `package.json` 已有 `"type": "module"`，Node 24 的 `node --check` 直接按 ESM 解析，
+    **不需要 `--input-type=module`**（已在 main.js 上实测确认，它满是 `import`）。
+  - 排除 `node_modules` / `.git` / `.claude`。**`.claude` 是特意排的**：那底下将来放的
+    钩子脚本未必是 ESM，按 ESM 解析会误报——计划里写了「误报比漏报更烦人」。
+  - 加了一条哨兵测试，断言扫描结果里确实含那 7 个没被覆盖的模块。
+    否则哪天扫描器自己坏了（比如目录遍历写错），这一整组会安静地变成空跑、照样全绿。
+  - **正反三个方向都验过**：main.js 写坏语法 → 红；把 `combat.js` 的 `calcStun` 改名
+    不改调用方 → 红（报「test/combat.test.js 从 ../combat.js 导入了 calcStun，
+    但那边没导出它」）；把 import 路径指向不存在的文件 → 红。全部还原后 150/150 绿。
+  - 顺带确认了这条测试的边界：`node --check` **只解析不执行**，所以
+    `main.js` 里写 `getElementById('typo-id')` 这种它一点都发现不了。
+    它挡的只是「文件根本解析不了」——但那一类此前完全没人挡。
