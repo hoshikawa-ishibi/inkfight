@@ -13,6 +13,8 @@ export let gameState = {
   p2Roster:null,
   // 战役玩家单位的原始条目（主角墨白 + 同伴的剧情名）
   p1Roster:null,
+  // 本局是否已经结算过（showResult 的幂等标记，见 battle.js 的注释）
+  resultShown:false,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   busy:false, logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }

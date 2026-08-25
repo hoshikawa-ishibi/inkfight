@@ -112,7 +112,7 @@ npx serve .        # ou VS Code Live Server
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`（共 91 条，`npm test`） |
-| `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `enemyIds(stage)` |
+| `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
 | `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
 | `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。用 `simOneBattle` 的 `p1Mod/p2Mod/p1Ai/p2Ai` 做非对称对局，属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
@@ -233,6 +233,27 @@ npx serve .        # ou VS Code Live Server
   **教训：重构掉一个状态字段时，要 grep 干净所有读取方。** 这三处的共同点是
   「读到 undefined 之后走了一条看似正常的分支」（`if(u)` 直接跳过、
   `===` 恒为 false），不抛异常，所以能潜伏很久。
+- **战役角色与剧情绑定 + 曲线重新校准**（2026-08-25，`CAMPAIGN_PLAN.md` Phase 4）。
+  - 战役有固定主角了：`CAMPAIGN_HERO` = 剑士「墨白」，每关预选不可换；
+    队友池 7 人各有剧情名，每通一关解锁一个（顺序按「弱的先给」排，牧师最后）。
+    选角界面四态：主角锁定 / 可选 / **本关敌方**（禁选）/ 未解锁。
+  - **解锁进度不另存 key**，直接从 `inkfight_campaign`（已通关数）推——
+    同一份知识两份实现迟早对不上，这个项目已经因此出过三次 bug。
+  - 固定主角把 Phase 1 校好的曲线整个打乱（第 2 关 97%、第 4 关 49%），
+    逐关重搜 `enemyMod`。**当前曲线（5000 局/关，公平线 60.3%）**：
+    93.7 → 86.0 → 78.8 → 74.2 → 65.8 → 59.0 → 50.1 → **41.6**，
+    单调下降、最大偏差 2.2。
+  - **这个游戏极度吃阵容克制，而且到处都是，不只是 BOSS 关。**
+    普通的第 6 关，玩家 28 种阵容的胜率标准差就有 26.5、极差 87 个百分点；
+    单人墨皇是 31.5 / 97，只是略高。
+    **`npm run balance` 对随机阵容取平均，把这件事整个掩盖掉了**——
+    它只能告诉你「角色平均有多强」，不能告诉你「这套阵容打那套阵容如何」。
+    所以 `campaign-check.mjs` 现在逐个队友分别报胜率，只看均值会漏掉「带错人必输」。
+  - 固定主角的一个副作用是**最差情况变好了**：随机 2 人打墨皇时最差组合只有 0.2%
+    （守卫+牧师，纯纯打不动），固定剑士提供了伤害下限之后，最差的队友也有 12%。
+  - `enemyMod` 调参时注意**存在真实断崖**：第 4 关 hp×0.84 是 75.3%、×0.85 是 66.7%，
+    差 0.01 掉 8.6 个百分点。原因是「几刀砍得死」的整数阈值，不是噪声——
+    多跑几次局数确认过。卡在缝里就取偏易的一侧。
 - **战役敌人有身份 + 墨皇是真 BOSS + 剧情分段**（2026-08-25，`CAMPAIGN_PLAN.md` Phase 2/3/5）。
   - `createUnit(charId, player, slot, override)` 加了第四个参数，可覆盖
     name/color/hp/sp/atk/def/crit/dodge/spRegen/passive。**同一个角色、不同身份**
@@ -256,6 +277,12 @@ npx serve .        # ou VS Code Live Server
     (2) 「最终战役统计」显示的其实是**最后一关单场**数据——
     现在按关卡 id 存每关一份（`inkfight_campaign_totals`）、展示时求和。
     按 id 存而不是直接累加，是因为通关的关卡可以重打，重打只该覆盖那一关。
+  - **修掉「`showResult` 会被调用两次」**：`checkVictory()` 有两个调用点
+    （`nextTurn` 和「行动单位已阵亡」那条分支），胜负已定时两边**各排一个**
+    `setTimeout(showResult, 700)`。正常速度下第二次在玩家还没点按钮时就跑完了，
+    看不出来；但玩家只要在 700ms 内点掉「继续剧情」，延迟的第二次就会把他
+    **从过场/通关界面拽回战斗结算界面**。加了 `gameState.resultShown` 幂等标记。
+    这个 bug 是浏览器把标签页降频之后才现形的——**慢环境是照妖镜**。
   - 顺手修掉一个藏了很久的显示 bug：结算界面的数字滚动动画用
     `isNaN(parseInt(v))` 判断该不该滚，于是「22（守卫）」这种也被当数字滚了一遍，
     滚完括号里的名字就没了——「最高单次伤害」那行**一直没显示过是谁打的**。

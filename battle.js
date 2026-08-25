@@ -110,6 +110,7 @@ export function startBattle(){
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
+  gameState.resultShown=false;
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
     maxHit:{dmg:0,name:''}, units:{}
@@ -261,6 +262,12 @@ function renderStatsPanel(extraRows, actionsHtml){
 }
 
 function showResult(w){
+  // 一局只结算一次。checkVictory() 有两个调用点（nextTurn 和「行动单位已阵亡」
+  // 那条分支），胜负已定时**两边都会各排一个 setTimeout(showResult, 700)**。
+  // 正常速度下第二次在玩家还没点按钮时就跑完了，看不出来；但玩家只要在 700ms 内
+  // 点掉「继续剧情」，延迟的第二次就会把他从过场/通关界面拽回战斗结算界面。
+  if(gameState.resultShown) return;
+  gameState.resultShown=true;
   Audio.stopBgm();
   _showScreen('screen-result');
   const actions=document.getElementById('result-actions');
