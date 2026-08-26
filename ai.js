@@ -56,8 +56,7 @@ function canUse(u, s){
 // ctx 是本方队伍的战术上下文（ai-scoring.js 的 makeTeamContext），
 // 由调用方为每支队伍持有一个，用来让同队单位集火同一个目标。
 // 不传也能跑，只是每个单位各打各的。
-function decide(u, enemies, allies, scene, level, ctx){
-  const cfg = DIFFICULTY[level];
+function decide(u, enemies, allies, scene, cfg, ctx){
   const foes = enemies.filter(e => e.alive);
   const friends = allies.filter(a => a.alive);
   if(!foes.length) return null;
@@ -90,12 +89,19 @@ function decide(u, enemies, allies, scene, level, ctx){
   return { skill: best, target: pickTarget(u, best, foes, friends, opts) };
 }
 
-export function aiEasy(u, enemies, allies, scene, ctx){
-  return decide(u, enemies, allies, scene, 'easy', ctx);
+// 按 cfg 造一个 AI。三档难度只是它的三个实例。
+//
+// 导出它是给 difficulty-check.mjs 造「玩家替身」用的：那边需要的是
+// 「同一套评分、但更容易选到次优解、而且不集火」，正好就是另一组 cfg——
+// 所以不必再写第二份决策循环。（实测 noise 30/60/100 拉出的水平梯度，
+// 和"每回合有 10%/25%/40% 概率乱选技能"几乎重合，所以也不需要额外的失误字段。）
+//
+// **注意：不要把新 cfg 注册成第四个难度档。** 玩家替身是测量工具，
+// 玩家永远不该在 UI 里见到它。
+export function makeAi(cfg){
+  return (u, enemies, allies, scene, ctx) => decide(u, enemies, allies, scene, cfg, ctx);
 }
-export function aiNormal(u, enemies, allies, scene, ctx){
-  return decide(u, enemies, allies, scene, 'normal', ctx);
-}
-export function aiHard(u, enemies, allies, scene, ctx){
-  return decide(u, enemies, allies, scene, 'hard', ctx);
-}
+
+export const aiEasy   = makeAi(DIFFICULTY.easy);
+export const aiNormal = makeAi(DIFFICULTY.normal);
+export const aiHard   = makeAi(DIFFICULTY.hard);

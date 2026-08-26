@@ -1,58 +1,73 @@
-// 难度公平性诊断：玩家（无加成）对上各难度档位的 AI，胜率是多少？
+// 难度公平性诊断：真人玩家打各档 AI，胜率是多少？
 //
-// 用「同样是 hard AI、但没有属性加成」的一方来近似「打得不错的玩家」——
-// 这是个乐观假设（真人不会每回合都算得这么准），所以这里跑出来的玩家胜率
-// 应当视为**上限**：真人只会更低。
+// **玩家替身不是 aiHard。** 以前是，那等于拿「每回合都算得最准的完美玩家」
+// 当尺子——这把尺子把三档难度全校偏了（实测：正常玩家打困难只有 38%，
+// 而旧尺子报的是 52.5%）。
+//
+// 现在的替身用 `makeAi` 造：同一套评分，但 noise 更大（更容易选到次优解）、
+// teamwork 0（不集火）、tempo 0.7（机会成本只算个大概）。这三条正是真人
+// 和 AI 的真实差距。noise 越大水平越低，实测 30/60/100 约等于
+// 「每回合有 10%/25%/40% 概率乱选技能」。
+//
+// **真人水平是个区间不是一个点**，所以三档替身全都要报：
+// 只有三档同向的改动才可信。
 //
 // 用法：node difficulty-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { aiEasy, aiNormal, aiHard } from './ai.js';
+import { makeAi, aiEasy, aiNormal, aiHard } from './ai.js';
 import { DIFFICULTY_MODS } from './combat.js';
 import { CHARACTERS, SCENES } from './data.js';
 
 const N = Number(process.argv[2] || 4000);
 
-// 属性加成直接读 combat.js 那份，玩家实际面对的就是它
-const MODS = DIFFICULTY_MODS;
-const AIS = { easy: aiEasy, normal: aiNormal, hard: aiHard };
+// 玩家替身：同一套评分，只是算得没那么准、也不会配合
+const player = noise => makeAi(
+  { weight: 1, noise, preferBasic: 0, tactical: false, tempo: 0.7, teamwork: 0 });
 
-// 玩家永远是 p1：hard 级决策、零属性加成
-function run(label, aiLevel, applyMod){
-  let playerWins = 0, rounds = 0;
+const PLAYERS = [
+  { name: '熟手玩家', ai: player(30)  },
+  { name: '一般玩家', ai: player(60)  },   // ← 校准基准，目标曲线以这一档为准
+  { name: '生手玩家', ai: player(100) },
+];
+const LEVELS = [
+  { name: '简单', ai: aiEasy,   mod: DIFFICULTY_MODS.easy   },
+  { name: '普通', ai: aiNormal, mod: DIFFICULTY_MODS.normal },
+  { name: '困难', ai: aiHard,   mod: DIFFICULTY_MODS.hard   },
+];
+
+// 玩家永远是 p1（游戏里也是玩家先手，这份先手优势要保留在测量里）
+function run(pAi, oAi, mod){
+  let wins = 0, rounds = 0;
   for(let i = 0; i < N; i++){
     const ids = shuffle(CHARACTERS.map(c => c.id));
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    const r = simOneBattle(ids.slice(0,2), ids.slice(2,4), scene, {
-      p1Ai: aiHard,                                  // 玩家：满水平、无加成
-      p2Ai: AIS[aiLevel],
-      p2Mod: applyMod ? MODS[aiLevel] : null,
-    });
-    if(r.winner === 1) playerWins++;
+    const r = simOneBattle(ids.slice(0, 2), ids.slice(2, 4), scene,
+      { p1Ai: pAi, p2Ai: oAi, p2Mod: mod });
+    if(r.winner === 1) wins++;
     rounds += r.rounds;
   }
-  const wr = playerWins / N * 100;
-  const bar = '█'.repeat(Math.max(0, Math.round(wr / 2.5)));
-  console.log(`  ${label.padEnd(26)} ${wr.toFixed(1).padStart(5)}%  ${(rounds/N).toFixed(1).padStart(4)} 回合  ${bar}`);
-  return wr;
+  return { wr: wins / N * 100, rounds: rounds / N };
 }
 
-console.log(`\n每档 ${N} 局。「玩家胜率」= 无属性加成的 hard 级决策方获胜的比例。`);
-console.log('真人打不到 hard AI 的决策水平，所以这些数字是玩家的上限。\n');
+console.log(`\n每格 ${N} 局。玩家恒定先手（游戏里也是），这份优势已包含在所有数字里。`);
+console.log('「公平线」= 该水平的玩家自己打自己、双方无加成——**不是 50%**，');
+console.log('先手在这个战斗节奏下值约 10 个百分点，拿 50% 当基准会把每档都误判成偏难。\n');
 
-// 先量出「公平线」：同一个 AI、同样属性，先手方能赢多少。
-// 这条线**不是 50%**——先手在这个战斗节奏下值大约 10 个百分点，
-// 拿 50% 当基准会把每一档都误判成「偏难」。
-console.log('  ── 公平线：同水平对镜 ─────────────────────────────');
-const fair = run('hard vs hard，双方无加成', 'hard', false);
-console.log(`  （先手优势 ≈ ${(fair-50).toFixed(1)} 个百分点，下面都以这条线为准）`);
-
-console.log('\n  ── 各难度档位（AI 带 DIFFICULTY_MODS 的加成）──────');
-for(const lvl of ['easy','normal','hard']){
-  const wr = run(({easy:'简单',normal:'普通',hard:'困难'})[lvl], lvl, true);
-  const dev = wr - fair;
-  console.log(`  ${' '.repeat(26)}相对公平线 ${dev>=0?'+':''}${dev.toFixed(1)}`);
+console.log('  玩家水平    公平线  │    简单      普通      困难');
+console.log('  ────────────────────┼────────────────────────────────');
+for(const p of PLAYERS){
+  const fair = run(p.ai, p.ai, null).wr;
+  const cells = LEVELS.map(l => run(p.ai, l.ai, l.mod));
+  const wr  = cells.map(c => `${c.wr.toFixed(1)}%`.padStart(8)).join('  ');
+  const dev = cells.map(c => {
+    const d = c.wr - fair;
+    return `${d >= 0 ? '+' : ''}${d.toFixed(1)}`.padStart(8);
+  }).join('  ');
+  console.log(`  ${p.name}    ${fair.toFixed(1)}%  │${wr}`);
+  console.log(`  ${' '.repeat(8)}  相对偏差 │${dev}`);
 }
 
-console.log('\n  ── 参照：困难去掉属性加成会怎样 ───────────────────');
-run('困难（纯 AI 决策强度）', 'hard', false);
-console.log();
+console.log('\n  目标曲线（以「一般玩家」为准，见 DIFFICULTY_PLAN.md）：');
+console.log('    简单 85%  ／  普通 65%  ／  困难 50%  ／  隐藏档 ~35%');
+console.log('  **单调性比绝对值更重要**：任何一档对任何水平的玩家，');
+console.log('  都不该出现「简单比普通还难」这种翻转。\n');
