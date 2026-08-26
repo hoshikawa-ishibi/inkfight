@@ -106,7 +106,7 @@ npx serve .        # ou VS Code Live Server
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 189 条，`npm test` |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
-| `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露 |
+| `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
 | `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。**玩家替身不是 aiHard**——那是完美玩家，会把每一档都校偏；现在用 `ai.js` 的 `makeAi` 造三档人类替身（熟手/一般/生手，靠 `noise` 分档），公平线是「该水平玩家自己打自己」。属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
 | `campaign-check.mjs` | 战役难度曲线诊断（8 关分别有多难）。阵容 / AI档 / `enemyMod` 全读 `campaign.js`，属性加成走 `combat.js` 的 `applyStageMod`。**改完战役数据必跑** |
@@ -231,6 +231,9 @@ npx serve .        # ou VS Code Live Server
     队友池 7 人各有剧情名，每通一关解锁一个（顺序按「弱的先给」排，牧师最后）。
     选角界面四态：主角锁定 / 可选 / **本关敌方**（禁选）/ 未解锁。
   - **解锁进度不另存 key**，直接从 `inkfight_campaign`（已通关数）推——
+  （2026-08-25 追加：这个决定后来白赚了一个功能——加调试模式时，
+  因为墨皇难度 / 战役关卡 / 队友全都从这一处推，**只改一行**就全解锁了。
+  当初要是各存各的，就得挨个开后门。）
     同一份知识两份实现迟早对不上，这个项目已经因此出过三次 bug。
   - 固定主角把 Phase 1 校好的曲线整个打乱（第 2 关 97%、第 4 关 49%），
     逐关重搜 `enemyMod`。**当前曲线（5000 局/关，公平线 60.3%）**：

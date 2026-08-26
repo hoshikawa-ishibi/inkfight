@@ -26,11 +26,18 @@ export function showScreen(id) {
   if (id==='screen-campaign') initCampaignScreen();
 }
 
-export function showHelp(){
+function showModal(inner){
   const mask=document.createElement('div');
   mask.className='modal-mask';
   mask.innerHTML=`<div class="modal-box" style="max-width:500px;text-align:left;">
-    <h3 style="text-align:center;">📖 玩法说明</h3>
+    ${inner}
+    <div class="row"><button class="btn btn-confirm" onclick="this.closest('.modal-mask').remove(); playSfx('click');">明白了</button></div>
+  </div>`;
+  document.body.appendChild(mask);
+}
+
+export function showHelp(){
+  showModal(`<h3 style="text-align:center;">📖 玩法说明</h3>
     <p style="text-align:left;">
     • 双方各选 2 名角色，<b>轮流行动</b>。<br>
     • <b>HP</b> = 生命值，<b>SP</b> = 灵能值（释放技能消耗）。<br>
@@ -38,10 +45,7 @@ export function showHelp(){
     • <b>暴击</b>×1.5 伤害；<b>护盾</b>优先承伤；<b>嘲讽</b>强制集火。<br>
     • <b>键盘1-4</b> 释放技能，<b>ESC</b> 取消选目标/退出。<br>
     • 战场效果会影响伤害或SP回复。
-    </p>
-    <div class="row"><button class="btn btn-confirm" onclick="this.closest('.modal-mask').remove(); playSfx('click');">明白了</button></div>
-  </div>`;
-  document.body.appendChild(mask);
+    </p>`);
 }
 
 let shakeIntensity=0, shakeTimer=null;
@@ -319,12 +323,57 @@ export function confirmSelection(){
   }
 }
 
+// ── 调试模式 ──────────────────────────────────────────────
+// 顶栏 🔊 连点 5 次开关（1.5 秒内）。
+//
+// **整个功能只有下面那一句 `isDebug() ? ... : ...`。** 之所以一句就够，
+// 是因为这个游戏所有的解锁门槛——墨皇难度、战役可选关卡、队友——
+// 全都从 getCampaignProgress() 推出来（当初刻意不给它们各存一份进度）。
+// 在这一处撒谎，就等于全部解锁。
+const DEBUG_KEY = 'inkfight_debug';
+function isDebug(){ return localStorage.getItem(DEBUG_KEY) === '1'; }
+
 // ── 战役模式 ──────────────────────────────────────────────
-function getCampaignProgress(){
+// rawCampaignProgress = 真实存档；getCampaignProgress = 各处判断解锁时看到的值。
+// **写进度必须用 raw**，否则开着调试模式打赢一关会把 8 写进真实存档，
+// 关掉调试之后进度就被冲了。
+function rawCampaignProgress(){
   return parseInt(localStorage.getItem('inkfight_campaign')||'0');
+}
+function getCampaignProgress(){
+  return isDebug() ? CAMPAIGN_STAGES.length : rawCampaignProgress();
 }
 function saveCampaignProgress(n){
   localStorage.setItem('inkfight_campaign', String(n));
+}
+
+// 图标本身就是状态指示：🔊 正常 / 🛠 调试中
+function syncDebugBadge(){
+  const el = document.getElementById('debug-tap');
+  el.textContent = isDebug() ? '🛠' : '🔊';
+  el.title = isDebug() ? '调试模式开启中 — 连点 5 次关闭' : '音量';
+}
+
+function initDebugTap(){
+  let hits = 0, timer = null;
+  document.getElementById('debug-tap').addEventListener('click', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { hits = 0; }, 1500);
+    if(++hits < 5) return;
+    hits = 0;
+    const on = !isDebug();
+    localStorage.setItem(DEBUG_KEY, on ? '1' : '0');
+    syncDebugBadge();
+    playSfx(on ? 'confirm' : 'click');
+    const real = rawCampaignProgress();
+    showModal(on
+      ? `<h3 style="text-align:center;">🛠 调试模式已开启</h3>
+         <p>• 墨皇难度、全部 ${CAMPAIGN_STAGES.length} 关战役、全部队友，立即可用。<br>
+         • <b>真实存档没有被改动</b>（你实际通关到第 ${real} 关），关掉调试就恢复原样。<br>
+         • 再连点 5 次左上角的 🛠 即可关闭。</p>`
+      : `<h3 style="text-align:center;">🔊 调试模式已关闭</h3>
+         <p>解锁进度回到真实存档：已通关 ${real} / ${CAMPAIGN_STAGES.length} 关。</p>`);
+  });
 }
 
 // 战役累计统计。以前「最终战役统计」显示的其实是**最后一关单场**的数据，
@@ -457,7 +506,7 @@ function launchCampaignStage(stage){
 function onCampaignWin(phase){
   const stage = CAMPAIGN_STAGES.find(s => s.id === gameState.campaignStage);
   if(phase === 'record'){
-    saveCampaignProgress(Math.max(getCampaignProgress(), stage.id));
+    saveCampaignProgress(Math.max(rawCampaignProgress(), stage.id));
     recordStageStats(stage.id, gameState.stats, gameState.round);
     return;
   }
@@ -595,6 +644,8 @@ document.getElementById('vol-bgm').addEventListener('input',e=>{ Audio.init(); A
 document.getElementById('vol-sfx').addEventListener('input',e=>{ Audio.init(); Audio.setSfxVol(e.target.value/100); });
 document.addEventListener('click',()=>{ Audio.init(); Audio.startMenuBgm(); },{once:true});
 syncMuteButton();   // 让静音按钮图标反映上次保存的状态
+syncDebugBadge();   // 🔊 / 🛠 反映调试模式状态
+initDebugTap();
 
 initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
 initRender(getEffectiveAtk, onTargetClick);
