@@ -23,6 +23,10 @@ const DIFFICULTY = {
   easy:   { weight: 0.5, noise: 30, preferBasic: 0.7, tactical: false, tempo: 0.35, teamwork: 0   },
   normal: { weight: 1.0, noise: 12, preferBasic: 0,   tactical: false, tempo: 0.7,  teamwork: 0.5 },
   hard:   { weight: 1.0, noise: 2,  preferBasic: 0,   tactical: true,  tempo: 1,    teamwork: 1   },
+  // 隐藏档「墨皇」：**这就是难度重做之前的那个困难**，原样冻结在这里。
+  // 通关战役后才出现在难度选择界面。困难档接下来会在属性层放松，
+  // 但决策水平不变——所以这一档和困难的差别只在属性，不在脑子。
+  nightmare: { weight: 1.0, noise: 2, preferBasic: 0, tactical: true, tempo: 1, teamwork: 1 },
 };
 
 // 困难难度独有的战术判断。共享评分已经涵盖了「能补刀」「条件不满足则不放」
@@ -102,6 +106,13 @@ export function makeAi(cfg){
   return (u, enemies, allies, scene, ctx) => decide(u, enemies, allies, scene, cfg, ctx);
 }
 
-export const aiEasy   = makeAi(DIFFICULTY.easy);
-export const aiNormal = makeAi(DIFFICULTY.normal);
-export const aiHard   = makeAi(DIFFICULTY.hard);
+export const aiEasy      = makeAi(DIFFICULTY.easy);
+export const aiNormal    = makeAi(DIFFICULTY.normal);
+export const aiHard      = makeAi(DIFFICULTY.hard);
+export const aiNightmare = makeAi(DIFFICULTY.nightmare);
+
+// 难度档 → AI。battle.js / campaign-check.mjs 共用这一份，
+// 免得每加一档就要改三处 if-else 或三份查表。
+export const AI_BY_LEVEL = {
+  easy: aiEasy, normal: aiNormal, hard: aiHard, nightmare: aiNightmare,
+};

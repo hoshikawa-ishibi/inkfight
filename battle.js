@@ -2,7 +2,7 @@ import { Audio, playSfx } from './audio.js';
 import { gameState, clamp, getUnit, getEnemies, getAllies } from './state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
-import { aiEasy, aiNormal, aiHard } from './ai.js';
+import { AI_BY_LEVEL, aiNormal } from './ai.js';
 import { makeTeamContext } from './ai-scoring.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
@@ -116,7 +116,7 @@ export function startBattle(){
   });
   buildTurnOrder();
   document.getElementById('battle-log').innerHTML='';
-  const modeLabel=gameState.mode==='campaign'?`战役·第${gameState.campaignStage}关`:gameState.mode==='ai'?('人机·'+({easy:'简单',normal:'普通',hard:'困难'}[gameState.difficulty])):'双人';
+  const modeLabel=gameState.mode==='campaign'?`战役·第${gameState.campaignStage}关`:gameState.mode==='ai'?('人机·'+({easy:'简单',normal:'普通',hard:'困难',nightmare:'墨皇'}[gameState.difficulty])):'双人';
   document.getElementById('scene-banner').textContent=
     `战场：${gameState.scene.name} ｜ ${gameState.scene.buffText} ｜ 模式：${modeLabel}`;
   addLog('═══ 墨境之战 开始 ═══','divider');
@@ -405,10 +405,7 @@ function aiAct(u){
   if(enemies.length===0){ setTimeout(nextTurn,400); return; }
   const d=gameState.difficulty;
   const ctx=teamCtx[u.player];
-  let chosen;
-  if(d==='easy') chosen=aiEasy(u,enemies,allies,gameState.scene,ctx);
-  else if(d==='hard') chosen=aiHard(u,enemies,allies,gameState.scene,ctx);
-  else chosen=aiNormal(u,enemies,allies,gameState.scene,ctx);
+  const chosen=(AI_BY_LEVEL[d]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`,'info');
   executeSkill(u,chosen.skill,chosen.target);

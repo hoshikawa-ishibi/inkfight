@@ -88,6 +88,11 @@ let chosenDiff=null;
 function initDifficultyScreen(){
   chosenDiff=null;
   document.getElementById('btn-diff-next').disabled=true;
+  // 隐藏档「墨皇」：通关战役才出现（不是灰掉——被剧透就不叫隐藏了）。
+  // 解锁进度直接从 inkfight_campaign 推，**不另存 key**：
+  // 同一份知识两份实现迟早对不上，这个项目已经因此出过三次 bug。
+  document.getElementById('diff-card-nightmare').style.display =
+    getCampaignProgress() >= CAMPAIGN_STAGES.length ? '' : 'none';
   document.querySelectorAll('#diff-grid .option-card').forEach(c=>{
     c.classList.remove('selected');
     c.onmouseenter=()=>playSfx('hover');

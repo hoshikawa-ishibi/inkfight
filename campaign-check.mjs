@@ -13,13 +13,13 @@
 //
 // 用法：node campaign-check.mjs [每关局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { aiEasy, aiNormal, aiHard } from './ai.js';
+import { AI_BY_LEVEL, aiHard } from './ai.js';
 import { applyStageMod } from './combat.js';
 import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from './campaign.js';
 import { CHARACTERS, SCENES } from './data.js';
 
 const N = Number(process.argv[2] || 3000);
-const AIS = { easy: aiEasy, normal: aiNormal, hard: aiHard };
+
 const DIFF_LABEL = { easy: '简单', normal: '普通', hard: '困难' };
 
 // Phase 1 定的目标曲线：单调下降，最终关最难。允许 ±4 个百分点。
@@ -49,7 +49,7 @@ function runStage(stage){
   for(let i = 0; i < N; i++){
     const slot = per[i % per.length];
     const r = simOneBattle([CAMPAIGN_HERO.id, slot.ally.id], stage.enemy, scene, {
-      p1Ai: aiHard, p2Ai: AIS[stage.difficulty], p2Mod,
+      p1Ai: aiHard, p2Ai: AI_BY_LEVEL[stage.difficulty], p2Mod,
     });
     slot.n++;
     if(r.winner === 1) slot.wins++;

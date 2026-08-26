@@ -14,7 +14,7 @@
 //
 // 用法：node difficulty-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { makeAi, aiEasy, aiNormal, aiHard } from './ai.js';
+import { makeAi, AI_BY_LEVEL } from './ai.js';
 import { DIFFICULTY_MODS } from './combat.js';
 import { CHARACTERS, SCENES } from './data.js';
 
@@ -29,11 +29,9 @@ const PLAYERS = [
   { name: '一般玩家', ai: player(60)  },   // ← 校准基准，目标曲线以这一档为准
   { name: '生手玩家', ai: player(100) },
 ];
-const LEVELS = [
-  { name: '简单', ai: aiEasy,   mod: DIFFICULTY_MODS.easy   },
-  { name: '普通', ai: aiNormal, mod: DIFFICULTY_MODS.normal },
-  { name: '困难', ai: aiHard,   mod: DIFFICULTY_MODS.hard   },
-];
+const LEVELS = ['easy', 'normal', 'hard', 'nightmare'].map(k => (
+  { name: { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' }[k],
+    ai: AI_BY_LEVEL[k], mod: DIFFICULTY_MODS[k] }));
 
 // 玩家永远是 p1（游戏里也是玩家先手，这份先手优势要保留在测量里）
 function run(pAi, oAi, mod){
@@ -53,8 +51,8 @@ console.log(`\n每格 ${N} 局。玩家恒定先手（游戏里也是），这�
 console.log('「公平线」= 该水平的玩家自己打自己、双方无加成——**不是 50%**，');
 console.log('先手在这个战斗节奏下值约 10 个百分点，拿 50% 当基准会把每档都误判成偏难。\n');
 
-console.log('  玩家水平    公平线  │    简单      普通      困难');
-console.log('  ────────────────────┼────────────────────────────────');
+console.log('  玩家水平    公平线  │    简单      普通      困难      墨皇');
+console.log('  ────────────────────┼──────────────────────────────────────────');
 for(const p of PLAYERS){
   const fair = run(p.ai, p.ai, null).wr;
   const cells = LEVELS.map(l => run(p.ai, l.ai, l.mod));

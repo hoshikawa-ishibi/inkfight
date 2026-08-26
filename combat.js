@@ -260,6 +260,8 @@ export const DIFFICULTY_MODS = {
   easy:   u => { u.atk = Math.round(u.atk * 0.85); u.sp = Math.floor(u.maxSp * 0.5); },
   normal: null,
   hard:   u => { u.atk = Math.round(u.atk * 1.07); u.spRegen = Math.round(u.spRegen * 1.1); },
+  // 隐藏档：重做之前那个困难的属性加成，原样冻结。
+  nightmare: u => { u.atk = Math.round(u.atk * 1.07); u.spRegen = Math.round(u.spRegen * 1.1); },
 };
 
 export function applyDifficulty(unit, level){

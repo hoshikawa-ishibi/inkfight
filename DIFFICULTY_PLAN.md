@@ -8,7 +8,7 @@
 
 ---
 
-## ▶ 当前进度：**任务 1 已完成，从任务 2 开始**
+## ▶ 当前进度：**任务 1 / 2 / 3 已完成，从任务 4 开始**
 
 接手时先跑一遍确认基线：
 
@@ -196,14 +196,22 @@ node difficulty-check.mjs 4000  # 注意：这把尺子本身就是本计划要�
 一格一格校出来的，**hard 的定义一变，这三关立刻跟着变，而且是白白变**——
 战役有自己的 `enemyMod` 属性旋钮，不需要蹭人机的难度档。
 
-- [ ] 战役的 `difficulty` 字段改成只表示**决策档位**，与人机难度档解耦。
-      两种做法二选一，建议前者：
-      1. 战役固定引用「完整版 AI」（也就是任务 3 之后的隐藏档决策水平），
-         难度全靠各关自己的 `enemyMod` 调——**战役本来就是这么设计的**，
-         `CAMPAIGN_PLAN.md` 明确写过「战役不走 `applyDifficulty`」。
-      2. 给战役单独一份决策档位表。
-- [ ] 改完立刻 `node campaign-check.mjs 5000`，曲线必须和现在一致
-      （93.7 → 86.0 → 78.8 → 74.2 → 65.8 → 59.0 → 50.1 → 41.6，容差 ±2.5）。
+- [x] **动手前先验证前提，结果前提不成立——不建解耦层。**
+      `battle.js:97` 的 `applyDifficulty` 只在 `mode==='ai'` 跑，
+      战役走的是 `applyStageMod`（各关自己的 `enemyMod`）。
+      **所以改 `DIFFICULTY_MODS` 根本碰不到战役**——而任务 4 的主战场正是这张表。
+- [x] 唯一真实的耦合是**决策 cfg**（`aiEasy/aiNormal/aiHard` 的行为）。
+      而任务 4 里只有`easy` 打算改行为（`preferBasic`），
+      **战役 8 关里只有第 1 关用 easy**。所以耦合范围 = 一关。
+- [x] 处理办法：不建抽象层，任务 4 改完 easy 之后**用 `enemyMod` 重调第 1 关**——
+      那个旋钮本来就是干这个的，`campaign-check.mjs` 就是为此存在的。
+      建一层「战役专用决策档位表」只会多出一份要同步的知识。
+- [x] 顺手做了一件真正减代码的事：`ai.js` 导出 `AI_BY_LEVEL`，
+      `battle.js` 的三分支 if-else 和 `campaign-check.mjs` 的私有 `AIS` 表
+      合并成一份。加一档难度不再需要改三处。
+
+**结论：计划原定的任务 2（解耦层）取消。** 保留这一节是为了记住
+「为什么不做」——前提是错的，而错的前提会一直诱惑人再来一次。
 
 **验证**：`campaign-check` 曲线不动 + `npm test` 全绿。
 **工作量**：40 分钟。
@@ -212,18 +220,17 @@ node difficulty-check.mjs 4000  # 注意：这把尺子本身就是本计划要�
 
 ## 任务 3 — 把现在的困难整体挪成隐藏档
 
-- [ ] `ai.js` 的 `DIFFICULTY` 加一档 `nightmare`，**原样复制现在 `hard` 的四个值**
-      （`noise 2 / tempo 1 / teamwork 1 / tactical true`）。
-- [ ] `combat.js` 的 `DIFFICULTY_MODS` 加 `nightmare`，
-      **原样复制现在 `hard` 的属性加成**（攻 ×1.07 / 回蓝 ×1.1）。
-- [ ] 名字建议贴世界观：**「墨皇」**（战役最终 BOSS，玩家通关后会认得这个名字），
-      或直白的「噩梦」。
-- [ ] **解锁条件**：建议「通关战役」。
-      **不要另存 localStorage key**——直接从已有的 `inkfight_campaign`（已通关数）推。
-      `CAMPAIGN_PLAN.md` 里记过：同一份知识两份实现迟早对不上，
-      **这个项目已经因此出过三次 bug**。
-- [ ] UI：`initDifficultyScreen()`（`main.js`）加第四个按钮，未解锁时**不显示**
-      （不是灰掉——隐藏模式被剧透就不叫隐藏了）。解锁后可以加个小提示。
+- [x] `ai.js` 的 `DIFFICULTY` 加 `nightmare`，原样复制 `hard` 的四个值。
+- [x] `combat.js` 的 `DIFFICULTY_MODS` 加 `nightmare`，原样复制 `hard` 的属性加成。
+- [x] 定名**「墨皇」**（👑）。
+- [x] 解锁条件 = 通关战役，进度从 `inkfight_campaign` 推，未新增 key。
+- [x] UI：`inkfight.html` 加第四张卡（`display:none`），
+      `initDifficultyScreen()` 按进度显示。未解锁时**整张卡不存在**，不是灰掉。
+- [x] `difficulty-check.mjs` 加上墨皇列。
+
+**验证结果**：墨皇与困难在新尺子下完全重合（一般玩家 40.4% vs 40.7%，噪声内），
+确认是原样克隆。`campaign-check` 曲线不动（94.4 → 42.9，最大偏差 3.7 在第 4 关，
+那本来就是断崖附近）。
 
 **验证**：未通关时看不到第四档；通关后出现；选中后实测 AI 行为与现在的困难一致。
 **工作量**：1.5 小时。
