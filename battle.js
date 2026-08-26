@@ -407,7 +407,8 @@ function aiAct(u){
   const ctx=teamCtx[u.player];
   const chosen=(AI_BY_LEVEL[d]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
-  addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`,'info');
+  addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`+
+         `${chosen.hesitated?'（似乎有些犹豫）':''}`,'info');
   executeSkill(u,chosen.skill,chosen.target);
 }
 

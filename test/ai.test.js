@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiEasy, aiNormal, aiHard } from '../ai.js';
+import { aiEasy, aiNormal, aiHard, aiNightmare } from '../ai.js';
 import { createUnit, needsEnemyTarget, AOE_TYPES } from '../combat.js';
 import { scoreSkill } from '../ai-scoring.js';
 import { SCENES, CHARACTERS } from '../data.js';
@@ -137,6 +137,42 @@ describe('三档难度确实存在梯度（合并评分后手感不能被抹平�
     assert.ok(easy > hard + 0.15,
       `简单用普攻 ${(easy*100).toFixed(0)}%、困难 ${(hard*100).toFixed(0)}%，` +
       `差距不足以让玩家感觉到"对面在浪费机会"`);
+  });
+});
+
+describe('AI 的失误要看得见，而且只能出现在低难度', () => {
+  // hesitated 会在战斗日志里显示成「（似乎有些犹豫）」。设计意图是
+  // **让玩家看得见 AI 在浪费机会，而不是偷偷变弱**——查到的资料里
+  // 「打败一个笨蛋远不如打败一个高手爽」，所以高难度一旦冒出这行字，
+  // 「不会失误的对手」这个人设就塌了。
+  const hesitationRate = ai => {
+    const scene = SCENES[0];
+    let hes = 0, n = 0;
+    for(const c of CHARACTERS){
+      for(let i = 0; i < 60; i++){
+        const mine = [createUnit(c.id, 1, 0), createUnit('priest', 1, 1)];
+        const foes = [createUnit('guardian', 2, 0), createUnit('mage', 2, 1)];
+        mine[0].hp = Math.floor(mine[0].maxHp * 0.7);
+        const d = ai(mine[0], foes, mine, scene);
+        if(d){ n++; if(d.hesitated) hes++; }
+      }
+    }
+    return hes / n;
+  };
+
+  test('简单难度经常犹豫，玩家看得出对面在浪费机会', () => {
+    const r = hesitationRate(aiEasy);
+    assert.ok(r > 0.15, `简单难度的犹豫率只有 ${(r*100).toFixed(1)}%，玩家感觉不到`);
+  });
+
+  test('困难和墨皇永不犹豫——它们就该像不会失误的机器', () => {
+    for(const [name, ai] of [['困难', aiHard], ['墨皇', aiNightmare]]){
+      const r = hesitationRate(ai);
+      assert.equal(r, 0,
+        `${name}难度出现了 ${(r*100).toFixed(1)}% 的犹豫。` +
+        `高难度的卖点是"它不会失误"，日志里冒出「似乎有些犹豫」会直接毁掉这个人设——` +
+        `多半是有人调大了它的 noise`);
+    }
   });
 });
 
