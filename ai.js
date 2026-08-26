@@ -3,7 +3,7 @@
 //
 // 这样三档难度的差别是可解释的——不是三套互不相干的经验值，而是同一个
 // 判断标准配上不同的执行水平：
-//   简单  评分只起弱作用 + 大噪声 + 偏爱普攻 + 不会配合（像个新手）
+//   简单  评分只起弱作用 + 大噪声 + 偶尔抡普攻 + 不会配合（像个新手）
 //   普通  按评分走 + 中等噪声 + 一半的配合意识
 //   困难  按评分走 + 极小噪声 + 完全配合 + 前瞻加成（攒蓝放大招、挑满蓝的目标晕）
 import { scoreSkill, pickTarget } from './ai-scoring.js';
@@ -20,7 +20,7 @@ import { scoreSkill, pickTarget } from './ai-scoring.js';
 // 也只差 2.3），所以改为让低难度「算不清长远账」。但 tempo 也不能直接归零：
 // 实测守卫在 tempo=0 时 98% 的回合都在开护盾，反而比简单难度还差。
 const DIFFICULTY = {
-  easy:   { weight: 0.5, noise: 30, preferBasic: 0.7, tactical: false, tempo: 0.35, teamwork: 0   },
+  easy:   { weight: 0.5, noise: 30, preferBasic: 0.25, tactical: false, tempo: 0.35, teamwork: 0  },
   normal: { weight: 1.0, noise: 12, preferBasic: 0,   tactical: false, tempo: 0.7,  teamwork: 0.5 },
   hard:   { weight: 1.0, noise: 2,  preferBasic: 0,   tactical: true,  tempo: 1,    teamwork: 1   },
   // 隐藏档「墨皇」：**这就是难度重做之前的那个困难**，原样冻结在这里。
@@ -66,7 +66,10 @@ function decide(u, enemies, allies, scene, cfg, ctx){
   if(!foes.length) return null;
   const opts = { tempo: cfg.tempo, teamwork: cfg.teamwork, ctx };
 
-  // 简单难度：大概率直接抡普攻，保留「新手只会平A」的手感
+  // 简单难度：偶尔直接抡普攻，保留「新手会浪费机会」的手感。
+  // 这个比例以前是 0.7（七成回合都在平A），实测那样它必须靠 atk ×1.15 的
+  // **属性倒挂**才够得上 85% 的目标——「简单模式敌人伤害比困难还高」
+  // 在难度选择界面上读起来很荒唐。降到 0.25 之后属性可以老实地是减益。
   if(cfg.preferBasic && Math.random() < cfg.preferBasic){
     const basic = u.skills[0];
     if(canUse(u, basic)){

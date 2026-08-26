@@ -15,7 +15,7 @@
 // 用法：node difficulty-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
 import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { DIFFICULTY_MODS } from './combat.js';
+import { DIFFICULTY_MODS, applyStageMod } from './combat.js';
 import { CHARACTERS, SCENES } from './data.js';
 
 const N = Number(process.argv[2] || 4000);
@@ -31,7 +31,8 @@ const PLAYERS = [
 ];
 const LEVELS = ['easy', 'normal', 'hard', 'nightmare'].map(k => (
   { name: { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' }[k],
-    ai: AI_BY_LEVEL[k], mod: DIFFICULTY_MODS[k] }));
+    ai: AI_BY_LEVEL[k],
+    mod: DIFFICULTY_MODS[k] && (u => applyStageMod(u, DIFFICULTY_MODS[k])) }));
 
 // 玩家永远是 p1（游戏里也是玩家先手，这份先手优势要保留在测量里）
 function run(pAi, oAi, mod){

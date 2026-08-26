@@ -256,18 +256,24 @@ export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSe
 //
 // 调这里的数之前先跑 `node difficulty-check.mjs`——它和 battle.js 读的是
 // 这同一份表，不会出现「改了一处、量的却是另一套数」。
+// 倍率含义与 applyStageMod 完全相同（下面那张战役表），两边共用同一个变换：
+// atk / def / spRegen / hp 是乘在原属性上的倍率，sp 是**起手蓝量占蓝条的比例**。
+// 以前这里是三个手写函数，各自重复了一遍取整逻辑；改成数据之后
+// 调难度不必再动代码，也不会出现「两处取整方式不一样」这种漂移。
+// 2026-08-25 重新校准（见 DIFFICULTY_PLAN.md 任务 4）。以「一般玩家」为准：
+// 简单 85% / 普通 64% / 困难 49% / 墨皇 40%。
+// **困难是 null——它不拿任何属性优势，纯靠 AI 决策水平**。
+// 以前那份 atk 1.07 是给合并 AI 之前那个笨 AI 配的，叠在现在的 AI 上就过头了。
 export const DIFFICULTY_MODS = {
-  easy:   u => { u.atk = Math.round(u.atk * 0.85); u.sp = Math.floor(u.maxSp * 0.5); },
-  normal: null,
-  hard:   u => { u.atk = Math.round(u.atk * 1.07); u.spRegen = Math.round(u.spRegen * 1.1); },
+  easy:      { atk: 0.85 },
+  normal:    { atk: 0.88 },
+  hard:      null,
   // 隐藏档：重做之前那个困难的属性加成，原样冻结。
-  nightmare: u => { u.atk = Math.round(u.atk * 1.07); u.spRegen = Math.round(u.spRegen * 1.1); },
+  nightmare: { atk: 1.07, spRegen: 1.1 },
 };
 
 export function applyDifficulty(unit, level){
-  const mod = DIFFICULTY_MODS[level];
-  if(mod) mod(unit);
-  return unit;
+  return applyStageMod(unit, DIFFICULTY_MODS[level]);
 }
 
 // ── 战役关卡的属性微调旋钮 ─────────────────────────────────

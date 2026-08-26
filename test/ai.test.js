@@ -115,19 +115,28 @@ describe('三档难度确实存在梯度（合并评分后手感不能被抹平�
       `普通(${normal.toFixed(1)}) 应当优于简单(${easy.toFixed(1)})`);
   });
 
-  test('简单难度明显偏爱普攻（保留新手手感）', () => {
+  // 断言从「绝对比例 > 50%」改成「比困难高出一截」（2026-08-25 难度重做）。
+  // 原来 preferBasic 是 0.7，简单 AI 七成回合都在平A——实测那样它必须靠
+  // atk ×1.15 的**属性倒挂**才够得上难度目标，而「简单模式敌人伤害比困难还高」
+  // 在难度选择界面上读起来很荒唐。现在是 0.25。
+  // 相对断言比绝对阈值更贴设计意图：要的是「新手会浪费机会」这个手感差，
+  // 而不是某个具体的百分比。
+  test('简单难度比困难明显更常抡普攻（保留新手手感）', () => {
     const scene = SCENES[0];
-    let basicCount = 0;
-    const n = 300;
-    for(let i = 0; i < n; i++){
-      const mine = [createUnit('swordsman',1,0)];
-      const foes = [createUnit('guardian',2,0)];
-      const d = aiEasy(mine[0], foes, mine, scene);
-      if(d?.skill === mine[0].skills[0]) basicCount++;
-    }
-    const pct = basicCount / n;
-    assert.ok(pct > 0.5,
-      `简单难度用普攻的比例只有 ${(pct*100).toFixed(0)}%，新手手感丢失了`);
+    const basicRate = ai => {
+      let hit = 0, n = 400;
+      for(let i = 0; i < n; i++){
+        const mine = [createUnit('swordsman',1,0)];
+        const foes = [createUnit('guardian',2,0)];
+        const d = ai(mine[0], foes, mine, scene);
+        if(d?.skill === mine[0].skills[0]) hit++;
+      }
+      return hit / n;
+    };
+    const easy = basicRate(aiEasy), hard = basicRate(aiHard);
+    assert.ok(easy > hard + 0.15,
+      `简单用普攻 ${(easy*100).toFixed(0)}%、困难 ${(hard*100).toFixed(0)}%，` +
+      `差距不足以让玩家感觉到"对面在浪费机会"`);
   });
 });
 
