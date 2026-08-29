@@ -407,13 +407,50 @@ export function payCosts(actor, skill){
   }
 }
 
+// ── 嘲讽 / 净化的执行 ───────────────────────────────────
+// 收敛到这里而不是让 battle.js 和 sim.js 各写一份——这两个技能刚加了
+// 「附带即时收益」，正是最容易漏改一处的时候。
+//
+// 为什么要加即时收益：`skill-audit.mjs` 实测**禁掉嘲讽胜率反而 +4.0、
+// 禁掉净化 +2.8**——纯功能技能在这个战斗节奏下要占掉一整个回合，
+// 而一个回合值 30 点上下的伤害，光靠「改变敌人目标」或「清个负面」赚不回来。
+// 这是本项目反复验证过的老结论（见 CLAUDE.md 踩过的坑）。
+// 嘲讽。`power` / `shieldAmt` 是可选的附加收益，**目前 data.js 里都没配**。
+//
+// ⚠ 2026-08-26 三次尝试全部失败，别再重试同样的路子（详见 COMBAT_PLAN.md）：
+//   纯功能（现状）  skill-audit 禁掉它胜率 +4.0
+//   ＋30 护盾        +8.0（更糟）
+//   ＋100% 伤害      +16.5（更糟）
+//   ＋反弹 ×3.5      +9.7（更糟）
+// 规律很一致：给它加赠品只会抬高评分让 AI 用得更勤，而**嘲讽的效果本身是负的**。
+//
+// 根因是本作的回合结构：「双方各行动一个单位」，**行动次数不随存活人数变化**。
+// 别的战棋里嘲讽的核心价值是「保住脆皮让它继续输出」，那个价值在这里不存在——
+// 队伍总共要吃的伤害没变，只是换了个人挨。要救活嘲讽得先动回合结构（任务 6）。
+export function resolveTaunt(actor, target, skill, scene){
+  const damage = (skill.power && target) ? calcDamage(actor, target, skill, scene) : null;
+  actor.buffs.push({type:'taunt', dur:skill.dur});
+  if(skill.shieldAmt) actor.shield += skill.shieldAmt;
+  return { damage, shield:skill.shieldAmt || 0 };
+}
+
+export function applyCleanse(target, skill){
+  const removed = target.debuffs.length + (target.stunned ? 1 : 0);
+  target.debuffs = [];
+  target.stunned = false;
+  const healed = Math.min(skill.healAmt || 0, target.maxHp - target.hp);
+  if(healed > 0) target.hp = clamp(target.hp + healed, 0, target.maxHp);
+  return { removed, healed };
+}
+
 // 这个技能是否需要一个敌方目标。
 // 判断以前分散在 ai.js / battle.js / sim.js 三处，给「狂暴」加 power 时
 // 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。
 // 收敛到这里，三方共用，并由测试锁住。
 export function needsEnemyTarget(skill){
   if(['damage','stun','drain'].includes(skill.type)) return true;
-  if(skill.type === 'selfBuff' && skill.power) return true;   // 边打边上 buff
+  // 边打边上 buff / 边打边嘲讽：带 power 就需要一个挨打的对象
+  if(['selfBuff','taunt'].includes(skill.type) && skill.power) return true;
   return false;
 }
 

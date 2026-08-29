@@ -51,7 +51,7 @@ export const CHARACTERS = [
     skills:[
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
       { name:'治愈之光', type:'heal', cost:25, healAmt:48, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
-      { name:'净化', type:'cleanse', cost:20, desc:'清除友方负面状态', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
+      { name:'净化', type:'cleanse', cost:20, healAmt:20, desc:'清除友方负面状态并治疗20HP', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
       { name:'祝福', type:'buff', cost:28, buffType:'atkUp', dur:3, buffValue:0.5, desc:'友方攻击+50% 3回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
     ]},
   { id:'berserker', name:'狂战士', role:'越残越强', hp:140, sp:70, atk:19, def:4, crit:10, dodge:3, spRegen:7, color:'#ff7043', weapon:'axe',

@@ -10,7 +10,7 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
-  applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts
+  applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -495,11 +495,13 @@ function executeSkill(actor,skill,target){
       addLog(`${actor.name} 获得 ${skill.shieldAmt} 点护盾`,'info');
       spawnFloatText(actor,`🛡+${skill.shieldAmt}`,'#90caf9',16); spawnHexShield(actor);
       break;
-    case 'taunt':
-      actor.buffs.push({type:'taunt',dur:skill.dur});
+    case 'taunt': {
+      const t = resolveTaunt(actor, target, skill, gameState.scene);
+      if(t.damage) presentDamage(actor, target, t.damage);
       addLog(`${actor.name} 发动嘲讽`,'info');
       spawnFloatText(actor,'嘲讽','#f5a623',16); spawnAura(actor,'#f5a623');
       break;
+    }
     case 'dodge':
       actor.dodging=true;
       addLog(`${actor.name} 进入闪避状态`,'info');
@@ -512,11 +514,18 @@ function executeSkill(actor,skill,target){
       spawnFloatText(actor,'狂暴!','#ff7043',18); spawnAura(actor,'#ff5722');
       break;
     }
-    case 'cleanse':
-      target.debuffs=[]; target.stunned=false;
-      addLog(`${actor.name} 净化了 ${target.name}`,'heal');
+    case 'cleanse': {
+      const c = applyCleanse(target, skill);
+      addLog(`${actor.name} 净化了 ${target.name}`+
+             `${c.removed?`（清除 ${c.removed} 个负面）`:''}${c.healed?`，回复 ${c.healed} HP`:''}`,'heal');
+      if(c.healed){
+        gameState.stats['p'+actor.player].heal += c.healed;
+        if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal += c.healed;
+        spawnFloatText(target,`+${c.healed}`,'#66bb6a',16);
+      }
       spawnHealColumn(target,'#fff');
       break;
+    }
     case 'buff':
       target.buffs.push(makeAllyBuff(skill));
       addLog(`${actor.name} 给予 ${target.name} 攻击祝福`,'buff');

@@ -10,7 +10,7 @@ import { clamp } from './state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from './intent.js';
@@ -57,7 +57,14 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
       actor.sp=clamp(actor.sp+skill.spGain,0,actor.maxSp);
       if(skill.buffType) actor.buffs.push(makeSpBuff(skill)); break;
     case 'shield': actor.shield+=skill.shieldAmt; break;
-    case 'taunt': actor.buffs.push({type:'taunt',dur:skill.dur}); break;
+    case 'taunt': {
+      const r = resolveTaunt(actor, target, skill, scene);
+      if(r.damage && stats && r.damage.dmg > 0){
+        stats[actor.charId].dmg += r.damage.dmg;
+        noteKill(r.damage.killed, actor, stats);
+      }
+      break;
+    }
     case 'dodge': actor.dodging=true; break;
     case 'selfBuff': {
       const r = resolveSelfBuff(actor, target, skill, scene);
@@ -67,7 +74,11 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
       }
       break;
     }
-    case 'cleanse': target.debuffs=[]; target.stunned=false; break;
+    case 'cleanse': {
+      const r = applyCleanse(target, skill);
+      if(stats && r.healed) stats[actor.charId].heals += r.healed;
+      break;
+    }
     case 'buff': target.buffs.push(makeAllyBuff(skill)); break;
     case 'drain': {
       const dmg=doDamage(actor,target,skill,scene,stats);

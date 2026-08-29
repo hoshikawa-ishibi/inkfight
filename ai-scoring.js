@@ -19,6 +19,7 @@ import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInte
 // 否则 AI 会白白浪费一个回合。
 const KILL_BONUS = 60;      // 能补掉一个目标的额外价值
 const SP_STARVED = 0.35;    // SP 低于这个比例才认为「缺蓝」
+const DOT_DISCOUNT = 0.65;  // 中毒是延迟伤害，目标先死就收不满，见 riders
 
 // ── 队伍战术上下文 ───────────────────────────────────────
 // 同一支队伍的单位之间共享，用来记住「整队正在集火谁」。
@@ -195,6 +196,30 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   const preempt = (foe, d) =>
     (threat && foe && threat.unitId === foe.id && d >= (foe.hp + (foe.shield || 0))) ? threatDmg : 0;
 
+  // ── 技能的「附带效果」值多少 ──────────────────────────
+  // **这里以前是空白**：`case 'damage'` 只算 `power`，完全不看 dot / debuff /
+  // corrupt。后果是系统性的误判——skill-audit 实测「禁掉刺客的暗影突袭，
+  // 胜率反而 +11.3」，因为省下的 30 SP 拿去放毒刃更划算，而毒刃那
+  // 24 点无视防御的毒伤 AI 根本看不见。剑士的破甲突刺同理（减防不计分）。
+  //
+  // 目标已经被这一击打死的话，附带效果全部落空，所以要先判存活。
+  const riders = (sk, foe, d) => {
+    if(!foe) return 0;
+    const survives = d < foe.hp + (foe.shield || 0);
+    if(!survives) return 0;
+    let v = 0;
+    // 中毒无视防御，但**是延迟到账的**：分 dotDur 个回合慢慢掉，
+    // 目标中途死了剩下的就白给。按全额算会矫枉过正——实测不打折时
+    // 刺客的「毒刃」使用率冲到 77%，等于制造了一个新的支配性技能。
+    v += (sk.dot || 0) * (sk.dotDur || 0) * DOT_DISCOUNT;
+    // 减防：后续每一下多打 20%。按「这段时间里大约还能再打 debuffDur 下」估，
+    // 再打个六折——队友不一定接得上，目标也可能先死。
+    if(sk.debuff === 'defDown') v += atk * bestPower(u) * avgDefMul * 0.2 * (sk.debuffDur || 0) * 0.6;
+    // 腐化层只对带「腐化侵蚀」被动的角色有额外价值（每层每次攻击 +8）
+    if(sk.corrupt && u.passive?.effect === 'corruptBonus') v += sk.corrupt * 8;
+    return v;
+  };
+
   // 队友保护：队友越危险，护盾/嘲讽这类顶在前面的技能越该优先。
   // 这一项以前只存在于 ai.js 的困难难度加成里，平衡测试完全吃不到。
   const others = friends.filter(f => f !== u);
@@ -212,7 +237,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   switch(s.type){
     case 'damage': {
       const d = dmgOf(s.power, s);
-      return damageWorth(d, mainFoe, s) + preempt(mainFoe, d);
+      return damageWorth(d, mainFoe, s) + riders(s, mainFoe, d) + preempt(mainFoe, d);
     }
 
     case 'damageAll':
@@ -223,7 +248,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const d = dmgOf(s.power, s);
       // 吸血按实际打出的伤害算，溢杀的部分照样吸得回来，所以这里不封顶
       const healed = Math.min(d * (s.drainPct/100), u.maxHp - u.hp);
-      return damageWorth(d, mainFoe, s) + healed * 0.8 + preempt(mainFoe, d);
+      return damageWorth(d, mainFoe, s) + healed * 0.8 + riders(s, mainFoe, d) + preempt(mainFoe, d);
     }
 
     case 'stun': {
@@ -239,7 +264,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
         : 0;
       // 带 power 的打断技能自带一次伤害，打不断时它就退化成一个普通伤害技能
       const d = dmgOf(s.power || 0, s);
-      return damageWorth(d, cand, s) + lost + preempt(cand, d);
+      return damageWorth(d, cand, s) + riders(s, cand, d) + lost + preempt(cand, d);
     }
 
     case 'plague': {
@@ -271,9 +296,12 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     }
 
     case 'cleanse': {
-      // 没有负面状态可清就毫无价值
+      // 没有负面可清时，它退化成一个小治疗——所以不再是「毫无价值」。
+      // 这个即时收益是 2026-08-26 加的：skill-audit 实测纯净化禁掉反而 +2.8。
       const bad = friends.reduce((n,f)=> n + f.debuffs.length + (f.stunned?1:0), 0);
-      return bad * 22 - tempo;
+      const t = healTarget(friends, s, tw, threat);
+      const heal = t ? Math.min(s.healAmt || 0, t.maxHp - t.hp) : 0;
+      return bad * 22 + heal - tempo;
     }
 
     case 'buff': {
@@ -325,7 +353,9 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     case 'taunt': {
       // 把火力吸到自己身上：自己越硬、队友越危险，越值
       const allyRisk = 12 + protect * 48;
-      const guess = allyRisk * (hpFrac > 0.5 ? 1.2 : 0.5) - tempo;
+      // 带 power 的嘲讽自带一次攻击（目前 data.js 没配，留着是为了 BOSS 招式）
+      const hit = s.power ? damageWorth(dmgOf(s.power, s), mainFoe, s) : 0;
+      const guess = allyRisk * (hpFrac > 0.5 ? 1.2 : 0.5) + hit - (s.power ? 0 : tempo);
       // 预告打的是队友：嘲讽把它改道到自己身上，省下的就是
       // 「同一击打在队友身上 vs 打在我身上」的血量差。我越扛揍越划算。
       if(threatOnAlly > 0 && u.hp > threatOnAlly){
@@ -357,10 +387,16 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const locked = u.skills.filter(k => k.cost > u.sp && k.cost <= u.sp + (s.spGain||0));
       const unlockWorth = locked.length ? Math.max(...locked.map(k => atk * (k.power||1.2))) * 0.5 : 0;
       const starved = u.sp / u.maxSp < SP_STARVED ? 1.5 : 0.6;
+      // 「每点 SP 恒定值 0.35 伤害」这个白送项是错的：不缺蓝的时候多出来的
+      // SP 一点用都没有。skill-audit 实测禁掉「剑气」胜率 +6.8、禁掉「集中」
+      // +3.5——AI 一直在花整回合换用不上的蓝。只在真缺蓝时才计这一项。
+      const spWorth = u.sp / u.maxSp < SP_STARVED ? (s.spGain||0) * 0.35 : 0;
       // 自损换蓝在残血时是自杀（剑士「剑气」-18HP）：惩罚必须随血量放大，
       // 否则 AI 会把自己耗死。
       const hpRisk = (s.hpCost||0) * (hpFrac < 0.35 ? 6 : hpFrac < 0.6 ? 1.8 : 0.6);
-      return (unlockWorth + (s.spGain||0) * 0.35) * starved - hpRisk - tempo * 0.5;
+      // 机会成本按**全额**算：花一回合回蓝，这回合的输出就是全没了，
+      // 不是少了一半。原来写的 `tempo * 0.5` 是这一族技能被高估的主因。
+      return (unlockWorth + spWorth) * starved - hpRisk - tempo;
     }
 
     default:

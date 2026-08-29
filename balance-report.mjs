@@ -13,7 +13,7 @@ runSimulation(ROUNDS, ()=>{}, (charStats, meta) => {
 
   console.log(`\n对局数 ${ROUNDS}   AI：hard（与玩家在困难难度下面对的完全一致）`);
   console.log(`采样均匀度：参战次数 ${Math.min(...gamesList)}~${Math.max(...gamesList)}，极差 ${spread}（${(spread/avgGames*100).toFixed(1)}% of 均值）`);
-  console.log(`节奏：平均 ${meta.avgRounds.toFixed(1)} 回合分出胜负，${meta.timeoutPct.toFixed(1)}% 打满 60 回合按血量判定\n`);
+  console.log(`节奏：平均 ${meta.avgRounds.toFixed(1)} 回合分出胜负，${meta.timeoutPct.toFixed(1)}% 打满 上限回合按血量判定\n`);
   console.log('  角色      胜率     参战    偏离50%');
   console.log('  ' + '─'.repeat(42));
   for(const r of rows){
