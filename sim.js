@@ -13,6 +13,7 @@ import {
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
+import { nextActor } from './intent.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 
 function noteKill(died, killer, stats){
@@ -95,7 +96,11 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
 // 打满这么多回合还分不出胜负就按剩余总血量判定。
 // 这类「超时局」的比例是个有用的健康指标：比例一高，说明双方都在互相
 // 磨血磨不动，多半是治疗/护盾被高估了。
-const MAX_ROUNDS = 60;
+// 2026-08-26 从 60 改成 120：回合的含义变了。以前一个「回合」要跑完
+// [p1a,p2a,p1b,p2b] 四次行动，现在和 battle.js 一致——一个回合双方各出一个单位。
+// 翻倍是为了保持总行动预算不变，否则超时局比例会凭空翻一倍。
+// 副作用（是好事）：报告里的「平均回合数」现在和玩家在回合计数器上看到的是同一个数。
+const MAX_ROUNDS = 120;
 
 // opts 用来做「非对称」实验（平衡报告本身不传，两边完全对等）：
 //   p1Mod / p2Mod — 建好单位后调一次，用来复现难度档位给 AI 的属性加成
@@ -109,35 +114,46 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
   if(opts.p1Mod) p1.forEach(opts.p1Mod);
   if(opts.p2Mod) p2.forEach(opts.p2Mod);
   const aiOf = { 1: opts.p1Ai || aiHard, 2: opts.p2Ai || aiHard };
-  const order = [];
-  const max = Math.max(p1.length,p2.length);
-  for(let i=0;i<max;i++){
-    if(p1[i]) order.push(p1[i]);
-    if(p2[i]) order.push(p2[i]);
-  }
   const stats = {};
   [...p1,...p2].forEach(u=>{ stats[u.charId]={dmg:0,heals:0,kills:0}; });
   // 每支队伍一份战术上下文（集火目标），队内共享、局间不复用
   const ctx = { 1: makeTeamContext(), 2: makeTeamContext() };
 
+  // 谁上次出手过——`nextActor` 靠它决定这一方轮到哪个单位。
+  const lastActed = { 1:null, 2:null };
+
   for(let round=0; round<MAX_ROUNDS; round++){
-    for(const u of order){
-      if(!u.alive) continue;
+    // **一个回合 = 双方各行动一个单位**，和 battle.js 完全一致。
+    //
+    // 以前这里是一个固定顺序数组 `[p1a,p2a,p1b,p2b]` 逐个跑、跳过死人，
+    // 那等价于「队伍人数直接决定行动次数」——一旦有人阵亡，那一方的
+    // 出手次数立刻减半。而 battle.js 是双方严格轮流各出一个单位，
+    // 人数只影响血池和技能池，**不影响行动次数**（CLAUDE.md 明文规定）。
+    //
+    // 后果很严重：单人 BOSS 在旧模型里只能拿到玩家一半的行动次数，
+    // 于是 campaign-check 把墨皇量得远比实战弱，第 8 关校到的 42% 是虚的。
+    // 现在两边共用 intent.js 的 `nextActor`，同一份规则只有一处实现。
+    for(const side of [1,2]){
+      const team = side===1 ? p1 : p2;
+      const u = nextActor(team, lastActed[side]);
+      if(!u) continue;
+      lastActed[side] = u.id;
+
       // 回合开始（被动 / 中毒 / 狂暴自损 / buff-debuff 递减）走 combat.js 那一份。
       // 这里以前是手抄的副本，往 processStartOfTurn 里加机制时很容易漏掉这边，
       // 于是 npm run balance 跑的是「机制不全的世界」，胜率表看着正常却是错的。
       // 返回的 {passiveEvent, poison, berserk} 只给 battle.js 做日志/特效，无头模拟不需要。
-      processStartOfTurn(u, {allies:u.player===1?p1:p2});
+      processStartOfTurn(u, {allies:team});
       if(!u.alive) continue;
       // 眩晕跳过是回合流程编排（battle.js 那边在 activateUnit 里做），不是战斗规则，留在这
       if(u.stunned){ u.stunned=false; continue; }
       applyTurnRegen(u, scene);
 
-      const enemies=(u.player===1?p2:p1).filter(e=>e.alive);
-      const allies=(u.player===1?p1:p2).filter(a=>a.alive);
+      const enemies=(side===1?p2:p1).filter(e=>e.alive);
+      const allies=team.filter(a=>a.alive);
       if(!enemies.length) break;
 
-      const chosen=aiOf[u.player](u,enemies,allies,scene,ctx[u.player]);
+      const chosen=aiOf[side](u,enemies,allies,scene,ctx[side]);
       if(!chosen||!chosen.skill) continue;
       executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
     }
