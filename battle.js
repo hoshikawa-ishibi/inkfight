@@ -154,6 +154,17 @@ export function initBattle(showScreen, hideTooltip, showTooltip, screenShake, on
   _onCampaignWin=onCampaignWin;
 }
 
+// **同阵容再来一场。** 阵容 / 场景 / 难度 / aiLevels 打完都还留在 gameState 里，
+// 所以直接再跑一次 startBattle 就够了——不要在这里另存一份「上一局的设置」，
+// 那就又是同一份知识两份实现。
+//
+// 观战模式尤其需要它：想比较两档 AI，就得让它们在**同一套阵容**上反复打，
+// 否则每局阵容都变，看到的差异分不清是难度还是运气。
+export function rematch(){
+  playSfx('click');
+  startBattle();
+}
+
 export function startBattle(){
   _showScreen('screen-battle');
   _hideTooltip();
@@ -334,7 +345,7 @@ function activateUnit(u){
 }
 
 function processStartOfTurn(u){
-  const r = resolveStartOfTurn(u, {allies:getAllies(u.player), foes:getEnemies(u.player)});
+  const r = resolveStartOfTurn(u, {allies:getAllies(u.player), foes:getEnemies(u.player), round:gameState.round});
   // 轮空的队友也要走状态衰减，否则中毒不掉、buff 不过期、封印解不开
   processBenchedTurn(getAllies(u.player), u);
   renderPassiveEvent(u, r.passiveEvent);
@@ -354,6 +365,11 @@ function processStartOfTurn(u){
     addLog(`${u.name} 受到中毒伤害 ${r.poison.dmg}`,'dmg');
     spawnFloatText(u,`-${r.poison.dmg}`,'#9ccc65',14);
     presentDeath(u, null, r.poison.died, r.poison.undying);
+  }
+  if(r.erosion){
+    addLog(`🕳 墨蚀侵蚀 ${u.name}，损失 ${r.erosion.dmg} HP（拖得越久越重）`,'dmg');
+    spawnFloatText(u,`-${r.erosion.dmg}`,'#7e57c2',15);
+    presentDeath(u, null, r.erosion.died, r.erosion.undying);
   }
   if(r.berserk){
     addLog(`${u.name} 因狂暴失去 8 HP`,'dmg');
@@ -444,20 +460,33 @@ function showResult(w){
              <button class="btn btn-confirm" id="btn-stage-continue">继续剧情 →</button>
            </div>`
         : `<div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
-             <button class="btn btn-confirm" onclick="playSfx('click'); showScreen('screen-campaign')">返回地图</button>
-             <button class="btn" onclick="playSfx('click'); location.reload()">重新开始</button>
+             <button class="btn btn-confirm" id="btn-stage-retry">🔄 再打一次</button>
+             <button class="btn" onclick="playSfx('click'); showScreen('screen-campaign')">返回地图</button>
            </div>`
     );
     const cont=document.getElementById('btn-stage-continue');
     if(cont) cont.onclick=()=>{ playSfx('click'); if(_onCampaignWin) _onCampaignWin('continue'); };
+    const retry=document.getElementById('btn-stage-retry');
+    if(retry) retry.onclick=rematch;
     return;
   }
 
-  if(actions) actions.style.display='flex';
-  document.getElementById('result-title').textContent=`玩家 ${w} 胜利！`;
+  if(actions){
+    actions.style.display='flex';
+    // 同阵容再来一场。观战时最有用：同一套阵容反复打，才分得清
+    // 差异来自难度还是来自运气。
+    actions.innerHTML =
+      `<button class="btn btn-confirm" id="btn-rematch">🔄 同阵容再来一场</button>`
+      + `<button class="btn" onclick="playSfx('click'); location.reload()">换阵容重开</button>`;
+    document.getElementById('btn-rematch').onclick = rematch;
+  }
+  document.getElementById('result-title').textContent=
+    gameState.mode==='spectate' ? `${w===1?'A 方':'B 方'}获胜` : `玩家 ${w} 胜利！`;
   document.getElementById('result-title').style.color=w===1?'#e94560':'#16c79a';
-  document.getElementById('result-desc').textContent=
-    w===1?'黑墨团赢得了墨境的统治权！':'白线派守护了墨境的秩序！';
+  document.getElementById('result-desc').textContent =
+    gameState.mode==='spectate'
+      ? `A[${DIFF_LABEL[aiLevelOf(1)]}] vs B[${DIFF_LABEL[aiLevelOf(2)]}] — 同阵容可以直接再打一局对比`
+      : (w===1?'黑墨团赢得了墨境的统治权！':'白线派守护了墨境的秩序！');
   // 观战模式没有「玩家」，两边都是 AI，胜负音效不该按输赢给
   const isPlayerWin=gameState.mode==='spectate' ? true
     : (gameState.mode==='ai'&&w===1)||gameState.mode==='pvp';

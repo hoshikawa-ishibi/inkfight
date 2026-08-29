@@ -530,9 +530,8 @@ body {
   <h1 id="result-title">胜利！</h1>
   <p id="result-desc"></p>
   <div class="result-stats" id="result-stats"></div>
-  <div style="display:flex;gap:10px;" id="result-actions">
-    <button class="btn btn-confirm" onclick="playSfx('click'); location.reload()">再来一局</button>
-  </div>
+  <!-- 按钮由 battle.js 的 showResult 按模式填充（同阵容再来 / 换阵容重开） -->
+  <div style="display:flex;gap:10px;" id="result-actions"></div>
 </div>
 
 <!-- 战役地图 -->

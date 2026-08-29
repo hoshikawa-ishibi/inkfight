@@ -183,9 +183,9 @@ export function confirmSpectate(){
   gameState.difficulty = specB;          // 结算面板等处仍读它
   if(specRoster==='random'){
     const n=teamSizeFor(gameState.mode);
-    const pool=shuffleIds(CHARACTERS.map(c=>c.id));
-    gameState.p1Picks=pool.slice(0,n);
-    gameState.p2Picks=pool.slice(n,n*2);
+    // 两边**各自独立**抽，允许撞人（理由同 renderCharGrid 里那段注释）
+    gameState.p1Picks=shuffleIds(CHARACTERS.map(c=>c.id)).slice(0,n);
+    gameState.p2Picks=shuffleIds(CHARACTERS.map(c=>c.id)).slice(0,n);
     showScreen('screen-scene');
   } else {
     showScreen('screen-scene');           // 场景选完再进选角
@@ -331,7 +331,14 @@ function renderCharGrid(){
   const campaign=gameState.mode==='campaign';
   CHARACTERS.forEach(c=>{
     const slot=campaign?campaignSlot(c):null;
-    const taken=selectPhase===2&&gameState.mode==='pvp'?false:gameState.p1Picks.includes(c.id);
+    // **两边可以选到同样的角色。** 实测（dup-check.mjs，700 局/格）：
+    //   不许重复  策略价值 47.6，「完美 vs 一般」的落差只有 0.1
+    //   允许重复  策略价值 52.0，落差 7.4
+    // 不许重复时一方拿走 3 个，另一方只能从剩下 5 个里挑，阵容差异大到
+    // 把打法好坏完全淹掉；允许重复之后对局更常势均力敌，技术才显得出来。
+    // 对局种类也从 560 涨到 3136（8C3 的平方），「打过一次就记住了」缓解很多。
+    // BAN 掉的角色仍然两边都不能选（isBanned 另外判）。
+    const taken=false;
     const selected=tempPicks.includes(c.id);
     const isBanned=banned.includes(c.id);
     const isHero=!!slot&&slot.kind==='hero';

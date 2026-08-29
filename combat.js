@@ -191,6 +191,26 @@ export function processBenchedTurn(team, actor){
   team.forEach(u => { if(u !== actor) tickEffects(u); });
 }
 
+// ── 墨蚀：拖太久就一起被墨吞掉 ────────────────────────────
+//
+// 允许两边选同样的角色之后出现了续航僵局：实测按「场上牧师/守卫的总数」分组，
+//   0 个 → 12.8 回合、0% 超时
+//   2 个 → 47.2 回合、21% 超时
+//   4 个 → 105 回合、**69% 超时**
+// 也就是八局里有一局完全磨不动、最后按剩余血量判定，非常反高潮。
+//
+// 解法不是砍治疗（那会伤到正常对局），而是给僵局一个**兜底的收束**：
+// 从第 `INK_EROSION_FROM` 回合起，每个单位在自己回合开始时损失一点 HP，
+// 而且越拖越多。它对双方完全对称，正常长度的对局根本碰不到它。
+// 无视防御、无视护盾——这是「时间到了」，不是一次攻击。
+export const INK_EROSION_FROM = 18;   // 从第几回合开始
+export const INK_EROSION_STEP = 3;    // 每多一回合加多少
+
+export function inkErosion(round){
+  if(!round || round < INK_EROSION_FROM) return 0;
+  return (round - INK_EROSION_FROM + 1) * INK_EROSION_STEP;
+}
+
 // ── 回合开始：中毒/狂暴掉血 + buff/debuff 时长衰减 ──────────
 export function processStartOfTurn(u, ctx={}){
   const passiveEvent = triggerPassive('onTurnStart', u, ctx);
@@ -225,6 +245,15 @@ export function processStartOfTurn(u, ctx={}){
     }
   });
 
+  // 墨蚀：拖太久，双方一起被吞。无视防御和护盾。
+  let erosion = null;
+  const ero = inkErosion(ctx.round);
+  if(ero > 0){
+    u.hp = clamp(u.hp - ero, 0, u.maxHp);
+    const death = u.hp <= 0 ? handleDeath(u) : null;
+    erosion = { dmg:ero, died:!!death?.died, undying:!!death?.undying };
+  }
+
   let berserk = null;
   const berserkBuff = u.buffs.find(b=>b.type==='berserk');
   if(berserkBuff){
@@ -236,7 +265,7 @@ export function processStartOfTurn(u, ctx={}){
 
   tickEffects(u);
 
-  return { passiveEvent, poison, berserk, phaseEvent, sealed };
+  return { passiveEvent, poison, berserk, erosion, phaseEvent, sealed };
 }
 
 // ── 伤害结算 ──────────────────────────────────────────

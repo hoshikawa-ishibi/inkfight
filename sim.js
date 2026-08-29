@@ -187,7 +187,7 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       // 这里以前是手抄的副本，往 processStartOfTurn 里加机制时很容易漏掉这边，
       // 于是 npm run balance 跑的是「机制不全的世界」，胜率表看着正常却是错的。
       // 返回的 {passiveEvent, poison, berserk} 只给 battle.js 做日志/特效，无头模拟不需要。
-      processStartOfTurn(u, {allies:team, foes:(side===1?p2:p1)});
+      processStartOfTurn(u, {allies:team, foes:(side===1?p2:p1), round:round+1});
       // 轮空的队友也要走状态衰减，否则中毒不掉、buff 不过期、封印解不开
       processBenchedTurn(team, u);
       // 预告的单位被中毒带走 / 被眩晕 → 那一击就没了，这正是玩家操作的回报
@@ -252,7 +252,10 @@ export function shuffle(arr){
 function randomPicks(){
   const shuffled = shuffle(CHARACTERS.map(c=>c.id));
   const n = teamSizeFor('ai');
-  return [shuffled.slice(0,n), shuffled.slice(n, n*2)];
+  // **两边独立抽，允许撞人**——和游戏里一致（见 main.js 的 renderCharGrid）。
+  // 以前是一副牌切两半，等于「一方拿走 3 个，另一方只能从剩下 5 个里挑」，
+  // 阵容差异大到把打法好坏淹掉：实测「完美 vs 一般」的落差只有 0.1 个百分点。
+  return [shuffled.slice(0,n), shuffle(CHARACTERS.map(c=>c.id)).slice(0,n)];
 }
 
 // 分批跑，每批500局，用setTimeout让UI不卡死。
