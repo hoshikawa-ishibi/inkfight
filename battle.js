@@ -10,7 +10,7 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
-  applyDifficulty, applyStageMod, unitSpec, willCrit
+  applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -367,16 +367,18 @@ export function renderSkillPanel(u){
   u.skills.forEach((s,i)=>{
     const btn=document.createElement('button');
     btn.className='skill-btn';
-    btn.disabled=u.sp<s.cost||(s.hpCost&&u.hp<=s.hpCost);
+    btn.disabled=!canUseSkill(u,s);
+    const cdLeft=(u.cooldowns&&u.cooldowns[s.name])||0;
     const dmg=previewDmg(u,s);
     btn.innerHTML=`
       <span class="skill-icon" style="background:${s.iconColor}33;color:${s.iconColor};border:1px solid ${s.iconColor}">${s.icon}</span>
       <span class="key-hint">[${i+1}]</span>
       ${s.name}
-      <span class="sp-cost">${s.cost>0?s.cost+'SP':'免费'}${s.hpCost?` -${s.hpCost}HP`:''}</span>
+      <span class="sp-cost">${cdLeft>0?`⏳${cdLeft}回合`:(s.cost>0?s.cost+'SP':'免费')}${s.hpCost?` -${s.hpCost}HP`:''}</span>
       ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?'💥':'≈'}${dmg}伤害</span>`:''}`;
     btn.onmouseenter=(e)=>{ if(!btn.disabled) playSfx('hover');
-      _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`,e.clientX,e.clientY);
+      _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`
+        +(s.cd?`<br><span style="color:#f5a623">冷却 ${s.cd} 回合${cdLeft>0?`（还剩 ${cdLeft}）`:''}</span>`:''),e.clientX,e.clientY);
     };
     btn.onmouseleave=_hideTooltip;
     btn.onclick=()=>{ playSfx('click'); _hideTooltip(); onSkillClick(u,s); };
@@ -392,7 +394,7 @@ export function renderSkillPanel(u){
 }
 
 function onSkillClick(u,s){
-  if(u.sp<s.cost||s.hpCost&&u.hp<=s.hpCost) return;
+  if(!canUseSkill(u,s)) return;
   const needsEnemy=needsEnemyTarget(s);
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
   const noTarget=!needsEnemy &&
@@ -459,8 +461,7 @@ function aiAct(u){
 }
 
 function executeSkill(actor,skill,target){
-  if(skill.cost) actor.sp-=skill.cost;
-  if(skill.hpCost) actor.hp=clamp(actor.hp-skill.hpCost,1,actor.maxHp);
+  payCosts(actor, skill);
   if(skill.sfx) playSfx(skill.sfx);
   lungeActor(actor); actor.pose='attack';
   setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },500);

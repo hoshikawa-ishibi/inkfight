@@ -10,7 +10,7 @@ import { clamp } from './state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from './intent.js';
@@ -32,8 +32,7 @@ function doDamage(actor, target, skill, scene, stats){
 // 32 个技能，断言「这个 case 确实被接住了」。switch 漏掉一个 case 不会报错，
 // 只会一路穿过去什么都不做——术士的 plague/corruptBurst 就这么静默失效过。
 export function executeSkill(actor, skill, target, scene, p1, p2, stats){
-  if(skill.cost) actor.sp-=skill.cost;
-  if(skill.hpCost) actor.hp=clamp(actor.hp-skill.hpCost,1,actor.maxHp);
+  payCosts(actor, skill);
   const enemies = actor.player===1?p2:p1;
   const allies = actor.player===1?p1:p2;
   switch(skill.type){

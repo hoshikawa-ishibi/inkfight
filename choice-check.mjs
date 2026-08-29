@@ -20,7 +20,7 @@ const use = {};
 let turns = 0, forced = 0, onlyOne = 0;
 CHARACTERS.forEach(c => { use[c.id] = {}; c.skills.forEach(s => { use[c.id][s.name] = 0; }); });
 
-const canUse = (u, s) => u.sp >= s.cost && !(s.hpCost && u.hp <= s.hpCost);
+import { canUseSkill as canUse } from './combat.js';
 
 // 完美决策 + 埋点。评分口径与 aiHard 一致（tempo 1 / teamwork 1），
 // 只是去掉噪声与 tacticalBonus，好让「最优 vs 次优」的差距干净可读。

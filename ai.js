@@ -7,6 +7,7 @@
 //   普通  按评分走 + 中等噪声 + 一半的配合意识
 //   困难  按评分走 + 极小噪声 + 完全配合 + 前瞻加成（攒蓝放大招、挑满蓝的目标晕）
 import { scoreSkill, pickTarget } from './ai-scoring.js';
+import { canUseSkill as canUse } from './combat.js';
 
 // noise 是加在评分上的随机量，越大越容易选到次优解。
 // 共享评分本身已经相当聪明，所以普通难度必须有足够噪声才不会跟困难一样强
@@ -49,12 +50,6 @@ function tacticalBonus(u, s, foes){
   if(s.type === 'stun' && foes.some(f => f.sp >= f.maxSp * 0.7)) b += 15;
 
   return b;
-}
-
-function canUse(u, s){
-  if(u.sp < s.cost) return false;
-  if(s.hpCost && u.hp <= s.hpCost) return false;
-  return true;
 }
 
 // ctx 是本方队伍的战术上下文（ai-scoring.js 的 makeTeamContext），

@@ -8,7 +8,7 @@
 // 才能横向比较。难度差异由 ai.js 在此之上做包装（噪声 + 战术加成），
 // 而不是各写一套评分。
 
-import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit } from './combat.js';
+import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill } from './combat.js';
 
 // 技能评分：把每种技能的收益统一折算成「等效伤害」，好让 17 种技能类型
 // 能够横向比较。旧版本只给 damage/heal/stun/drain 四种打分，其余 13 种
@@ -204,7 +204,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   // 辅助技能要占掉一整个回合，这回合本可以打出的最高伤害就是它的机会成本。
   // 不减掉它，buff / 护盾 / 嘲讽一类技能的分数全是虚高的——实测狂战士因此
   // 频繁开「狂暴」，而开一次刚好把增伤赚回来又倒亏血，胜率反而下滑。
-  const dmgOptions = u.skills.filter(k => k.power && u.sp >= k.cost);
+  const dmgOptions = u.skills.filter(k => k.power && canUseSkill(u, k));
   const tempoW = opts.tempo ?? 1;
   const tempo = (tempoW > 0 && dmgOptions.length)
     ? Math.max(...dmgOptions.map(k => atk * k.power * sceneMul * avgDefMul)) * tempoW : 0;

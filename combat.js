@@ -27,6 +27,8 @@ export function createUnit(charId, player, slot, override){
     interruptImmune:0,
     // 暴击蓄能条（见 calcDamage）。攒满 100 必暴击，玩家看得见。
     critMeter:0,
+    // 技能冷却：技能名 → 剩余回合数（见 canUseSkill / payCosts）
+    cooldowns:{},
     pose:'idle', blink:0
   };
 }
@@ -173,6 +175,8 @@ export function processStartOfTurn(u, ctx={}){
   // 打断免疫倒计时。放在这里（而不是攻击方回合）是因为它衡量的是
   // 「这个单位又能被打断了没有」，该按它自己的回合数走。
   if(u.interruptImmune > 0) u.interruptImmune--;
+  // 技能冷却同理，按这个单位自己的回合走
+  if(u.cooldowns) for(const k in u.cooldowns) if(u.cooldowns[k] > 0) u.cooldowns[k]--;
 
   return { passiveEvent, poison, berserk };
 }
@@ -367,6 +371,40 @@ export function applyStageMod(unit, mod){
   }
   if(mod.sp      != null) unit.sp = Math.floor(unit.maxSp * mod.sp);
   return unit;
+}
+
+// ── 技能可用性与代价：**唯一实现** ───────────────────────
+// （COMBAT_PLAN.md 任务 3a）
+//
+// 加冷却之前，「这个技能放不放得起」在仓库里有 **8 份**拷贝：
+// ai.js、battle.js（技能按钮 + 点击校验）、intent.js、choice-check、
+// depth-check、intent-value-check、ai-scoring 的 tempo 估算。
+// 每加一个新条件（比如冷却）就要同步 8 处——这个项目已经因为
+// 「同一份知识多份实现」出过四次 bug 了，不能再来第五次。
+//
+// 冷却按**这个单位自己的回合**计数，在 processStartOfTurn 里递减。
+// 存 `cd + 1` 是因为递减发生在下一回合开头：cd:2 要真的挡住 2 个回合，
+// 就得先垫一格给「用掉它的这个回合」。
+export function skillOnCooldown(u, s){
+  return (u.cooldowns && u.cooldowns[s.name] > 0);
+}
+
+export function canUseSkill(u, s){
+  if(u.sp < s.cost) return false;
+  if(s.hpCost && u.hp <= s.hpCost) return false;
+  if(skillOnCooldown(u, s)) return false;
+  return true;
+}
+
+// 付出技能的代价。battle.js 和 sim.js 的 executeSkill 都调它——
+// 以前两边各写一行扣 SP，加冷却时又会变成两处要改。
+export function payCosts(actor, skill){
+  if(skill.cost) actor.sp = clamp(actor.sp - skill.cost, 0, actor.maxSp);
+  if(skill.hpCost) actor.hp = clamp(actor.hp - skill.hpCost, 1, actor.maxHp);
+  if(skill.cd){
+    if(!actor.cooldowns) actor.cooldowns = {};
+    actor.cooldowns[skill.name] = skill.cd + 1;
+  }
 }
 
 // 这个技能是否需要一个敌方目标。

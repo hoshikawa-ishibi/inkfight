@@ -10,7 +10,7 @@
 //      光让玩家变强不算深度，要「打得好」比「乱按」更值钱才算。
 import { simOneBattle, shuffle } from './sim.js';
 import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { DIFFICULTY_MODS, applyStageMod } from './combat.js';
+import { DIFFICULTY_MODS, applyStageMod, canUseSkill } from './combat.js';
 import { CHARACTERS, SCENES } from './data.js';
 import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from './campaign.js';
 import { pickTarget } from './ai-scoring.js';
@@ -22,7 +22,7 @@ const skilled = noise => makeAi(
 function aiRandom(u, enemies, allies){
   const foes = enemies.filter(e => e.alive), friends = allies.filter(a => a.alive);
   if(!foes.length) return null;
-  const usable = u.skills.filter(s => u.sp >= s.cost && !(s.hpCost && u.hp <= s.hpCost));
+  const usable = u.skills.filter(s => canUseSkill(u, s));
   if(!usable.length) return null;
   const s = usable[Math.floor(Math.random() * usable.length)];
   return { skill:s, target: pickTarget(u, s, foes, friends, { tempo:0.7, teamwork:0 }) };

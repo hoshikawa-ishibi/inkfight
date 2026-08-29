@@ -15,7 +15,7 @@
 //
 // **只重解目标，绝不重选技能。** 否则「承诺」就是假的——玩家针对预告
 // 做的所有布置都会落空，而这正是 Into the Breach 那套设计要避免的东西。
-import { previewDmg } from './combat.js';
+import { previewDmg, canUseSkill } from './combat.js';
 import { pickTarget } from './ai-scoring.js';
 
 // 下一个该行动的单位。
@@ -79,7 +79,7 @@ export function resolveIntent(unit, intent, foes, friends, opts = {}){
   if(!intent || intent.unitId !== unit.id) return null;
   const skill = intent.skill;
 
-  if(skill.hpCost && unit.hp <= skill.hpCost){
+  if(!canUseSkill(unit, skill)){
     const basic = unit.skills[0];
     return {
       skill: basic,
