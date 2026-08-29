@@ -403,10 +403,10 @@ export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSe
 // 布防、抢杀、打断——这是一个**结构性**的劣势，不是决策水平能补的。
 // 用属性把这份劣势补回来是诚实的做法，藏起意图才是走回头路。
 export const DIFFICULTY_MODS = {
-  easy:      { atk: 0.92 },
+  easy:      { atk: 0.99 },
   normal:    { atk: 0.94 },
   hard:      { atk: 1.07 },
-  nightmare: { atk: 1.14, spRegen: 1.1 },
+  nightmare: { atk: 1.08, spRegen: 1.1 },
 };
 
 export function applyDifficulty(unit, level){

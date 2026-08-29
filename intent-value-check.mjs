@@ -9,6 +9,8 @@
 //   2. **策略价值（完美 − 乱按）的落差变大**——这才是重点。
 //      光让玩家变强不算深度，要「打得好」比「乱按」更值钱才算。
 import { simOneBattle, shuffle } from './sim.js';
+import { teamSizeFor } from './state.js';
+const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
 import { makeAi, AI_BY_LEVEL } from './ai.js';
 import { DIFFICULTY_MODS, applyStageMod, canUseSkill } from './combat.js';
 import { CHARACTERS, SCENES } from './data.js';
@@ -36,7 +38,7 @@ function randomMatch(pAi, level, intentOn){
   for(let i = 0; i < N; i++){
     const ids = shuffle(CHARACTERS.map(c => c.id));
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    if(simOneBattle(ids.slice(0,2), ids.slice(2,4), scene, {
+    if(simOneBattle(ids.slice(0,N_TEAM), ids.slice(N_TEAM,N_TEAM*2), scene, {
       p1Ai:pAi, p2Ai:AI_BY_LEVEL[level], intent:intentOn,
       p2Mod: mod ? (u => applyStageMod(u, mod)) : null,
     }).winner === 1) wins++;

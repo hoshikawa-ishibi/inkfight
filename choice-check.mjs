@@ -10,6 +10,8 @@
 //
 // 用法：node choice-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
+import { teamSizeFor } from './state.js';
+const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
 import { scoreSkill, pickTarget } from './ai-scoring.js';
 import { CHARACTERS, SCENES } from './data.js';
 
@@ -62,7 +64,7 @@ const aiProbe = makeProbe(true), aiPlain = makeProbe(false);
 for(let i = 0; i < N; i++){
   const ids = shuffle(CHARACTERS.map(c => c.id));
   const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-  simOneBattle(ids.slice(0, 2), ids.slice(2, 4), scene, { p1Ai: aiProbe, p2Ai: aiPlain });
+  simOneBattle(ids.slice(0, N_TEAM), ids.slice(N_TEAM, N_TEAM*2), scene, { p1Ai: aiProbe, p2Ai: aiPlain });
 }
 
 console.log(`\n${N} 局 / ${turns} 个决策点。完美玩家的技能使用分布：\n`);

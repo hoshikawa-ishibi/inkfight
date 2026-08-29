@@ -42,7 +42,7 @@ export const CHARACTERS = [
     passive:{ name:'暴击蓄能', desc:'暴击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'匕首', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🗡️', iconColor:'#ab47bc', sfx:'slash', vfx:'slash' },
-      { name:'暗影突袭', type:'damage', cost:30, power:1.8, crit:40, desc:'180%伤害，40%暴击', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
+      { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'180%伤害，40%暴击', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
       { name:'毒刃', type:'damage', cost:20, power:1.2, dot:8, dotDur:3, desc:'120%伤害+中毒3回合', icon:'☠️', iconColor:'#9ccc65', sfx:'slash', vfx:'poison' },
       { name:'消失', type:'dodge', cost:25, dur:1, desc:'下回合闪避所有攻击', icon:'💨', iconColor:'#fff', sfx:'buff', vfx:'smoke' }
     ]},
@@ -50,7 +50,7 @@ export const CHARACTERS = [
     passive:{ name:'圣光庇护', desc:'回合开始时，若任意友方 HP<30% 则自动治疗其 12 HP', trigger:'onTurnStart', effect:'allyHeal', value:12 },
     skills:[
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
-      { name:'治愈之光', type:'heal', cost:30, healAmt:42, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
+      { name:'治愈之光', type:'heal', cost:26, healAmt:46, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
       { name:'净化', type:'cleanse', cost:20, healAmt:20, desc:'清除友方负面状态并治疗20HP', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
       { name:'祝福', type:'buff', cost:28, buffType:'atkUp', dur:3, buffValue:0.5, desc:'友方攻击+50% 3回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
     ]},
@@ -66,7 +66,7 @@ export const CHARACTERS = [
     passive:{ name:'鹰眼', desc:'每回合开始暴击率+3%（最多叠加 4 层）', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:4 },
     skills:[
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
-      { name:'穿透箭', type:'damageAll', cost:28, power:1.6, desc:'对所有敌人160%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
+      { name:'穿透箭', type:'damageAll', cost:30, power:1.4, desc:'对所有敌人140%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
       { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则必定打断', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
@@ -75,7 +75,7 @@ export const CHARACTERS = [
     skills:[
       { name:'暗影弹', type:'damage', cost:0, power:1.1, corrupt:1, desc:'110%伤害，施加1层腐化', icon:'🌑', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowOrb' },
       { name:'腐化爆发', type:'corruptBurst', cost:30, dmgPerStack:12, desc:'消耗所有敌人腐化层，每层造成12伤害', icon:'💀', iconColor:'#ce93d8', sfx:'thunder', vfx:'shockwave' },
-      { name:'瘟疫', type:'plague', cost:22, corrupt:2, dot:6, dotDur:3, desc:'对所有敌人施加2层腐化+中毒3回合', icon:'☣️', iconColor:'#9ccc65', sfx:'debuff', vfx:'curse' },
+      { name:'瘟疫', type:'plague', cost:26, corrupt:2, dot:5, dotDur:3, desc:'对所有敌人施加2层腐化+中毒3回合', icon:'☣️', iconColor:'#9ccc65', sfx:'debuff', vfx:'curse' },
       { name:'灵魂收割', type:'drain', cost:25, power:2.2, drainPct:40, corrupt:2, desc:'220%伤害+吸血40%+施加2层腐化', icon:'👁️‍🗨️', iconColor:'#f5a623', sfx:'shadow', vfx:'soulSteal' }
     ]}
 ];

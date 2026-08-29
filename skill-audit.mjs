@@ -12,6 +12,8 @@
 //
 // 用法：node skill-audit.mjs [每格局数]
 import { simOneBattle, shuffle } from './sim.js';
+import { teamSizeFor } from './state.js';
+const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
 import { makeAi, AI_BY_LEVEL } from './ai.js';
 import { canUseSkill } from './combat.js';
 import { scoreSkill, pickTarget } from './ai-scoring.js';
@@ -44,7 +46,7 @@ function winRate(charId, ai){
   for(let i = 0; i < N; i++){
     const rest = shuffle(CHARACTERS.map(c => c.id).filter(id => id !== charId));
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    if(simOneBattle([charId, rest[0]], rest.slice(1, 3), scene,
+    if(simOneBattle([charId, ...rest.slice(0, N_TEAM-1)], rest.slice(N_TEAM-1, N_TEAM*2-1), scene,
        { p1Ai: ai, p2Ai: AI_BY_LEVEL.hard }).winner === 1) w++;
   }
   return w / N * 100;

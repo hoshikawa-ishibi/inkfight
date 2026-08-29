@@ -14,6 +14,8 @@
 //   落差变小 = 这个机制不再一手遮天
 //   实际值不变 = 机制强度没被削，只是波动没了
 import { simOneBattle, shuffle } from './sim.js';
+import { teamSizeFor } from './state.js';
+const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
 import { aiHard } from './ai.js';
 import { CHARACTERS, SCENES } from './data.js';
 
@@ -33,7 +35,7 @@ function run(mod){
     const stunner = STUNNERS[i % STUNNERS.length];
     const rest = shuffle(CHARACTERS.map(c => c.id).filter(id => id !== stunner));
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    const r = simOneBattle([stunner, rest[0]], rest.slice(1, 3), scene,
+    const r = simOneBattle([stunner, ...rest.slice(0, N_TEAM-1)], rest.slice(N_TEAM-1, N_TEAM*2-1), scene,
       { p1Ai: aiHard, p2Ai: aiHard, p1Mod: mod });
     if(r.winner === 1) wins++;
   }

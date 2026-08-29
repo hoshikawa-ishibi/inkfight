@@ -147,11 +147,65 @@ function startTurn(){
   // **意图要在「选谁上」之前就公开**，否则玩家是盲选——
   // 而「看到预告再决定派谁去接这一下」正是这个决策点的全部价值。
   if(human) updateEnemyIntent();
-  if(units.length===2 && human){
-    showUnitPicker(p,units,activateUnit);
+  if(units.length > 1 && human){
+    beginActorChoice(p, units);
     return;
   }
-  activateUnit(aiPickActor(p, units));
+  activateUnit(human ? units[0] : aiPickActor(p, units));
+}
+
+// 玩家挑这回合派谁上。**不弹独立的选人界面**——用户反馈那样「没法挨个点开看技能」。
+// 改成直接在战场上点人：点谁就预览谁的技能面板，可以来回切，**点技能才真正出手**。
+// 提交推迟到点技能那一刻，是因为回合开始流程（中毒掉血 / buff 递减 / 回蓝）
+// 会改变可用技能，先跑完再让人选就等于让人看着过期的信息做决定。
+function beginActorChoice(player, units){
+  gameState.pickingActor = true;
+  gameState.previewUnitId = units[0].id;
+  document.getElementById('round-badge').textContent = `回合 ${gameState.round}`;
+  document.getElementById('turn-text').textContent =
+    `玩家${player} — 点我方角色查看技能，点技能出手（没出手的人回复 SP）`;
+  renderBattle();
+  renderSkillPanel(units[0]);
+}
+
+// 战场上点了自己人：只换预览，不提交。
+export function onPreviewUnit(u){
+  if(!gameState.pickingActor || !u.alive) return;
+  gameState.previewUnitId = u.id;
+  renderBattle();
+  renderSkillPanel(u);
+}
+
+// 真正提交出手的单位。返回它还能不能行动（中毒倒下 / 被打断都算不能）。
+// 从 activateUnit 里拆出来，是为了让「玩家点了技能才提交」这条路复用同一份逻辑——
+// 两份实现是这个项目的头号病因。
+function beginTurnFor(u){
+  gameState.activeUnitId = u.id;
+  gameState.pickingActor = false;
+  gameState.previewUnitId = null;
+  // 回合开始流程必须先跑，再判打断：中毒照样掉血、buff 照样递减、
+  // 打断免疫照样倒计时。以前被眩晕的单位直接 return，这三件事一件都不发生。
+  processStartOfTurn(u);
+  if(!u.alive){
+    cancelIntentOf(u,'已阵亡');
+    setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600);
+    return false;
+  }
+  if(u.stunned){
+    addLog(`${u.name} 被打断，跳过本次行动！`,'stun');
+    cancelIntentOf(u,'被打断');
+    playSfx('stun'); u.stunned=false;
+    setTimeout(nextTurn,700);
+    return false;
+  }
+  // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
+  applyRestRegen(u.player===1?gameState.p1Units:gameState.p2Units, u, gameState.scene);
+  // 这一侧回合要行动几次（BOSS 阶段二是 2 次，其余都是 1 次）
+  gameState.extraActions = actionsFor(u) - 1;
+  document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
+  document.getElementById('turn-text').textContent=
+    `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
+  return true;
 }
 
 // AI 侧派谁上。**意图预测和实际出手必须共用这一份**，
@@ -189,45 +243,8 @@ function cancelIntentOf(u,reason){
   gameState.enemyIntent=null;
 }
 
-function showUnitPicker(player,units,cb){
-  document.getElementById('turn-text').textContent=`玩家${player} 选择出战角色`;
-  document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
-  renderBattle();
-  const panel=document.getElementById('skill-panel');
-  panel.innerHTML=`<div style="color:#aaa;margin-bottom:8px;">选择本回合出战的角色（<b style="color:#4fc3f7">没出战的那个会回复 SP</b>）：</div>`;
-  units.forEach(u=>{
-    const btn=document.createElement('button');
-    btn.className='skill-btn';
-    btn.innerHTML=`<b style="color:${u.color}">${u.name}</b> <span style="color:#aaa">HP:${u.hp}/${u.maxHp} SP:${u.sp}</span>`;
-    btn.onclick=()=>{ playSfx('select'); cb(u); };
-    panel.appendChild(btn);
-  });
-}
-
 function activateUnit(u){
-  // 谁在行动的唯一真相来源：行动高亮、数字键快捷键、取消选目标后
-  // 恢复技能面板，三处都读它。被眩晕/中毒倒下的单位也算「轮到它了」，
-  // 所以这一行要在下面的提前 return 之前。
-  gameState.activeUnitId=u.id;
-  // 回合开始流程必须先跑，再判打断：中毒照样掉血、buff 照样递减、
-  // 打断免疫照样倒计时。以前被眩晕的单位直接 return，这三件事一件都不发生
-  // ——等于「被控住」还附赠中毒免疫和 buff 保鲜。而 sim.js 那边是先跑再判，
-  // 两份实现对不上（和任务 0 那个行动经济 bug 是同一类病）。
-  processStartOfTurn(u);
-  if(!u.alive){ cancelIntentOf(u,'已阵亡'); setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
-  if(u.stunned){
-    addLog(`${u.name} 被打断，跳过本次行动！`,'stun');
-    cancelIntentOf(u,'被打断');
-    playSfx('stun'); u.stunned=false;
-    setTimeout(nextTurn,700); return;
-  }
-  // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
-  applyRestRegen(u.player===1?gameState.p1Units:gameState.p2Units, u, gameState.scene);
-  // 这一侧回合要行动几次（BOSS 阶段二是 2 次，其余都是 1 次）
-  gameState.extraActions = actionsFor(u) - 1;
-  document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
-  document.getElementById('turn-text').textContent=
-    `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
+  if(!beginTurnFor(u)) return;
   renderBattle();
   if((gameState.mode==='ai'||gameState.mode==='campaign')&&u.player===2){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
@@ -420,6 +437,14 @@ export function renderSkillPanel(u){
 
 function onSkillClick(u,s){
   if(!canUseSkill(u,s)) return;
+  // 还在「点人看技能」阶段：这一点就是提交。
+  // 提交会跑回合开始流程（中毒 / buff / 回蓝），技能可用性可能因此变化，
+  // 所以提交后要重新校验一次，别让玩家放出一个已经放不起的技能。
+  if(gameState.pickingActor){
+    if(!beginTurnFor(u)) return;
+    renderBattle();
+    if(!canUseSkill(u,s)){ renderSkillPanel(u); return; }
+  }
   const needsEnemy=needsEnemyTarget(s);
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
   const noTarget=!needsEnemy &&

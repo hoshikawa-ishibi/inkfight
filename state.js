@@ -1,3 +1,17 @@
+// 每方出战人数。**随机对战 3 人、战役 2 人。**
+//
+// 3v3 是实测扫出来的甜点（2v2 / 3v3 / 4v4 各 400 局）：
+//   「完美 vs 一般」的落差 6.8 → 11.3 → 5.3
+//   策略价值            53.0 → 61.0 → 50.3
+// 也就是说 3 人时「打得比一般好」的回报最高。4v4 反而掉下去，
+// 因为只有 8 个角色，双方各 4 人等于每局都用光全部角色，阵容失去变化。
+//
+// 战役暂时留在 2（主角 + 1 名同伴），它的 8 关曲线是按 2v2 校准的，
+// 改人数要整条重校——见 COMBAT_PLAN.md。
+export function teamSizeFor(mode){
+  return mode === 'campaign' ? 2 : 3;
+}
+
 export let gameState = {
   mode:null, difficulty:'normal', scene:null,
   p1Picks:[], p2Picks:[],
@@ -25,6 +39,9 @@ export let gameState = {
   // 当前行动方这一「侧回合」还剩几次额外行动（BOSS 阶段二「涂改」= 1）。
   // 见 battle.js 的 afterAction / combat.js 的 actionsFor。
   extraActions:0,
+  // 「点我方角色查看技能」阶段：pickingActor 为真时，玩家还没提交出手单位，
+  // previewUnitId 只是当前在看谁的技能面板。点技能才提交（见 battle.js 的 beginTurnFor）。
+  pickingActor:false, previewUnitId:null,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }

@@ -4,10 +4,11 @@ import { gameState, pct, getAllUnits, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
 import { bossPhase } from './combat.js';
 
-let _getEffectiveAtk, _onTargetClick;
-export function initRender(getEffectiveAtk, onTargetClick){
+let _getEffectiveAtk, _onTargetClick, _onPreviewUnit;
+export function initRender(getEffectiveAtk, onTargetClick, onPreviewUnit){
   _getEffectiveAtk=getEffectiveAtk;
   _onTargetClick=onTargetClick;
+  _onPreviewUnit=onPreviewUnit;
 }
 
 export function renderBattle(){
@@ -19,19 +20,64 @@ export function renderBattle(){
   });
 }
 
+// 状态条。三条规矩：
+//   1. **有层数 / 剩余回合的，数字必须外显**——「中毒」不说还剩几回合等于没说。
+//   2. **每个都能悬浮看说明**（原生 title），玩家不该去猜图标什么意思。
+//   3. **别漏机制**。腐化层以前完全没显示，而它是术士和墨皇整套打法的核心，
+//      玩家看不见就没法判断「腐化爆发」什么时候会来。
 function statusChips(u){
-  const list=[];
-  if(u.shield>0) list.push(`🛡${u.shield}`);
-  if(u.stunned) list.push('💫眩晕');
-  if(u.dodging) list.push('💨闪避');
-  if(u.buffs.some(b=>b.type==='berserk')) list.push('🔥狂暴');
-  if(u.buffs.some(b=>b.type==='taunt')) list.push('🎯嘲讽');
-  if(u.buffs.some(b=>b.type==='atkUp')) list.push('⚔️攻↑');
-  if(u.buffs.some(b=>b.type==='atkUp1')) list.push('🎯专注');
-  if(u.debuffs.some(d=>d.type==='poison')) list.push('☠中毒');
-  if(u.debuffs.some(d=>d.type==='defDown')) list.push('🛡↓');
-  if(u.undying) list.push('💀不屈');
-  return list.map(t=>`<span class="stat-chip">${t}</span>`).join('');
+  const list = [];
+  const add = (icon, text, tip) => list.push({ icon, text, tip });
+
+  if(u.shield > 0)
+    add('🛡', String(u.shield), `护盾 ${u.shield}：优先承受伤害，不受防御影响`);
+
+  const corrupt = u.debuffs.filter(d => d.type === 'corrupt').reduce((n,d) => n + d.value, 0);
+  if(corrupt > 0)
+    add('🕳', `${corrupt}层`, `腐化 ${corrupt} 层：术士系每次攻击额外造成 层数×5 伤害；`
+      + `「腐化爆发」会一次性消耗全部层数，每层 12 伤害（上限 5 层）`);
+
+  const poison = u.debuffs.filter(d => d.type === 'poison');
+  if(poison.length){
+    const dmg = poison.reduce((n,d) => n + d.value, 0);
+    const turns = Math.max(...poison.map(d => d.dur));
+    add('☠', `${dmg}/回合·${turns}回`, `中毒：每回合开始损失 ${dmg} HP，还剩 ${turns} 回合。无视防御，可被「净化」清除`);
+  }
+
+  const defDown = u.debuffs.find(d => d.type === 'defDown');
+  if(defDown) add('🛡', `↓${defDown.dur}回`, `破防：受到的伤害 +20%，还剩 ${defDown.dur} 回合`);
+
+  if(u.stunned) add('💫', '打断', '已被打断：下一次行动会被跳过');
+  if(u.interruptImmune > 0)
+    add('🚫', `免疫${u.interruptImmune}`, `打断免疫：还有 ${u.interruptImmune} 个自己的回合内不会再被打断`);
+  if(u.dodging) add('💨', '闪避', '闪避姿态：完全免疫下一次攻击');
+  if(u.undying) add('💀', `不屈${u.undying}`, `不屈：下次致死时保留 ${u.undying} HP（一次性）`);
+
+  const berserk = u.buffs.find(b => b.type === 'berserk');
+  if(berserk) add('🔥', `狂暴${berserk.dur}回`,
+    `狂暴：攻击 +${Math.round(berserk.value*100)}%，每回合自损 HP，还剩 ${berserk.dur} 回合`);
+
+  const taunt = u.buffs.find(b => b.type === 'taunt');
+  if(taunt) add('🎯', `嘲讽${taunt.dur}回`, `嘲讽：敌方被迫攻击它，还剩 ${taunt.dur} 回合`);
+
+  const atkUp = u.buffs.filter(b => b.type === 'atkUp');
+  if(atkUp.length){
+    const pctSum = Math.round(atkUp.reduce((n,b) => n + b.value, 0) * 100);
+    const turns = Math.max(...atkUp.map(b => b.dur));
+    add('⚔️', `+${pctSum}%·${turns}回`, `攻击强化 +${pctSum}%，还剩 ${turns} 回合`
+      + (atkUp.length > 1 ? `（${atkUp.length} 层叠加）` : ''));
+  }
+
+  const focus = u.buffs.find(b => b.type === 'atkUp1');
+  if(focus) add('👁', `+${Math.round(focus.value*100)}%`,
+    `专注：**下一次**攻击 +${Math.round(focus.value*100)}%，打完就消失`);
+
+  const cds = u.cooldowns ? Object.entries(u.cooldowns).filter(([,v]) => v > 0) : [];
+  if(cds.length) add('⏳', `${cds.length}项`,
+    '技能被封 / 冷却中：' + cds.map(([k,v]) => `${k}（还剩 ${v} 回合）`).join('、'));
+
+  return list.map(c =>
+    `<span class="stat-chip" title="${c.tip.replace(/"/g,'&quot;')}">${c.icon}${c.text}</span>`).join('');
 }
 
 // 敌人下一击的预告条。这是整个战斗深度重做的地基（见 COMBAT_PLAN.md 任务 1）：
@@ -59,6 +105,9 @@ function phaseTag(u){
 function renderUnit(u){
   const div=document.createElement('div');
   const isActive=gameState.activeUnitId===u.id&&!gameState.waitingForTarget;
+  // 「点我方角色查看技能」阶段：本方存活单位都可点，当前预览的那个加高亮。
+  const isPickable=gameState.pickingActor&&u.alive&&u.player===gameState.currentPlayer;
+  const isPreview=isPickable&&gameState.previewUnitId===u.id;
   const isIntentTarget=!!gameState.enemyIntent&&gameState.enemyIntent.targetId===u.id&&u.alive;
   const isTargetable=gameState.waitingForTarget&&(
     gameState.pendingSkillFriendly?u.player===gameState.pendingActor.player:u.player!==gameState.pendingActor.player
@@ -70,12 +119,14 @@ function renderUnit(u){
     +(!u.alive?' dead':'')
     +(u.stunned?' stunned':'')
     +(lowHp?' low-hp':'')
-    +(isIntentTarget?' intent-target':'');
+    +(isIntentTarget?' intent-target':'')
+    +(isPickable?' pickable':'')
+    +(isPreview?' previewing':'');
   div.id='unit-'+u.id;
   const eff=_getEffectiveAtk(u);
   const atkChanged=Math.abs(eff-u.atk)>0.5;
   div.innerHTML=`
-    <canvas class="unit-canvas" width="100" height="120" id="cv-${u.id}"></canvas>
+    <canvas class="unit-canvas" width="100" height="92" id="cv-${u.id}"></canvas>
     <div class="unit-name"><span style="color:${u.color}">${u.name}</span><span style="font-size:11px;color:#aaa">${u.player===1?'P1':'P2'}</span></div>
     <div class="unit-meta">
       <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${u.atk}</s>→${eff.toFixed(0)}`:u.atk}</span>
@@ -92,6 +143,7 @@ function renderUnit(u){
     ${phaseTag(u)}
     ${intentBar(u)}`;
   if(isTargetable) div.onclick=()=>{ playSfx('select'); _onTargetClick(u); };
+  else if(isPickable) div.onclick=()=>{ playSfx('select'); _onPreviewUnit(u); };
   setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?(u.stunned?'stun':u.pose):'dead'),10);
   return div;
 }

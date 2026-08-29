@@ -6,7 +6,7 @@
 // 以前这里有一份自己的 pickSkill，于是「平衡测试测的根本不是玩家打的 AI」，
 // 胜率结论对真实对局未必成立。现在这条链路上只剩一份实现。
 import { CHARACTERS, SCENES } from './data.js';
-import { clamp } from './state.js';
+import { clamp, teamSizeFor } from './state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen, applyRestRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
@@ -251,7 +251,8 @@ export function shuffle(arr){
 
 function randomPicks(){
   const shuffled = shuffle(CHARACTERS.map(c=>c.id));
-  return [shuffled.slice(0,2), shuffled.slice(2,4)];
+  const n = teamSizeFor('ai');
+  return [shuffled.slice(0,n), shuffled.slice(n, n*2)];
 }
 
 // 分批跑，每批500局，用setTimeout让UI不卡死。

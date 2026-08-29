@@ -124,12 +124,18 @@ body {
 .exit-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); padding:5px 12px; font-size:12px; }
 .scene-banner { width:100%; text-align:center; font-size:12px; color:#ccc; background:rgba(0,0,0,.4); padding:5px; }
 
-.battle-field { display:flex; width:100%; flex:1; min-height:380px; }
-.team-side { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px; }
+.battle-field { display:flex; width:100%; flex:1; min-height:380px; min-height:0; }
+/* 每方 3 人（见 state.js 的 teamSizeFor）。三张卡竖排在 900px 高的窗口里会溢出，
+   所以这一列必须能滚，而且卡片本身要收紧。 */
+.team-side {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; padding:12px; overflow-y:auto; min-height:0;
+}
 .battle-unit {
-  width:240px; border:2px solid #0f3460; border-radius:10px; padding:12px;
+  width:240px; border:2px solid #0f3460; border-radius:10px; padding:8px 12px;
   background:linear-gradient(180deg,rgba(15,52,96,.55),rgba(15,52,96,.25));
   transition:all .3s; position:relative; backdrop-filter:blur(2px);
+  flex-shrink:0;
 }
 .battle-unit.active-turn {
   border-color:#e94560;
@@ -158,12 +164,21 @@ body {
 .bar-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 1px 2px #000; font-weight:bold;}
 .unit-status { font-size:11px; color:#f5a623; margin-top:4px; min-height:14px; }
 .unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
-.unit-canvas { display:block; margin:0 auto 6px; transition:transform .25s; }
+.unit-canvas { display:block; margin:0 auto 2px; transition:transform .25s; }
 
 /* 暴击蓄能条（COMBAT_PLAN.md 任务 2b）。暴击不再掷骰，攒满 100 必暴——
    所以「快满了」这件事必须看得见，玩家才谈得上「留大招砸在必暴那一刀」。 */
 .meta-crit.crit-ready { color:#ffd54f; font-weight:bold; text-shadow:0 0 6px rgba(255,213,79,.8); }
 .dmg-preview.will-crit { color:#ffd54f; font-weight:bold; }
+
+/* 「点我方角色查看技能」阶段的可点 / 预览高亮。
+   以前这里是一个独立的选人界面，用户反馈那样「没法挨个点开看技能」。 */
+.battle-unit.pickable { cursor:pointer; border-color:#4fc3f7; }
+.battle-unit.pickable:hover { box-shadow:0 0 22px rgba(79,195,247,.5); transform:scale(1.02); }
+.battle-unit.previewing {
+  border-color:#16c79a;
+  box-shadow:0 0 24px rgba(22,199,154,.55), inset 0 0 14px rgba(22,199,154,.14);
+}
 
 /* BOSS 阶段标记（COMBAT_PLAN.md 任务 4）。规则中途会变，必须一直看得见。 */
 .unit-phase {
@@ -410,10 +425,10 @@ body {
 
 <!-- 选人 -->
 <div id="screen-select">
-  <h2 id="select-title">玩家 1（黑墨团）选择 2 名角色</h2>
+  <h2 id="select-title">玩家 1（黑墨团）选择角色</h2>
   <div class="char-grid" id="char-grid"></div>
   <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
-    <span id="select-count">已选: 0/2</span>
+    <span id="select-count">已选: 0/3</span>
     <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-scene')">返回</button>
     <button class="btn btn-confirm" id="btn-confirm-select" disabled onclick="playSfx('confirm'); confirmSelection()">确认选择</button>
   </div>

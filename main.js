@@ -2,11 +2,11 @@ import { SCENES, CHARACTERS } from './data.js';
 import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
          availableAllies, unlockedAfter } from './campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
-import { gameState, rand, getUnit } from './state.js';
+import { gameState, rand, getUnit, teamSizeFor } from './state.js';
 import { drawStickman } from './stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from './scene.js';
 import { initRender, renderBattle } from './render.js';
-import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause } from './battle.js';
+import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit } from './battle.js';
 import { runSimulation } from './sim.js';
 
 let _inBattle = false;
@@ -39,7 +39,7 @@ function showModal(inner){
 export function showHelp(){
   showModal(`<h3 style="text-align:center;">📖 玩法说明</h3>
     <p style="text-align:left;">
-    • 双方各选 2 名角色，<b>轮流行动</b>。<br>
+    • 双方各选 3 名角色（战役 2 名），<b>每回合各出手一人，你自己挑派谁上</b>。<br>
     • <b>HP</b> = 生命值，<b>SP</b> = 灵能值（释放技能消耗）。<br>
     • 每回合自动恢复 SP，<b>SP 越满越容易被眩晕</b>。<br>
     • <b>暴击</b>×1.5 伤害；<b>护盾</b>优先承伤；<b>嘲讽</b>强制集火。<br>
@@ -278,16 +278,17 @@ function togglePick(id){
   if(gameState.mode==='campaign'&&id===CAMPAIGN_HERO.id) return;   // 主角固定出战
   const i=tempPicks.indexOf(id);
   if(i>=0) tempPicks.splice(i,1);
-  else if(tempPicks.length<2) tempPicks.push(id);
+  else if(tempPicks.length<teamSizeFor(gameState.mode)) tempPicks.push(id);
   renderCharGrid(); updateSelectUI();
 }
 function updateSelectUI(){
   const t=document.getElementById('select-title');
-  if(gameState.mode==='campaign') t.textContent=CAMPAIGN_HERO.name+' 固定出战 — 再挑 1 名同伴';
-  else if(selectPhase===1) t.textContent='玩家 1（黑墨团）选择 2 名角色';
-  else t.textContent=gameState.mode==='ai'?'AI（白线派）选择 2 名角色（自动随机）':'玩家 2（白线派）选择 2 名角色';
-  document.getElementById('select-count').textContent=`已选: ${tempPicks.length}/2`;
-  document.getElementById('btn-confirm-select').disabled=tempPicks.length!==2;
+  const n=teamSizeFor(gameState.mode);
+  if(gameState.mode==='campaign') t.textContent=CAMPAIGN_HERO.name+` 固定出战 — 再挑 ${n-1} 名同伴`;
+  else if(selectPhase===1) t.textContent=`玩家 1（黑墨团）选择 ${n} 名角色`;
+  else t.textContent=gameState.mode==='ai'?`AI（白线派）选择 ${n} 名角色（自动随机）`:`玩家 2（白线派）选择 ${n} 名角色`;
+  document.getElementById('select-count').textContent=`已选: ${tempPicks.length}/${n}`;
+  document.getElementById('btn-confirm-select').disabled=tempPicks.length!==n;
 }
 export function confirmSelection(){
   if(selectPhase===1){
@@ -303,14 +304,15 @@ export function confirmSelection(){
     }
     if(gameState.mode==='ai'){
       const pool=CHARACTERS.map(c=>c.id);
+      const n=teamSizeFor(gameState.mode);
       const picks=[];
       if(gameState.difficulty==='hard'){
         const priority=['priest','warlock','assassin','mage','guardian'];
         for(const p of priority){
-          if(picks.length<2 && pool.includes(p) && Math.random()<0.7) picks.push(p);
+          if(picks.length<n && pool.includes(p) && Math.random()<0.7) picks.push(p);
         }
       }
-      while(picks.length<2){
+      while(picks.length<n){
         const id=pool[rand(0,pool.length-1)];
         if(!picks.includes(id)) picks.push(id);
       }
@@ -648,7 +650,7 @@ syncDebugBadge();   // 🔊 / 🛠 反映调试模式状态
 initDebugTap();
 
 initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
-initRender(getEffectiveAtk, onTargetClick);
+initRender(getEffectiveAtk, onTargetClick, onPreviewUnit);
 startMenuBackground();
 
 // ── 雷达图 ────────────────────────────────────────────────
