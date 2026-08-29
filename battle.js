@@ -3,10 +3,10 @@ import { gameState, clamp, getUnit, getEnemies, getAllies } from './state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
 import { AI_BY_LEVEL, aiNormal } from './ai.js';
-import { makeTeamContext } from './ai-scoring.js';
-import { nextActor, makeIntent, resolveIntent } from './intent.js';
+import { makeTeamContext, pickActor } from './ai-scoring.js';
+import { makeIntent, resolveIntent } from './intent.js';
 import {
-  createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
+  createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
@@ -133,22 +133,33 @@ export function startBattle(){
 
 function buildTurnOrder(){
   gameState.currentPlayer=1;
-  gameState.p1LastActed=null;
-  gameState.p2LastActed=null;
 }
 
 function startTurn(){
   const p=gameState.currentPlayer;
   const units=(p===1?gameState.p1Units:gameState.p2Units).filter(u=>u.alive);
   if(!units.length){ nextTurn(); return; }
-  const lastId=p===1?gameState.p1LastActed:gameState.p2LastActed;
-  // PvP 首次出手让玩家自己挑；其余情况一律走 intent.js 的 nextActor——
-  // 意图预测必须和真实流程读同一份规则，否则会「预告的是 A、实际动的是 B」。
-  if(units.length===2&&!lastId&&gameState.mode==='pvp'){
+  // **每回合都由这一方自己决定派谁上**（COMBAT_PLAN.md 任务 5）。
+  // 以前是严格轮流，等于每局只有开局一次选择——一个白白丢掉的决策点。
+  // 配套的「轮空回蓝」（applyRestRegen）防止它退化成「一直派最强的那个」。
+  const human = p===1 || gameState.mode==='pvp';
+  // **意图要在「选谁上」之前就公开**，否则玩家是盲选——
+  // 而「看到预告再决定派谁去接这一下」正是这个决策点的全部价值。
+  if(human) updateEnemyIntent();
+  if(units.length===2 && human){
     showUnitPicker(p,units,activateUnit);
     return;
   }
-  activateUnit(nextActor(units,lastId));
+  activateUnit(aiPickActor(p, units));
+}
+
+// AI 侧派谁上。**意图预测和实际出手必须共用这一份**，
+// 否则会「预告的是 A、实际动的是 B」，承诺制就塌了。
+function aiPickActor(player, units){
+  if(units.length<=1) return units[0]||null;
+  const foes=getEnemies(player).filter(e=>e.alive);
+  return pickActor(units, foes, gameState.scene, { tempo:1, teamwork:1, ctx:teamCtx[player] })
+    || units[0];
 }
 
 // 玩家回合开始时，把敌方下一个行动单位的打算算出来、公开、并**锁定**。
@@ -156,10 +167,9 @@ function startTurn(){
 //
 // 注意只在玩家回合重算。AI 自己的回合要**兑现**已有的承诺，
 // 在那时重算等于承诺作废，玩家针对预告做的布置就全白费了。
-function updateEnemyIntent(current){
+function updateEnemyIntent(){
   if(gameState.mode!=='ai'&&gameState.mode!=='campaign'){ gameState.enemyIntent=null; return; }
-  if(current.player!==1) return;
-  const foe=nextActor(gameState.p2Units,gameState.p2LastActed);
+  const foe=aiPickActor(2, gameState.p2Units.filter(u=>u.alive));
   const foeEnemies=getEnemies(2).filter(e=>e.alive);
   const foeAllies=getAllies(2).filter(a=>a.alive);
   if(!foe||!foeEnemies.length){ gameState.enemyIntent=null; return; }
@@ -183,7 +193,7 @@ function showUnitPicker(player,units,cb){
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   renderBattle();
   const panel=document.getElementById('skill-panel');
-  panel.innerHTML=`<div style="color:#aaa;margin-bottom:8px;">选择出战角色：</div>`;
+  panel.innerHTML=`<div style="color:#aaa;margin-bottom:8px;">选择本回合出战的角色（<b style="color:#4fc3f7">没出战的那个会回复 SP</b>）：</div>`;
   units.forEach(u=>{
     const btn=document.createElement('button');
     btn.className='skill-btn';
@@ -198,8 +208,6 @@ function activateUnit(u){
   // 恢复技能面板，三处都读它。被眩晕/中毒倒下的单位也算「轮到它了」，
   // 所以这一行要在下面的提前 return 之前。
   gameState.activeUnitId=u.id;
-  if(u.player===1) gameState.p1LastActed=u.id;
-  else gameState.p2LastActed=u.id;
   // 回合开始流程必须先跑，再判打断：中毒照样掉血、buff 照样递减、
   // 打断免疫照样倒计时。以前被眩晕的单位直接 return，这三件事一件都不发生
   // ——等于「被控住」还附赠中毒免疫和 buff 保鲜。而 sim.js 那边是先跑再判，
@@ -212,11 +220,11 @@ function activateUnit(u){
     playSfx('stun'); u.stunned=false;
     setTimeout(nextTurn,700); return;
   }
-  applyTurnRegen(u, gameState.scene);
+  // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
+  applyRestRegen(u.player===1?gameState.p1Units:gameState.p2Units, u, gameState.scene);
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
     `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
-  updateEnemyIntent(u);
   renderBattle();
   if((gameState.mode==='ai'||gameState.mode==='campaign')&&u.player===2){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;

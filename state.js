@@ -3,9 +3,11 @@ export let gameState = {
   p1Picks:[], p2Picks:[],
   p1Units:[], p2Units:[],
   // 当前正在行动的单位 id，由 battle.js 的 activateUnit() 写入。
-  // 以前这里是 turnOrder[]/currentIdx，回合流程改成 currentPlayer + p1/p2LastActed
-  // 之后就再也没人往里写过，但还有三处在读——读到的永远是 undefined，
+  // 以前这里是 turnOrder[]/currentIdx，后来改成 currentPlayer + p1/p2LastActed，
+  // 再后来（COMBAT_PLAN.md 任务 5）出手顺序改成每回合自己挑，连 LastActed 也
+  // 一并删了。教训留在这：那次重构留下三处死读，读到的永远是 undefined，
   // 于是「按 ESC 取消选目标」会把回合卡死、数字键快捷键全哑、行动高亮不亮。
+  // **删状态字段一定要 grep 干净所有读取方。**
   activeUnitId:null, round:1,
   // 战役关卡的敌方属性加成（campaign.js 的 enemyMod），由 launchCampaignStage 写入
   stageMod:null,

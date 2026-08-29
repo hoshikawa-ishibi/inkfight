@@ -144,6 +144,31 @@ function buffTarget(friends, skill, tw){
   return pool.reduce((a,b)=> getEffectiveAtk(a) >= getEffectiveAtk(b) ? a : b);
 }
 
+// 这回合派谁上？（COMBAT_PLAN.md 任务 5）
+//
+// 本作原来是**严格轮流**：两个单位交替出手，队伍人数不影响行动次数。
+// 那等于每局只有开局一次选择，之后顺序全定死——一个白白丢掉的决策点。
+//
+// 改成自由挑之后必须配上「轮空回蓝」（见 combat.js 的 applyRestRegen），
+// 否则会退化成「一直派最强的那个」：实测纯自由挑时连续派同一个单位占 78%，
+// 加了轮空回蓝之后降到 47%（47% ≈ 没有偏好，也就是真的在按局势选）。
+//
+// **battle.js 的玩家回合、AI 回合、以及意图预测三处必须共用这一份**——
+// 意图预测算的是「哪个敌人会动」，和实际动的必须是同一个，
+// 否则「预告的是 A、实际动的是 B」，承诺制就塌了。
+export function pickActor(team, foes, scene, opts = {}){
+  const alive = team.filter(u => u.alive);
+  if(alive.length <= 1) return alive[0] || null;
+  const live = foes.filter(f => f.alive);
+  if(!live.length) return alive[0];
+  const best = u => {
+    const usable = u.skills.filter(sk => canUseSkill(u, sk));
+    if(!usable.length) return -Infinity;
+    return Math.max(...usable.map(sk => scoreSkill(u, sk, live, alive, scene, opts)));
+  };
+  return alive.reduce((a, b) => best(a) >= best(b) ? a : b);
+}
+
 // opts.tempo 是「机会成本」的权重（0~1，默认 1 = 完全计入）：
 // 低难度的 AI 算不清「这回合拿去加 buff 就少打一轮」这笔长远账，
 // 于是会在该输出的时候去开增益。这是真实的水平差距，比单纯加随机噪声更像人。

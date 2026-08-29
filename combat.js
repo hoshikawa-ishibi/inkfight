@@ -63,6 +63,24 @@ export function applyTurnRegen(u, scene){
   if(scene && scene.buff==='spRegen') u.sp = clamp(u.sp+5, 0, u.maxSp);
 }
 
+// 轮空回蓝：**回蓝给这回合没出手的队友**，而不是出手的那个。
+// （COMBAT_PLAN.md 任务 5）
+//
+// 严格轮流时两者完全等价——每个单位都是隔一回合回一次，总量不变。
+// 它唯一惩罚的是「一直派同一个人上」：被反复派出去的那个会渐渐没蓝，
+// 逼你换人。于是「这回合派谁」从一个空选择变成了真正的资源决策。
+//
+// 实测（1200 局/格）：自由挑但按老规矩回蓝 → 连续派同一个单位占 78%，
+// 退化成「一直派最强的那个」；换成轮空回蓝之后降到 47%，
+// 同时策略价值 49.7 → 57.8、「完美 vs 一般」的落差 10.3 → 11.6。
+//
+// 只剩一个人时没得换，照常回气——否则单人 BOSS 永远没蓝。
+export function applyRestRegen(team, actor, scene){
+  const resting = team.filter(x => x.alive && x !== actor);
+  if(resting.length) resting.forEach(x => applyTurnRegen(x, scene));
+  else if(actor) applyTurnRegen(actor, scene);
+}
+
 export function handleDeath(unit){
   if(unit.undying){
     unit.hp = unit.undying;

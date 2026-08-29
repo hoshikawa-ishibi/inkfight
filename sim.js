@@ -8,11 +8,11 @@
 import { CHARACTERS, SCENES } from './data.js';
 import { clamp } from './state.js';
 import {
-  createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen,
+  createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen, applyRestRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse
 } from './combat.js';
-import { makeTeamContext } from './ai-scoring.js';
+import { makeTeamContext, pickActor } from './ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from './intent.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 
@@ -159,7 +159,10 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       // 这一步必须在 p1 决策之前，它正是 p1 能拿到的那份情报。
       if(useIntent && side === 1){
         intent = null;
-        const foe = nextActor(p2, lastActed[2]);
+        // **必须和上面实际出手的挑法完全一致**，否则预告的和真动的不是同一个
+        const foe = opts.p2Pick ? opts.p2Pick(p2.filter(x=>x.alive), p1, scene)
+          : opts.strictOrder ? nextActor(p2, lastActed[2])
+          : pickActor(p2, p1, scene, { tempo:1, teamwork:1, ctx:ctx[2] });
         const foeEnemies = p1.filter(e => e.alive);
         if(foe && foeEnemies.length){
           const foeAllies = p2.filter(a => a.alive);
@@ -167,7 +170,15 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
         }
       }
       const team = side===1 ? p1 : p2;
-      const u = nextActor(team, lastActed[side]);
+      // opts.pick 让某一方**自由挑**这回合派谁上（默认仍是严格轮流）。
+      // 用来实验「把出手顺序交还给玩家」值不值——见 COMBAT_PLAN.md 任务 5。
+      // 这回合派谁上。默认**双方都自由挑**（和 battle.js 一致）；
+      // opts.p1Pick / p2Pick 可以覆盖，`opts.strictOrder` 退回旧的严格轮流
+      // ——那两个口子是给对照实验用的，正常跑不要传。
+      const chooser = side===1 ? opts.p1Pick : opts.p2Pick;
+      const u = chooser ? chooser(team.filter(x=>x.alive), side===1?p2:p1, scene)
+        : opts.strictOrder ? nextActor(team, lastActed[side])
+        : pickActor(team, side===1?p2:p1, scene, { tempo:1, teamwork:1, ctx:ctx[side] });
       if(!u) continue;
       lastActed[side] = u.id;
 
@@ -180,7 +191,13 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       if(!u.alive){ clearIfMine(u); continue; }
       // 眩晕跳过是回合流程编排（battle.js 那边在 activateUnit 里做），不是战斗规则，留在这
       if(u.stunned){ u.stunned=false; clearIfMine(u); continue; }
-      applyTurnRegen(u, scene);
+      // opts.restRegen：回蓝给**轮空**的单位而不是出手的那个。
+      // 严格轮流下两者等价（各自隔回合回一次），但它会惩罚「一直派同一个人」。
+      // 只剩一个人时没得换，照常回气（否则单人 BOSS 永远没蓝）。
+      // 轮空回蓝（见 combat.js 的 applyRestRegen）。`opts.strictOrder` 下退回旧规则，
+      // 因为那两条是配套的：严格轮流 + 轮空回蓝 == 严格轮流 + 老规则回蓝。
+      if(opts.strictOrder) applyTurnRegen(u, scene);
+      else applyRestRegen(team, u, scene);
 
       const enemies=(side===1?p2:p1).filter(e=>e.alive);
       const allies=team.filter(a=>a.alive);
