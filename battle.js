@@ -607,7 +607,12 @@ function afterAction(){
   if(gameState.extraActions > 0){
     const u = getUnit(gameState.activeUnitId);
     gameState.extraActions--;
-    if(u && u.alive && getEnemies(u.player).some(e=>e.alive)){
+    // 只有 AI 控制的一方能连续行动——多段行动是 BOSS 阶段技，不是玩家能拿的。
+    // 这道保险是防「玩家单位走到 aiAct」这种会直接卡死回合的情况：
+    // 目前 actionsFor 只对带 bossPhases 的单位返回 >1，而那只存在于 p2，
+    // 但这条链路一旦错就是整局卡住，值得多一行。
+    const aiSide = u && u.player===2 && (gameState.mode==='ai'||gameState.mode==='campaign');
+    if(aiSide && u.alive && getEnemies(u.player).some(e=>e.alive)){
       addLog(`${u.name} 再次行动！`,'crit');
       setTimeout(()=>aiAct(u), 500);
       return;
