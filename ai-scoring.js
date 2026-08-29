@@ -8,7 +8,7 @@
 // 才能横向比较。难度差异由 ai.js 在此之上做包装（噪声 + 战术加成），
 // 而不是各写一套评分。
 
-import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill } from './combat.js';
+import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill, CORRUPT_BONUS_PER_STACK } from './combat.js';
 
 // 技能评分：把每种技能的收益统一折算成「等效伤害」，好让 17 种技能类型
 // 能够横向比较。旧版本只给 damage/heal/stun/drain 四种打分，其余 13 种
@@ -241,7 +241,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     // 再打个六折——队友不一定接得上，目标也可能先死。
     if(sk.debuff === 'defDown') v += atk * bestPower(u) * avgDefMul * 0.2 * (sk.debuffDur || 0) * 0.6;
     // 腐化层只对带「腐化侵蚀」被动的角色有额外价值（每层每次攻击 +8）
-    if(sk.corrupt && u.passive?.effect === 'corruptBonus') v += sk.corrupt * 8;
+    if(sk.corrupt && u.passive?.effect === 'corruptBonus') v += sk.corrupt * CORRUPT_BONUS_PER_STACK;
     return v;
   };
 
@@ -297,7 +297,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const poison = (s.dot||0) * (s.dotDur||0) * foes.length;
       // 腐化层本身对带 corruptBonus 被动的角色才有额外价值
       const corruptWorth = u.passive?.effect === 'corruptBonus'
-        ? (s.corrupt||0) * foes.length * 8 : 0;
+        ? (s.corrupt||0) * foes.length * CORRUPT_BONUS_PER_STACK : 0;
       return poison + corruptWorth;
     }
 

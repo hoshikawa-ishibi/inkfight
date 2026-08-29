@@ -2,6 +2,7 @@ import { CHARACTERS } from './data.js';
 import { playSfx } from './audio.js';
 import { gameState, pct, getAllUnits, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
+import { bossPhase } from './combat.js';
 
 let _getEffectiveAtk, _onTargetClick;
 export function initRender(getEffectiveAtk, onTargetClick){
@@ -47,6 +48,14 @@ function intentBar(u){
     +`${it.skill.icon||'❗'} ${it.skill.name}${tgt}${dmg}</div>`;
 }
 
+// BOSS 阶段标记。规则中途会变，玩家得一直看得见现在是哪一段。
+function phaseTag(u){
+  const ph = bossPhase(u, u.bossPhases);
+  if(!ph || !u.alive) return '';
+  const extra = (ph.actions > 1) ? ` ×${ph.actions}行动` : (ph.sealSkill ? ' 抹除' : '');
+  return `<div class="unit-phase">◆ ${ph.name}${extra}</div>`;
+}
+
 function renderUnit(u){
   const div=document.createElement('div');
   const isActive=gameState.activeUnitId===u.id&&!gameState.waitingForTarget;
@@ -80,6 +89,7 @@ function renderUnit(u){
     </div>
     <div class="bar-wrap bar-sp"><div class="bar-fill" style="width:${pct(u.sp,u.maxSp)}%"></div><div class="bar-label">SP ${u.sp}/${u.maxSp}</div></div>
     <div class="unit-status">${statusChips(u)}</div>
+    ${phaseTag(u)}
     ${intentBar(u)}`;
   if(isTargetable) div.onclick=()=>{ playSfx('select'); _onTargetClick(u); };
   setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?(u.stunned?'stun':u.pose):'dead'),10);

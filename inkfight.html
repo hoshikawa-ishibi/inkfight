@@ -165,6 +165,13 @@ body {
 .meta-crit.crit-ready { color:#ffd54f; font-weight:bold; text-shadow:0 0 6px rgba(255,213,79,.8); }
 .dmg-preview.will-crit { color:#ffd54f; font-weight:bold; }
 
+/* BOSS 阶段标记（COMBAT_PLAN.md 任务 4）。规则中途会变，必须一直看得见。 */
+.unit-phase {
+  margin-top:4px; padding:2px 6px; border-radius:5px; font-size:11px;
+  background:rgba(126,87,194,.22); border:1px solid rgba(206,147,216,.6); color:#ce93d8;
+  letter-spacing:1px;
+}
+
 /* 敌人下一击的预告条（COMBAT_PLAN.md 任务 1：意图公开 + 承诺制）。
    它必须显眼——玩家的每一个决策都要围绕它做，看不见就等于没做。 */
 .unit-intent {

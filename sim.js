@@ -10,7 +10,8 @@ import { clamp } from './state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen, applyRestRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
-  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse
+  resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse,
+  actionsFor, processBenchedTurn
 } from './combat.js';
 import { makeTeamContext, pickActor } from './ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from './intent.js';
@@ -186,7 +187,9 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       // 这里以前是手抄的副本，往 processStartOfTurn 里加机制时很容易漏掉这边，
       // 于是 npm run balance 跑的是「机制不全的世界」，胜率表看着正常却是错的。
       // 返回的 {passiveEvent, poison, berserk} 只给 battle.js 做日志/特效，无头模拟不需要。
-      processStartOfTurn(u, {allies:team});
+      processStartOfTurn(u, {allies:team, foes:(side===1?p2:p1)});
+      // 轮空的队友也要走状态衰减，否则中毒不掉、buff 不过期、封印解不开
+      processBenchedTurn(team, u);
       // 预告的单位被中毒带走 / 被眩晕 → 那一击就没了，这正是玩家操作的回报
       if(!u.alive){ clearIfMine(u); continue; }
       // 眩晕跳过是回合流程编排（battle.js 那边在 activateUnit 里做），不是战斗规则，留在这
@@ -214,6 +217,17 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       }
       if(!chosen||!chosen.skill) continue;
       executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
+
+      // BOSS 阶段二「涂改」：这一侧回合里再行动 (actionsFor-1) 次。
+      // 承诺制只覆盖第一次（预告的就是它），后续几次现算——
+      // 玩家在这中间没有操作机会，所以那几次不构成决策点。
+      for(let extra = actionsFor(u) - 1; extra > 0 && u.alive; extra--){
+        const foes2 = (side===1?p2:p1).filter(e=>e.alive);
+        if(!foes2.length) break;
+        const again = aiOf[side](u, foes2, team.filter(a=>a.alive), scene, ctx[side], null);
+        if(!again || !again.skill) break;
+        executeSkill(u, again.skill, again.target, scene, p1, p2, stats);
+      }
     }
     const p1alive=p1.some(u=>u.alive), p2alive=p2.some(u=>u.alive);
     if(!p1alive||!p2alive) return { winner: p1alive?1:2, stats, rounds: round+1, timeout: false };

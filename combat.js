@@ -22,6 +22,8 @@ export function createUnit(charId, player, slot, override){
     spRegen:o.spRegen ?? b.spRegen,
     skills:JSON.parse(JSON.stringify(b.skills)),
     passive:(o.passive !== undefined ? o.passive : (b.passive||null)), passiveStacks:0,
+    // BOSS 阶段表（可选，来自 campaign.js 的关卡 override）。见 bossPhase()
+    bossPhases:o.bossPhases || null,
     alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
     // 打断免疫的剩余回合数（见 calcStun）。在 processStartOfTurn 里递减。
     interruptImmune:0,
@@ -155,7 +157,7 @@ export function triggerPassive(trigger, unit, ctx={}){
       if(!target) return null;
       const stacks = countCorrupt(target);
       if(stacks <= 0) return null;
-      const bonus = stacks * 8;
+      const bonus = stacks * (p.value ?? CORRUPT_BONUS_PER_STACK);
       target.hp = clamp(target.hp - bonus, 0, target.maxHp);
       const death = target.hp <= 0 ? handleDeath(target) : null;
       return { name:p.name, effect:'corruptBonus', target, amount:bonus, stacks, killer:unit, died:!!death?.died, undying:!!death?.undying };
@@ -166,9 +168,53 @@ export function triggerPassive(trigger, unit, ctx={}){
   }
 }
 
+// 状态衰减：buff / debuff 时长、打断免疫、技能冷却。
+//
+// **这一份要对本方所有存活单位跑，不只是出手的那个。**
+// 任务 5 把出手顺序改成玩家自己挑之后，轮空的单位不再每隔一回合就走一次
+// processStartOfTurn——于是它身上的中毒不掉血、buff 不过期、冷却不递减。
+// 后果不只是「可以把中毒的人雪藏起来」这种小便宜：墨皇阶段三每回合封一个
+// 技能，而封印是靠冷却递减解开的，轮空的人**永远解不开**，最后无技可用，
+// AI 的 decide() 返回 null，那个单位整局一动不动。实测胜率恒为 0%。
+export function tickEffects(u){
+  if(!u.alive) return;
+  u.buffs = u.buffs.filter(b=>--b.dur>0);
+  u.debuffs = u.debuffs.filter(d=>--d.dur>0);
+  if(u.interruptImmune > 0) u.interruptImmune--;
+  if(u.cooldowns) for(const k in u.cooldowns) if(u.cooldowns[k] > 0) u.cooldowns[k]--;
+}
+
+// 轮空单位的回合开始处理：**只衰减状态，不触发 onTurnStart 被动**。
+// 被动（弓手攒暴击、法师充能、牧师群奶）是「行动」的一部分，
+// 让板凳上的人白拿会直接把这些角色抬价。
+export function processBenchedTurn(team, actor){
+  team.forEach(u => { if(u !== actor) tickEffects(u); });
+}
+
 // ── 回合开始：中毒/狂暴掉血 + buff/debuff 时长衰减 ──────────
 export function processStartOfTurn(u, ctx={}){
   const passiveEvent = triggerPassive('onTurnStart', u, ctx);
+
+  // ── BOSS 阶段（见 bossPhase） ─────────────────────────
+  // 阶段切换要**说出来**：BOSS 战的规则中途变了，玩家不知道就只会觉得
+  // 「怎么突然打不过了」。这条日志是这场仗从「属性怪」变成「一道题」的关键。
+  let phaseEvent = null, sealed = null;
+  const phase = bossPhase(u, u.bossPhases);
+  if(phase){
+    if(u.lastPhase !== phase.name){
+      u.lastPhase = phase.name;
+      phaseEvent = { name:phase.name, desc:phase.desc || '', actions:phase.actions || 1 };
+    }
+    // 阶段三「重写」：抹掉对面一个技能。挑威胁最大的那个人下手。
+    if(phase.sealSkill && ctx.foes){
+      const alive = ctx.foes.filter(f => f.alive);
+      if(alive.length){
+        const victim = alive.reduce((a,b)=> getEffectiveAtk(b) > getEffectiveAtk(a) ? b : a);
+        const name = sealSkill(victim, phase.sealSkill);
+        if(name) sealed = { victim, skill:name, turns:phase.sealSkill };
+      }
+    }
+  }
 
   let poison = null;
   u.debuffs.forEach(d=>{
@@ -188,15 +234,9 @@ export function processStartOfTurn(u, ctx={}){
     berserk = { dmg:selfDmg, died:!!death?.died, undying:!!death?.undying };
   }
 
-  u.buffs = u.buffs.filter(b=>--b.dur>0);
-  u.debuffs = u.debuffs.filter(d=>--d.dur>0);
-  // 打断免疫倒计时。放在这里（而不是攻击方回合）是因为它衡量的是
-  // 「这个单位又能被打断了没有」，该按它自己的回合数走。
-  if(u.interruptImmune > 0) u.interruptImmune--;
-  // 技能冷却同理，按这个单位自己的回合走
-  if(u.cooldowns) for(const k in u.cooldowns) if(u.cooldowns[k] > 0) u.cooldowns[k]--;
+  tickEffects(u);
 
-  return { passiveEvent, poison, berserk };
+  return { passiveEvent, poison, berserk, phaseEvent, sealed };
 }
 
 // ── 伤害结算 ──────────────────────────────────────────
@@ -354,12 +394,19 @@ export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSe
 // 简单 85% / 普通 64% / 困难 49% / 墨皇 40%。
 // **困难是 null——它不拿任何属性优势，纯靠 AI 决策水平**。
 // 以前那份 atk 1.07 是给合并 AI 之前那个笨 AI 配的，叠在现在的 AI 上就过头了。
+// 2026-08-26 战斗深度重做后重校（COMBAT_PLAN.md 任务 0）。
+// 玩家这一侧多了两样东西：**看得见敌人的下一击**（承诺制）和
+// **每回合自己挑派谁上**。实测四档全线偏易 7~14 个百分点，所以整体上调。
+//
+// **困难不再是 null。** 原来那条「困难不拿任何属性优势，纯靠 AI 决策水平」
+// 的原则在承诺制之后站不住了：AI 现在被自己的承诺锁住，玩家可以针对预告
+// 布防、抢杀、打断——这是一个**结构性**的劣势，不是决策水平能补的。
+// 用属性把这份劣势补回来是诚实的做法，藏起意图才是走回头路。
 export const DIFFICULTY_MODS = {
-  easy:      { atk: 0.85 },
-  normal:    { atk: 0.88 },
-  hard:      null,
-  // 隐藏档：重做之前那个困难的属性加成，原样冻结。
-  nightmare: { atk: 1.07, spRegen: 1.1 },
+  easy:      { atk: 0.92 },
+  normal:    { atk: 0.94 },
+  hard:      { atk: 1.07 },
+  nightmare: { atk: 1.14, spRegen: 1.1 },
 };
 
 export function applyDifficulty(unit, level){
@@ -461,6 +508,49 @@ export function applyCleanse(target, skill){
   return { removed, healed };
 }
 
+// ── BOSS 阶段 ───────────────────────────────────────────
+// （COMBAT_PLAN.md 任务 4）
+//
+// 墨皇原来只是「术士 + 260血 + 22攻」——玩家能做的判断和打普通术士一模一样，
+// 只是数字更大。所谓「难」= 容错更低 = 同一批骰子权重更高，这正是用户说的
+// 「墨皇纯看运气」。阶段化是要把他从**属性怪**变成**一道题**。
+//
+// 阶段按 HP 比例切换，`phases` 从高到低排列，取最后一个满足 `hp比例 <= at` 的。
+// 配置写在 campaign.js 的关卡数据里，规则留在这里——
+// **别在 battle.js 里就地写 BOSS 规则**（CLAUDE.md 头号约定）。
+export function bossPhase(unit, phases){
+  if(!phases || !phases.length) return null;
+  const frac = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
+  let cur = phases[0];
+  for(const p of phases) if(frac <= p.at) cur = p;
+  return cur;
+}
+
+// 这个单位这一「侧回合」要行动几次。阶段二「涂改」= 2 次。
+export function actionsFor(unit){
+  const ph = bossPhase(unit, unit.bossPhases);
+  return Math.max(1, (ph && ph.actions) || 1);
+}
+
+// 阶段三「重写」：抹掉目标一个技能若干回合。
+// **直接复用冷却机制**——`canUseSkill` 已经是唯一实现，`processStartOfTurn`
+// 已经在递减 `cooldowns`，所以封印不需要第二套状态。
+// （这也是任务 3 把冷却机制留在代码里的理由：BOSS 招式节奏和「削玩家的选项」
+// 是两回事，前者是设计意图，后者被实测否定了。）
+export function sealSkill(target, turns){
+  // **永不封普攻（skills[0]），也永不把对方封到只剩一个技能。**
+  // 否则玩家会被封到无技可用——AI 的 decide() 返回 null，那个单位整局不动。
+  // 「让玩家换打法」是设计意图，「让玩家没法动」不是。
+  const usable = target.skills.filter(s => canUseSkill(target, s));
+  const pool = usable.filter((s, i) => target.skills.indexOf(s) !== 0);
+  if(pool.length < 2) return null;
+  // 抹掉它**当前最能打的那个**，而不是随机抹——BOSS 该是有针对性的
+  const worst = pool.reduce((a, b) => (b.power || 0) * (b.cost || 1) > (a.power || 0) * (a.cost || 1) ? b : a);
+  if(!target.cooldowns) target.cooldowns = {};
+  target.cooldowns[worst.name] = turns + 1;
+  return worst.name;
+}
+
 // 这个技能是否需要一个敌方目标。
 // 判断以前分散在 ai.js / battle.js / sim.js 三处，给「狂暴」加 power 时
 // 只改了两处，导致 AI 放狂暴不造成伤害、玩家放却会——同一技能两种行为。
@@ -495,6 +585,11 @@ export function makeAllyBuff(skill){
 export function makeSpBuff(skill){
   return { type:skill.buffType, dur:skill.dur, value:skill.buffValue ?? BUFF_DEFAULTS.spBuff };
 }
+
+// 「腐化侵蚀」每层每次攻击的额外伤害。原来是硬编码的 8，5 层时等于每刀 +40——
+// 这个引擎让术士在平衡表上一骑绝尘（69.3%，全场第一，比垫底的剑士高 40 个百分点）。
+// 提出来变成常量，`ai-scoring.js` 的评分也读它，改一处即可。
+export const CORRUPT_BONUS_PER_STACK = 5;
 
 // 腐化层上限。腐化层 dur:99 实际上永不过期（战斗上限 60 回合），
 // 而「腐化侵蚀」被动每次攻击都吃 层数×8，没有上限就是无限滚雪球：

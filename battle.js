@@ -10,7 +10,8 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
-  applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse
+  applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
+  actionsFor, bossPhase, processBenchedTurn
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -110,7 +111,7 @@ export function startBattle(){
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
-  gameState.resultShown=false; gameState.enemyIntent=null;
+  gameState.resultShown=false; gameState.enemyIntent=null; gameState.extraActions=0;
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
     maxHit:{dmg:0,name:''}, units:{}
@@ -222,6 +223,8 @@ function activateUnit(u){
   }
   // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
   applyRestRegen(u.player===1?gameState.p1Units:gameState.p2Units, u, gameState.scene);
+  // 这一侧回合要行动几次（BOSS 阶段二是 2 次，其余都是 1 次）
+  gameState.extraActions = actionsFor(u) - 1;
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
     `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
@@ -235,8 +238,22 @@ function activateUnit(u){
 }
 
 function processStartOfTurn(u){
-  const r = resolveStartOfTurn(u, {allies:getAllies(u.player)});
+  const r = resolveStartOfTurn(u, {allies:getAllies(u.player), foes:getEnemies(u.player)});
+  // 轮空的队友也要走状态衰减，否则中毒不掉、buff 不过期、封印解不开
+  processBenchedTurn(getAllies(u.player), u);
   renderPassiveEvent(u, r.passiveEvent);
+  // BOSS 阶段切换必须说出来：规则中途变了，玩家不知道就只会觉得
+  // 「怎么突然打不过了」，而不是「他换招式了，我也得换打法」。
+  if(r.phaseEvent){
+    addLog(`【${u.name} · ${r.phaseEvent.name}】${r.phaseEvent.desc}`,'crit');
+    spawnFloatText(u, r.phaseEvent.name, '#ce93d8', 22); spawnAura(u, '#7e57c2');
+    _screenShake(14, 450);
+  }
+  if(r.sealed){
+    addLog(`${u.name} 抹去了 ${r.sealed.victim.name} 的「${r.sealed.skill}」（${r.sealed.turns} 回合）`,'stun');
+    spawnFloatText(r.sealed.victim, `✖${r.sealed.skill}`, '#ce93d8', 16);
+    spawnCurse(r.sealed.victim);
+  }
   if(r.poison){
     addLog(`${u.name} 受到中毒伤害 ${r.poison.dmg}`,'dmg');
     spawnFloatText(u,`-${r.poison.dmg}`,'#9ccc65',14);
@@ -580,7 +597,24 @@ function executeSkill(actor,skill,target){
       spawnFloatText(actor,'不屈','#ffd54f',16); spawnAura(actor,'#ffd54f');
       break;
   }
-  setTimeout(()=>{ renderBattle(); setTimeout(nextTurn,700); },900);
+  setTimeout(()=>{ renderBattle(); setTimeout(afterAction,700); },900);
+}
+
+// 一次行动收尾。BOSS 阶段二「涂改」每回合行动两次——多出来的那次在这里接上，
+// 而不是回到 nextTurn。承诺制只覆盖第一次（预告的就是它），
+// 玩家在这中间没有操作机会，所以后续几次现算即可。
+function afterAction(){
+  if(gameState.extraActions > 0){
+    const u = getUnit(gameState.activeUnitId);
+    gameState.extraActions--;
+    if(u && u.alive && getEnemies(u.player).some(e=>e.alive)){
+      addLog(`${u.name} 再次行动！`,'crit');
+      setTimeout(()=>aiAct(u), 500);
+      return;
+    }
+  }
+  gameState.extraActions = 0;
+  nextTurn();
 }
 
 function doDamage(actor,target,skill){

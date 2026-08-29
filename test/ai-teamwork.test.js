@@ -245,7 +245,9 @@ describe('过量杀伤：不用大招去收最后一丝血', () => {
     const mine = [createUnit('swordsman', 1, 0)];
     const foes = [createUnit('guardian', 2, 0)];
     const basic = mine[0].skills[0];
-    const big = mine[0].skills.find(s => s.cost === 35);
+    // 按「最贵的那个」找，不写死具体数字——技能费用是平衡旋钮，会被调。
+    // 原来写的是 `s.cost === 35`，破甲突刺改成 30 之后这里直接拿到 undefined。
+    const big = mine[0].skills.reduce((a, b) => (b.cost || 0) > (a.cost || 0) ? b : a);
     assert.ok(scoreSkill(mine[0], big, foes, mine, VOID) >
               scoreSkill(mine[0], basic, foes, mine, VOID),
       '打满血目标时大招仍应优于普攻');

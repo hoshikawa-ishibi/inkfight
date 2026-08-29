@@ -22,6 +22,9 @@ export let gameState = {
   // 轮到该单位时**照此兑现**（见 intent.js 的「承诺制的契约」）。
   // 人机 / 战役模式才有；PvP 下恒为 null。
   enemyIntent:null,
+  // 当前行动方这一「侧回合」还剩几次额外行动（BOSS 阶段二「涂改」= 1）。
+  // 见 battle.js 的 afterAction / combat.js 的 actionsFor。
+  extraActions:0,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }

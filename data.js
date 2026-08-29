@@ -14,15 +14,15 @@ export const SCENES = [
 ];
 
 export const CHARACTERS = [
-  { id:'swordsman', name:'剑士', role:'均衡输出', hp:125, sp:80, atk:18, def:6, crit:10, dodge:5, spRegen:10, color:'#e94560', weapon:'sword',
+  { id:'swordsman', name:'剑士', role:'均衡输出', hp:135, sp:80, atk:20, def:6, crit:10, dodge:5, spRegen:10, color:'#e94560', weapon:'sword',
     passive:{ name:'剑意', desc:'暴击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'斩击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'⚔️', iconColor:'#e94560', sfx:'slash', vfx:'slash' },
-      { name:'旋风斩', type:'damage', cost:25, power:1.7, desc:'消耗25SP，170%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
+      { name:'旋风斩', type:'damage', cost:22, power:1.8, desc:'消耗25SP，170%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
       { name:'剑气', type:'healSp', cost:0, hpCost:18, spGain:22, desc:'消耗18HP回复22SP', icon:'✨', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'破甲突刺', type:'damage', cost:35, power:2.1, debuff:'defDown', debuffDur:2, desc:'210%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
+      { name:'破甲突刺', type:'damage', cost:30, power:2.2, debuff:'defDown', debuffDur:2, desc:'210%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
     ]},
-  { id:'mage', name:'法师', role:'高爆发/控制', hp:92, sp:130, atk:15, def:3, crit:15, dodge:6, spRegen:11, color:'#4fc3f7', weapon:'staff',
+  { id:'mage', name:'法师', role:'高爆发/控制', hp:102, sp:130, atk:16, def:3, crit:15, dodge:6, spRegen:11, color:'#4fc3f7', weapon:'staff',
     passive:{ name:'法力涌动', desc:'回合开始时 SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
@@ -38,7 +38,7 @@ export const CHARACTERS = [
       { name:'嘲讽', type:'taunt', cost:15, dur:2, desc:'嘲讽敌方2回合', icon:'😡', iconColor:'#f5a623', sfx:'debuff', vfx:'taunt' },
       { name:'盾墙反击', type:'damage', cost:30, power:2.2, selfHeal:15, desc:'200%伤害+回15HP', icon:'⚒️', iconColor:'#ffd54f', sfx:'hit', vfx:'bash' }
     ]},
-  { id:'assassin', name:'刺客', role:'高伤/脆皮', hp:95, sp:100, atk:18, def:3, crit:18, dodge:10, spRegen:9, color:'#ab47bc', weapon:'dagger',
+  { id:'assassin', name:'刺客', role:'高伤/脆皮', hp:105, sp:100, atk:19, def:3, crit:18, dodge:10, spRegen:9, color:'#ab47bc', weapon:'dagger',
     passive:{ name:'暴击蓄能', desc:'暴击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'匕首', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🗡️', iconColor:'#ab47bc', sfx:'slash', vfx:'slash' },
@@ -50,7 +50,7 @@ export const CHARACTERS = [
     passive:{ name:'圣光庇护', desc:'回合开始时，若任意友方 HP<30% 则自动治疗其 12 HP', trigger:'onTurnStart', effect:'allyHeal', value:12 },
     skills:[
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
-      { name:'治愈之光', type:'heal', cost:25, healAmt:48, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
+      { name:'治愈之光', type:'heal', cost:30, healAmt:42, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
       { name:'净化', type:'cleanse', cost:20, healAmt:20, desc:'清除友方负面状态并治疗20HP', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
       { name:'祝福', type:'buff', cost:28, buffType:'atkUp', dur:3, buffValue:0.5, desc:'友方攻击+50% 3回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
     ]},
@@ -70,12 +70,12 @@ export const CHARACTERS = [
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
       { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则必定打断', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
-  { id:'warlock', name:'术士', role:'腐化/爆发', hp:100, sp:120, atk:14, def:4, crit:12, dodge:5, spRegen:12, color:'#7e57c2', weapon:'orb',
-    passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×8 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },
+  { id:'warlock', name:'术士', role:'腐化/爆发', hp:100, sp:110, atk:14, def:4, crit:12, dodge:5, spRegen:10, color:'#7e57c2', weapon:'orb',
+    passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×5 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },
     skills:[
       { name:'暗影弹', type:'damage', cost:0, power:1.1, corrupt:1, desc:'110%伤害，施加1层腐化', icon:'🌑', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowOrb' },
-      { name:'腐化爆发', type:'corruptBurst', cost:30, dmgPerStack:22, desc:'消耗所有敌人腐化层，每层造成22伤害', icon:'💀', iconColor:'#ce93d8', sfx:'thunder', vfx:'shockwave' },
-      { name:'瘟疫', type:'plague', cost:15, corrupt:2, dot:7, dotDur:3, desc:'对所有敌人施加2层腐化+中毒3回合', icon:'☣️', iconColor:'#9ccc65', sfx:'debuff', vfx:'curse' },
+      { name:'腐化爆发', type:'corruptBurst', cost:30, dmgPerStack:12, desc:'消耗所有敌人腐化层，每层造成12伤害', icon:'💀', iconColor:'#ce93d8', sfx:'thunder', vfx:'shockwave' },
+      { name:'瘟疫', type:'plague', cost:22, corrupt:2, dot:6, dotDur:3, desc:'对所有敌人施加2层腐化+中毒3回合', icon:'☣️', iconColor:'#9ccc65', sfx:'debuff', vfx:'curse' },
       { name:'灵魂收割', type:'drain', cost:25, power:2.2, drainPct:40, corrupt:2, desc:'220%伤害+吸血40%+施加2层腐化', icon:'👁️‍🗨️', iconColor:'#f5a623', sfx:'shadow', vfx:'soulSteal' }
     ]}
 ];

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
   triggerPassive, processStartOfTurn, calcDamage, calcStun, canInterrupt, interruptNeed, willCrit,
+  CORRUPT_BONUS_PER_STACK,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
   needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec
 } from '../combat.js';
@@ -346,9 +347,10 @@ describe('triggerPassive - 7 种被动效果', () => {
     const noCorrupt = makeUnit({debuffs:[]});
     assert.equal(triggerPassive('onDamageDealt', warlock, {target:noCorrupt}), null, '无腐化层不触发');
 
-    const corrupted = makeUnit({hp:10, debuffs:[{type:'corrupt', dur:99, value:2}]});
+    // 每层的伤害读 combat.js 的常量，不写死——它是个平衡旋钮，会被调
+    const corrupted = makeUnit({hp:2*CORRUPT_BONUS_PER_STACK, debuffs:[{type:'corrupt', dur:99, value:2}]});
     const ev = triggerPassive('onDamageDealt', warlock, {target:corrupted});
-    assert.equal(ev.amount, 16); // 2层 * 8
+    assert.equal(ev.amount, 2 * CORRUPT_BONUS_PER_STACK);
     assert.equal(corrupted.hp, 0);
     assert.equal(ev.died, true);
     assert.equal(ev.killer, warlock, '击杀者应记为被动持有者，供上层记功');
@@ -491,7 +493,7 @@ describe('回归测试：术士（warlock）在无头模拟中不再静默失效
     const ev = triggerPassive('onDamageDealt', warlock, {target});
     assert.ok(ev, '腐化侵蚀被动应该触发');
     assert.equal(ev.effect, 'corruptBonus');
-    assert.equal(target.hp, hpBefore - 2*8);
+    assert.equal(target.hp, hpBefore - 2*CORRUPT_BONUS_PER_STACK);
   });
 });
 

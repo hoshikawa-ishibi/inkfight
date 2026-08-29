@@ -30,7 +30,7 @@ export const CAMPAIGN_STAGES = [
     // （不再是七成回合平A），这一关因此从 93.7% 掉到 84.3%，比第 2 关还难。
     // 这是整个难度重做里**唯一**波及战役的地方：战役不走 DIFFICULTY_MODS，
     // 只共享 AI 决策 cfg，而三档里只有简单改了行为、八关里只有这关用简单。
-    enemyMod: { hp: 0.85 },
+    enemyMod: { hp: 0.9 },
     intro: [
       "你睁开眼时，天是墨色的。\n没有太阳，只有一层缓慢流动的灰。",
       "脚下的地面像未干的宣纸，踩下去会晕开。\n你不记得自己是谁，只记得一个词——墨境。",
@@ -52,7 +52,7 @@ export const CAMPAIGN_STAGES = [
     ],
     difficulty: 'normal',
     // 剑士打剑士+法师太顺，得给敌方加三成血才压到 85
-    enemyMod: { hp: 1.30 },
+    enemyMod: { hp: 1.14 },
     intro: [
       "往前是一片赤焰熔岩。\n岩浆里浮着无数细小的黑点——像被烧化的字。",
       "熔炉立在火海中央，日夜不停。\n炉守铁衣横刀拦在炉前，焰纹术士灼站在他身后。",
@@ -73,7 +73,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'swordsman', name: '叛剑·寒石' },
     ],
     difficulty: 'normal',
-    enemyMod: { hp: 1.05 },
+    enemyMod: { hp: 1.32 },
     intro: [
       "灵泉是墨境唯一清澈的地方。\n水面平得像镜子，照得出一个你不认识的自己。",
       "\"别动。\"",
@@ -96,7 +96,7 @@ export const CAMPAIGN_STAGES = [
     difficulty: 'normal',
     // 0.84→75.3% 与 0.85→66.7% 之间有个真实断崖（「几刀砍得死」的整数阈值），
     // 目标 72 正好卡在缝里，取偏易的一侧
-    enemyMod: { hp: 0.84 },
+    enemyMod: { hp: 0.85 },
     intro: [
       "灵泉之后是一段虚空。\n没有地，没有天，只有一道悬在中间的关隘。",
       "守将磐举起盾，苍的箭已经上弦。\n\"过了这道关，就没有回头路了。\"",
@@ -116,7 +116,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'warlock', name: '先锋将·蚀骨' },
     ],
     difficulty: 'normal',
-    enemyMod: { hp: 1.10 },
+    enemyMod: { hp: 1.25 },
     intro: [
       "第二片熔岩比第一片更红。\n岩浆表面浮着成片的黑字，像整页整页被撕下来的纸。",
       "墨皇的两名先锋将等在这里。\n断雁的弓已经拉满，蚀骨的手里缠着黑气。",
@@ -137,7 +137,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'guardian', name: '盾卫长·钧' },
     ],
     difficulty: 'hard',
-    enemyMod: { hp: 0.85 },
+    enemyMod: { hp: 0.9 },
     intro: [
       "回到灵泉，水已经浑了。\n最后一道防线立在这里。",
       "守法者澜看了你很久，才开口：\n\"你走到这里，应该已经听过一半的真相了。\"",
@@ -159,7 +159,7 @@ export const CAMPAIGN_STAGES = [
       { id: 'berserker', name: '近卫狂将·黑潮' },
     ],
     difficulty: 'hard',
-    enemyMod: { hp: 0.95 },
+    enemyMod: { hp: 1.27 },
     intro: [
       "宫殿门前没有守军，只有两个人。",
       "祭司白鸦低头念着什么，黑潮拖着一柄比人还高的斧。\n他们身上的墨色比别处都深。",
@@ -184,11 +184,30 @@ export const CAMPAIGN_STAGES = [
     // 出手一次，单人则**每回合都出手**——对最终战来说这才像 BOSS。
     // 属性 260/22/8 是拿 campaign-check.mjs 校到 42% 的，不是拍脑袋给的。
     enemy: [
-      { id: 'warlock', name: '墨皇', hp: 260, sp: 130, atk: 22, def: 8 },
+      {
+        // 属性 320/14/8 是重校后的（COMBAT_PLAN.md 任务 0）。atk 从 22 降到 14 是因为
+        // 阶段二每回合行动两次——等效攻击力本来就翻倍了；血从 260 加到 320 是为了
+        // 让三个阶段真的展得开（原来这仗只打 6~8 回合，阶段还没换完就结束了）。
+        id: 'warlock', name: '墨皇', hp: 320, sp: 130, atk: 14, def: 8,
+        // ── 三阶段（COMBAT_PLAN.md 任务 4） ──────────────────
+        // 墨皇原来只是「术士 + 高属性」，玩家的判断和打普通术士一模一样，
+        // 这就是用户说的「墨皇纯看运气」。三个阶段考三种不同的能力，
+        // 而且**每个都有解**：
+        //   书写 → 腐化层是公开的倒计时，净化 / 打断可以掐掉爆发
+        //   涂改 → 每回合两次行动，信息量翻倍，要靠「轮空回蓝」调度好两个人
+        //   重写 → 抹掉你最强的技能，逼你换打法
+        // 规则实现在 combat.js（bossPhase / actionsFor / sealSkill），
+        // 这里只放数据——**别在 battle.js 里就地写 BOSS 规则**。
+        bossPhases: [
+          { at: 1.00, name: '书写', desc: '墨色缓缓淌开，腐化在你身上积累。', actions: 1 },
+          { at: 0.66, name: '涂改', desc: '「写错的地方，要涂掉重来。」每回合行动两次！', actions: 2 },
+          { at: 0.33, name: '重写', desc: '「这一笔，我替你抹了。」每回合抹去你一个技能。', actions: 1, sealSkill: 2 },
+        ],
+      },
     ],
     difficulty: 'hard',
     // 墨皇独战：属性写在 enemy 里（260/22/8），这里再减 9% 血校到 42%
-    enemyMod: { hp: 0.91 },
+    enemyMod: { hp: 0.78 },
     intro: [
       "殿内没有王座，只有一片烧到尽头的熔岩。\n墨皇独自立在上面，没有近卫，没有随从。",
       "\"你已经知道了吧。\"他没有回头，\n\"你不是掉进墨境的。你是我写下来的。\"",
