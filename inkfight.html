@@ -160,6 +160,22 @@ body {
 .unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
 .unit-canvas { display:block; margin:0 auto 6px; transition:transform .25s; }
 
+/* 敌人下一击的预告条（COMBAT_PLAN.md 任务 1：意图公开 + 承诺制）。
+   它必须显眼——玩家的每一个决策都要围绕它做，看不见就等于没做。 */
+.unit-intent {
+  margin-top:5px; padding:3px 6px; border-radius:6px; font-size:11px; line-height:1.5;
+  background:rgba(233,69,96,.16); border:1px solid rgba(233,69,96,.55); color:#ffb3c0;
+  animation:intentPulse 1.8s ease-in-out infinite;
+}
+.unit-intent .intent-arrow { margin:0 3px; opacity:.75; }
+.unit-intent .intent-dmg { margin-left:5px; color:#ff8a80; }
+@keyframes intentPulse {
+  0%,100% { border-color:rgba(233,69,96,.55); }
+  50%     { border-color:rgba(233,69,96,1); }
+}
+/* 被预告瞄准的单位：让玩家一眼看出「这一下要落在谁头上」 */
+.battle-unit.intent-target { box-shadow:0 0 18px rgba(233,69,96,.55) inset, 0 0 12px rgba(233,69,96,.35); }
+
 .skill-panel {
   width:100%; max-width:920px; padding:12px 20px;
   background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.4));

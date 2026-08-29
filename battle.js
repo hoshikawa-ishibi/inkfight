@@ -4,6 +4,7 @@ import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
 import { AI_BY_LEVEL, aiNormal } from './ai.js';
 import { makeTeamContext } from './ai-scoring.js';
+import { nextActor, makeIntent, resolveIntent } from './intent.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyTurnRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -67,6 +68,9 @@ function presentDeath(u, killer, died, undying){
   }
   if(!died) return;
   addLog(`☠ ${u.name} 阵亡！`,'death'); playSfx('death'); _screenShake(12,400);
+  // 玩家抢在预告兑现之前把它打死了——这是「看得见下一击」最直接的回报，
+  // 要说出来。（意图属于别的单位时 cancelIntentOf 会自己跳过。）
+  cancelIntentOf(u,'随其阵亡');
   if(killer){
     gameState.stats['p'+killer.player].kills++;
     if(gameState.stats.units[killer.id]) gameState.stats.units[killer.id].kills++;
@@ -106,7 +110,7 @@ export function startBattle(){
   }
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
-  gameState.resultShown=false;
+  gameState.resultShown=false; gameState.enemyIntent=null;
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
     maxHit:{dmg:0,name:''}, units:{}
@@ -138,15 +142,40 @@ function startTurn(){
   const units=(p===1?gameState.p1Units:gameState.p2Units).filter(u=>u.alive);
   if(!units.length){ nextTurn(); return; }
   const lastId=p===1?gameState.p1LastActed:gameState.p2LastActed;
-  // if 2 alive and one acted last time, the other must go
-  if(units.length===2&&lastId){
-    const forced=units.find(u=>u.id!==lastId);
-    activateUnit(forced);
-  } else if(units.length===2&&!lastId&&gameState.mode==='pvp'){
+  // PvP 首次出手让玩家自己挑；其余情况一律走 intent.js 的 nextActor——
+  // 意图预测必须和真实流程读同一份规则，否则会「预告的是 A、实际动的是 B」。
+  if(units.length===2&&!lastId&&gameState.mode==='pvp'){
     showUnitPicker(p,units,activateUnit);
-  } else {
-    activateUnit(units[0]);
+    return;
   }
+  activateUnit(nextActor(units,lastId));
+}
+
+// 玩家回合开始时，把敌方下一个行动单位的打算算出来、公开、并**锁定**。
+// 这是本作战斗的地基：玩家看得见下一击，才谈得上布防 / 抢杀 / 改道 / 打断。
+//
+// 注意只在玩家回合重算。AI 自己的回合要**兑现**已有的承诺，
+// 在那时重算等于承诺作废，玩家针对预告做的布置就全白费了。
+function updateEnemyIntent(current){
+  if(gameState.mode!=='ai'&&gameState.mode!=='campaign'){ gameState.enemyIntent=null; return; }
+  if(current.player!==1) return;
+  const foe=nextActor(gameState.p2Units,gameState.p2LastActed);
+  const foeEnemies=getEnemies(2).filter(e=>e.alive);
+  const foeAllies=getAllies(2).filter(a=>a.alive);
+  if(!foe||!foeEnemies.length){ gameState.enemyIntent=null; return; }
+  const ai=AI_BY_LEVEL[gameState.difficulty]||aiNormal;
+  const chosen=ai(foe,foeEnemies,foeAllies,gameState.scene,teamCtx[2]);
+  gameState.enemyIntent=makeIntent(foe,chosen,gameState.scene);
+}
+
+// 预告的行动没能打出来（被眩晕 / 被中毒带走）。
+// **这一行日志就是玩家操作的回报**，必须写出来——否则玩家只会觉得
+// 「敌人怎么突然不动了」，而不是「我打断了它」。
+function cancelIntentOf(u,reason){
+  const it=gameState.enemyIntent;
+  if(!it||it.unitId!==u.id) return;
+  addLog(`💥 ${u.name} 的「${it.skill.name}」${reason}，没能打出来！`,'crit');
+  gameState.enemyIntent=null;
 }
 
 function showUnitPicker(player,units,cb){
@@ -173,15 +202,17 @@ function activateUnit(u){
   else gameState.p2LastActed=u.id;
   if(u.stunned){
     addLog(`${u.name} 被眩晕，跳过回合！`,'stun');
+    cancelIntentOf(u,'被打断');
     playSfx('stun'); u.stunned=false;
     setTimeout(nextTurn,700); return;
   }
   processStartOfTurn(u);
-  if(!u.alive){ setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
+  if(!u.alive){ cancelIntentOf(u,'已阵亡'); setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
   applyTurnRegen(u, gameState.scene);
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
     `玩家${u.player} - ${u.name}（ATK:${getEffectiveAtk(u).toFixed(0)}）行动`;
+  updateEnemyIntent(u);
   renderBattle();
   if((gameState.mode==='ai'||gameState.mode==='campaign')&&u.player===2){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
@@ -403,12 +434,23 @@ function aiAct(u){
   const enemies=getEnemies(u.player).filter(e=>e.alive);
   const allies=getAllies(u.player).filter(e=>e.alive);
   if(enemies.length===0){ setTimeout(nextTurn,400); return; }
-  const d=gameState.difficulty;
   const ctx=teamCtx[u.player];
-  const chosen=(AI_BY_LEVEL[d]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
+  // 兑现承诺：玩家回合看到的那条预告，就是这里要执行的行动。
+  // **不重新决策**——哪怕玩家的操作已经让这步棋变臭。这正是玩家的操作空间。
+  let chosen=resolveIntent(u,gameState.enemyIntent,enemies,allies,{teamwork:1,ctx});
+  let note='';
+  if(chosen){
+    gameState.enemyIntent=null;
+    if(chosen.fellBack) note='（血量不足，改为普攻）';
+    else if(chosen.retargeted) note='（原目标已阵亡，转打他人）';
+  }else{
+    // PvP，或玩家回合没来得及公开意图（例如首回合敌方先手）时照旧现算
+    const d=gameState.difficulty;
+    chosen=(AI_BY_LEVEL[d]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
+  }
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`+
-         `${chosen.hesitated?'（似乎有些犹豫）':''}`,'info');
+         `${chosen.hesitated?'（似乎有些犹豫）':''}${note}`,'info');
   executeSkill(u,chosen.skill,chosen.target);
 }
 

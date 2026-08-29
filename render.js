@@ -1,6 +1,6 @@
 import { CHARACTERS } from './data.js';
 import { playSfx } from './audio.js';
-import { gameState, pct, getAllUnits } from './state.js';
+import { gameState, pct, getAllUnits, getUnit } from './state.js';
 import { drawStickman } from './stickman.js';
 
 let _getEffectiveAtk, _onTargetClick;
@@ -33,9 +33,23 @@ function statusChips(u){
   return list.map(t=>`<span class="stat-chip">${t}</span>`).join('');
 }
 
+// 敌人下一击的预告条。这是整个战斗深度重做的地基（见 COMBAT_PLAN.md 任务 1）：
+// 玩家看得见下一击，才谈得上布防 / 抢杀 / 改道 / 打断。
+// 数字带「≈」是因为暴击是浮动项，estimateDamage 已经把减防折算进去了。
+function intentBar(u){
+  const it=gameState.enemyIntent;
+  if(!it||it.unitId!==u.id||!u.alive) return '';
+  const t=it.targetId?getUnit(it.targetId):null;
+  const tgt=t?`<span class="intent-arrow">→</span>${t.name}`:'';
+  const dmg=it.estDmg!=null?`<b class="intent-dmg">≈${it.estDmg}</b>`:'';
+  return `<div class="unit-intent" title="敌方已锁定这个行动，你可以打断它、抢先击杀、或按这个伤害量布防">`
+    +`${it.skill.icon||'❗'} ${it.skill.name}${tgt}${dmg}</div>`;
+}
+
 function renderUnit(u){
   const div=document.createElement('div');
   const isActive=gameState.activeUnitId===u.id&&!gameState.waitingForTarget;
+  const isIntentTarget=!!gameState.enemyIntent&&gameState.enemyIntent.targetId===u.id&&u.alive;
   const isTargetable=gameState.waitingForTarget&&(
     gameState.pendingSkillFriendly?u.player===gameState.pendingActor.player:u.player!==gameState.pendingActor.player
   )&&u.alive;
@@ -45,7 +59,8 @@ function renderUnit(u){
     +(isTargetable?' target-select':'')
     +(!u.alive?' dead':'')
     +(u.stunned?' stunned':'')
-    +(lowHp?' low-hp':'');
+    +(lowHp?' low-hp':'')
+    +(isIntentTarget?' intent-target':'');
   div.id='unit-'+u.id;
   const eff=_getEffectiveAtk(u);
   const atkChanged=Math.abs(eff-u.atk)>0.5;
@@ -63,7 +78,8 @@ function renderUnit(u){
       <div class="bar-label">HP ${u.hp}/${u.maxHp}${u.shield>0?` (+${u.shield})`:''}</div>
     </div>
     <div class="bar-wrap bar-sp"><div class="bar-fill" style="width:${pct(u.sp,u.maxSp)}%"></div><div class="bar-label">SP ${u.sp}/${u.maxSp}</div></div>
-    <div class="unit-status">${statusChips(u)}</div>`;
+    <div class="unit-status">${statusChips(u)}</div>
+    ${intentBar(u)}`;
   if(isTargetable) div.onclick=()=>{ playSfx('select'); _onTargetClick(u); };
   setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?(u.stunned?'stun':u.pose):'dead'),10);
   return div;

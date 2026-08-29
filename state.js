@@ -15,6 +15,11 @@ export let gameState = {
   p1Roster:null,
   // 本局是否已经结算过（showResult 的幂等标记，见 battle.js 的注释）
   resultShown:false,
+  // 敌方下一个行动单位的**已锁定**打算：{unitId, skill, targetId, estDmg, hesitated}。
+  // 玩家回合开始时由 battle.js 的 updateEnemyIntent() 写入并公开显示，
+  // 轮到该单位时**照此兑现**（见 intent.js 的「承诺制的契约」）。
+  // 人机 / 战役模式才有；PvP 下恒为 null。
+  enemyIntent:null,
   waitingForTarget:false, pendingSkill:null, pendingSkillFriendly:false, pendingActor:null,
   logPaused:false,
   stats:{ p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0} }
