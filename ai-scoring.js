@@ -94,9 +94,15 @@ function healGain(f, skill){
 // 选谁来治：在实际收益之上，按队友的产出加权——同样缺 48 血，
 // 把法师奶回来比把坦克奶满更能赢。这一项**只用于排序**，不能拿去当分数，
 // 否则「优先救输出高的」会连带把治疗这个技能整体抬价，牧师就开始滥治疗了。
-function healPriority(f, skill, topThreat, tw){
+// `incoming` 是承诺制公开出来的下一击（`{unitId,targetId,dmg}`），可缺省。
+// 注意它和 `topThreat` 不是一回事：后者指「队友里产出最高的那个」，
+// 这里指「敌人下一记要打谁」。
+function healPriority(f, skill, topThreat, tw, incoming){
   const value = topThreat > 0 ? 1 + tw * 0.5 * threatOf(f)/topThreat : 1;
-  return healGain(f, skill) * value;
+  // 已知下一击落在它头上而且打得死：先奶它是保命，不是补血，优先级要压过一切。
+  const doomed = (incoming && incoming.targetId === f.id
+    && (incoming.dmg || 0) >= f.hp + (f.shield || 0)) ? 2.2 : 1;
+  return healGain(f, skill) * value * doomed;
 }
 
 // 注意：全队满血时也**必须**返回一个合法队友，不能返回 null。
@@ -104,13 +110,13 @@ function healPriority(f, skill, topThreat, tw){
 // 但负分不等于不会被选中——简单难度的噪声高达 30，照样可能挑中它。
 // 早期版本这里返回 null，结果 battle.js 的 `target.hp` 直接崩：
 // 「AI 蠢到给满血队友放治疗」是可以接受的，「AI 一放治疗就抛异常」不行。
-function healTarget(friends, skill, tw){
+function healTarget(friends, skill, tw, incoming){
   if(!friends.length) return null;
   const hurt = friends.filter(f => f.hp < f.maxHp);
   const pool = hurt.length ? hurt : friends;
   const topThreat = Math.max(...friends.map(threatOf));
   return pool.reduce((a,b)=>
-    healPriority(a, skill, topThreat, tw) >= healPriority(b, skill, topThreat, tw) ? a : b);
+    healPriority(a, skill, topThreat, tw, incoming) >= healPriority(b, skill, topThreat, tw, incoming) ? a : b);
 }
 
 // 加攻目标：优先给还没带同类 buff 的人。牧师连着两回合祝福同一个人，
@@ -138,12 +144,37 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   const avgDefMul = 1 - (foes.reduce((n,f)=>n+f.def,0)/foes.length) / ((foes.reduce((n,f)=>n+f.def,0)/foes.length) + 50);
   const dmgOf = p => atk * (p||1) * sceneMul * avgDefMul;
 
+  // ── 已知的下一击 ─────────────────────────────────────
+  // 承诺制公开出来的敌方意图（`opts.threat = {unitId, targetId, dmg}`）。
+  // 只有看得见意图的一方拿得到它——真实游戏里就是玩家。
+  //
+  // **这是「防御类技能值不值一个回合」的唯一可靠依据。** 不知道下一击是什么
+  // 的时候，开盾 / 闪避 / 嘲讽全是赌博，评分只能按平均伤害瞎估，所以它们
+  // 长期被低估（实测「消失」「不屈」使用率是 0%）。知道了之后这就是算术：
+  // 「这一记 68 伤害，我花一个回合把它变成 0，划不划算」。
+  //
+  // 不给这一项的话，difficulty-check 的玩家替身就是个**无视核心机制的玩家**，
+  // 量出来的每一个难度数字都失真。
+  // 字段名必须和 intent.js 的 `makeIntent` 一致：**是 `estDmg` 不是 `dmg`**。
+  // 第一版这里写的 `threat.dmg`，恒定读到 undefined，于是威胁值永远是 0，
+  // 防御类技能一个都没被救活——而且不报错，只是「看起来没效果」。
+  const threat = opts.threat || null;
+  const threatDmg = threat ? (threat.estDmg || 0) : 0;
+  const threatOnMe = (threat && threat.targetId === u.id) ? threatDmg : 0;
+  const threatOnAlly = (threat && threat.targetId && threat.targetId !== u.id) ? threatDmg : 0;
+
   const tw = opts.teamwork ?? 1;
   // 评分和选目标必须看同一个目标，否则会出现「按 A 的血量算能补刀、
   // 实际却打在 B 身上」。两边都走 focusFoe。这里不写回 ctx——
   // 评分要对每个技能各跑一次，中途改集火目标等于让技能顺序影响结果。
   const mainFoe = focusFoe(foes, opts.ctx, tw) || foes[0];
   const hpFrac = u.hp / u.maxHp;
+
+  // 抢杀：赶在预告兑现之前把那个单位打死，等于顺手把那一击也抵消了。
+  // 只在「集火目标恰好就是放话的那个」时计入——评分和选目标必须看同一个目标，
+  // 否则会算出「打 A 能抵消威胁」却实际打在 B 身上。
+  const preempt = (foe, d) =>
+    (threat && foe && threat.unitId === foe.id && d >= (foe.hp + (foe.shield || 0))) ? threatDmg : 0;
 
   // 队友保护：队友越危险，护盾/嘲讽这类顶在前面的技能越该优先。
   // 这一项以前只存在于 ai.js 的困难难度加成里，平衡测试完全吃不到。
@@ -160,8 +191,10 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     ? Math.max(...dmgOptions.map(k => atk * k.power * sceneMul * avgDefMul)) * tempoW : 0;
 
   switch(s.type){
-    case 'damage':
-      return damageWorth(dmgOf(s.power), mainFoe, s);
+    case 'damage': {
+      const d = dmgOf(s.power);
+      return damageWorth(d, mainFoe, s) + preempt(mainFoe, d);
+    }
 
     case 'damageAll':
       // 打到每个存活敌人，但单体收益略低于同威力的单体技能
@@ -171,7 +204,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const d = dmgOf(s.power);
       // 吸血按实际打出的伤害算，溢杀的部分照样吸得回来，所以这里不封顶
       const healed = Math.min(d * (s.drainPct/100), u.maxHp - u.hp);
-      return damageWorth(d, mainFoe, s) + healed * 0.8;
+      return damageWorth(d, mainFoe, s) + healed * 0.8 + preempt(mainFoe, d);
     }
 
     case 'stun': {
@@ -180,8 +213,12 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const cand = foes.reduce((a,b)=>
         (s.basePct + s.spScale*(a.sp/a.maxSp)) >= (s.basePct + s.spScale*(b.sp/b.maxSp)) ? a : b);
       const p = Math.min(1, (s.basePct + s.spScale * (cand.sp/cand.maxSp)) / 100);
+      // 已知这个目标下一步要干什么时，「它少打的那一回合」就不必再粗估了。
+      // 取两者较大：预告是治疗/增益类时 threatDmg 为 0，那就退回 threatOf。
+      const lost = (threat && threat.unitId === cand.id)
+        ? Math.max(threatDmg, threatOf(cand)) : threatOf(cand);
       // 带 power 的眩晕技能自带一次伤害，要算进收益
-      return dmgOf(s.power || 0) + p * threatOf(cand);
+      return dmgOf(s.power || 0) + p * lost;
     }
 
     case 'plague': {
@@ -200,9 +237,16 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     }
 
     case 'heal': {
-      const target = healTarget(friends, s, tw);
+      const target = healTarget(friends, s, tw, threat);
       // 全队满血时 healGain 为 0，减掉机会成本就是负分，AI 自然不会选它
-      return target ? healGain(target, s) - tempo * 0.6 : 0;
+      if(!target) return 0;
+      // 预读治疗：这一击本来打得死它，先奶起来就等于抵消掉一次击杀。
+      // 只有「奶完真的活得下来」才算数，奶不住的话这一回合还是白扔。
+      const healed = Math.min(s.healAmt || 0, target.maxHp - target.hp);
+      const ehp = target.hp + (target.shield || 0);
+      const saves = (threat && threat.targetId === target.id
+        && threatDmg >= ehp && ehp + healed > threatDmg) ? threatDmg * 0.8 : 0;
+      return healGain(target, s) + saves - tempo * 0.6;
     }
 
     case 'cleanse': {
@@ -235,27 +279,57 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       return immediate + gain - cost - (s.power ? 0 : tempo);
     }
 
+    // ── 防御三兄弟：护盾 / 嘲讽 / 闪避 ─────────────────────
+    // **机会成本（tempo）只该扣在「猜」的那部分上，不该扣在「算」的那部分上。**
+    //
+    // 这里以前一律 `收益 - tempo`，而伤害技能算的是毛收益（打出多少）。
+    // 等于防御方按净收益、进攻方按毛收益来比大小，防御类永远比不过——
+    // 实测「消失」「不屈」的使用率长期是 0%，根因就在这个不对称。
+    //
+    // 意图公开之后，「挡掉预告的那一击」是**确定且当场兑现**的收益，
+    // 和「打出多少伤害」是同一个量纲，可以直接比。所以拆成两段：
+    //   已知威胁驱动的部分 → 不扣 tempo，正面和伤害技能比
+    //   没有情报时的估算   → 照旧扣 tempo（那才是真的在赌）
     case 'shield': {
       // 护盾等价于同量治疗，但能提前吃伤害；已有盾时收益递减
       const worth = (s.shieldAmt||0) * (u.shield > 0 ? 0.4 : 0.85);
       // 自己身上挂着嘲讽时，加盾就是在替队友挡刀，价值更高
       const taunting = u.buffs.some(b => b.type === 'taunt') ? 1.6 : 1;
-      return worth * (hpFrac < 0.5 ? 1.3 : 1.0) + protect * 22 * taunting - tempo;
+      const guess = worth * (hpFrac < 0.5 ? 1.3 : 1.0) + protect * 22 * taunting - tempo;
+      // 真正挡掉的量是 min(盾量, 那一击)，超出的部分是白给的
+      const blocks = Math.min(s.shieldAmt||0, threatOnMe);
+      return blocks > 0 ? blocks * 0.95 + Math.max(0, guess) : guess;
     }
 
     case 'taunt': {
       // 把火力吸到自己身上：自己越硬、队友越危险，越值
       const allyRisk = 12 + protect * 48;
-      return allyRisk * (hpFrac > 0.5 ? 1.2 : 0.5) - tempo;
+      const guess = allyRisk * (hpFrac > 0.5 ? 1.2 : 0.5) - tempo;
+      // 预告打的是队友：嘲讽把它改道到自己身上，省下的就是
+      // 「同一击打在队友身上 vs 打在我身上」的血量差。我越扛揍越划算。
+      if(threatOnAlly > 0 && u.hp > threatOnAlly){
+        const myMul = 1 - u.def/(u.def + 50);
+        const saved = threatOnAlly * (1 - myMul) + threatOnAlly * 0.3;
+        return saved + Math.max(0, guess);
+      }
+      return guess;
     }
 
-    case 'dodge':
-      // 免疫下一次攻击，残血时价值陡增
-      return foes.reduce((n,f)=>n+getEffectiveAtk(f),0)/foes.length * (hpFrac < 0.4 ? 1.4 : 0.7) - tempo;
+    case 'dodge': {
+      // 免疫下一次攻击。知道那一击是什么的时候收益是全额且确定的。
+      if(threatOnMe > 0) return threatOnMe;
+      // 不知道时只能按平均攻击力瞎估——那才是在赌，照旧扣机会成本
+      return foes.reduce((n,f)=>n+getEffectiveAtk(f),0)/foes.length
+        * (hpFrac < 0.4 ? 1.4 : 0.7) - tempo;
+    }
 
-    case 'revive':
+    case 'revive': {
       // 不屈：血越少越该开
-      return (hpFrac < 0.35 ? (s.hpRestore||0) * 1.5 : (s.hpRestore||0) * 0.25) - tempo;
+      const guess = (hpFrac < 0.35 ? (s.hpRestore||0) * 1.5 : (s.hpRestore||0) * 0.25) - tempo;
+      // 已知那一击正好能打死自己：这就是保命符，价值等于「不死」本身
+      if(threatOnMe >= u.hp + (u.shield||0)) return (s.hpRestore||0) + threatOnMe * 0.5;
+      return guess;
+    }
 
     case 'healSp': {
       // 回蓝的价值取决于它能解锁什么；不缺蓝时基本没用
@@ -290,7 +364,8 @@ export function pickTarget(actor, skill, enemies, allies, opts = {}){
 
   switch(skill.type){
     case 'heal':
-      return healTarget(friends, skill, tw);
+      // 必须和 scoreSkill 传一样的 threat，否则会「按 A 算分、实际奶在 B 身上」
+      return healTarget(friends, skill, tw, opts.threat || null);
     case 'cleanse': {
       // 只对真正带负面状态的队友净化，否则这一回合就白费了。
       // 没人中负面时仍要给个合法目标（理由同 healTarget：低难度照样可能选中它，

@@ -60,11 +60,15 @@ function canUse(u, s){
 // ctx 是本方队伍的战术上下文（ai-scoring.js 的 makeTeamContext），
 // 由调用方为每支队伍持有一个，用来让同队单位集火同一个目标。
 // 不传也能跑，只是每个单位各打各的。
-function decide(u, enemies, allies, scene, cfg, ctx){
+// `threat` 是承诺制公开出来的敌方下一击（`{unitId,targetId,dmg}`），可缺省。
+// 只有**看得见意图的一方**会拿到它——真实游戏里就是玩家，所以在
+// difficulty-check / depth-check 里它只传给玩家替身那一侧。
+// 不传的话行为和以前完全一样（防御类技能退回「按平均伤害瞎估」的老路径）。
+function decide(u, enemies, allies, scene, cfg, ctx, threat){
   const foes = enemies.filter(e => e.alive);
   const friends = allies.filter(a => a.alive);
   if(!foes.length) return null;
-  const opts = { tempo: cfg.tempo, teamwork: cfg.teamwork, ctx };
+  const opts = { tempo: cfg.tempo, teamwork: cfg.teamwork, ctx, threat: threat || null };
 
   // 简单难度：偶尔直接抡普攻，保留「新手会浪费机会」的手感。
   // 这个比例以前是 0.7（七成回合都在平A），实测那样它必须靠 atk ×1.15 的
@@ -120,7 +124,7 @@ function decide(u, enemies, allies, scene, cfg, ctx){
 // **注意：不要把新 cfg 注册成第四个难度档。** 玩家替身是测量工具，
 // 玩家永远不该在 UI 里见到它。
 export function makeAi(cfg){
-  return (u, enemies, allies, scene, ctx) => decide(u, enemies, allies, scene, cfg, ctx);
+  return (u, enemies, allies, scene, ctx, threat) => decide(u, enemies, allies, scene, cfg, ctx, threat);
 }
 
 export const aiEasy      = makeAi(DIFFICULTY.easy);

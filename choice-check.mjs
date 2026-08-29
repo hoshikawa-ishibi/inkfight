@@ -24,31 +24,45 @@ const canUse = (u, s) => u.sp >= s.cost && !(s.hpCost && u.hp <= s.hpCost);
 
 // 完美决策 + 埋点。评分口径与 aiHard 一致（tempo 1 / teamwork 1），
 // 只是去掉噪声与 tacticalBonus，好让「最优 vs 次优」的差距干净可读。
-function aiProbe(u, enemies, allies, scene, ctx){
-  const foes = enemies.filter(e => e.alive);
-  const friends = allies.filter(a => a.alive);
-  if(!foes.length) return null;
-  const opts = { tempo: 1, teamwork: 1, ctx };
-  const scored = u.skills.filter(s => canUse(u, s))
-    .map(s => ({ s, v: scoreSkill(u, s, foes, friends, scene, opts) }))
-    .sort((a, b) => b.v - a.v);
-  if(!scored.length) return null;
+//
+// 第 6 个参数 `threat` 是 sim.js 传进来的敌方已公开意图（只有 p1 拿得到）。
+// **必须接住它**，否则量的是「看不见下一击的玩家」，防御类技能会继续显示 0%。
+// `count` 决定要不要埋点。**p2 必须用不埋点的那份**：sim.js 为了公开意图
+// 会额外调用一次 p2 的 AI 做「预测」，那不是一次真实决策，计进去会污染分布。
+// 而且我们要量的本来就是**玩家**的决策，玩家就是 p1（也只有 p1 拿得到情报）。
+function makeProbe(count){
+  return function(u, enemies, allies, scene, ctx, threat){
+    const foes = enemies.filter(e => e.alive);
+    const friends = allies.filter(a => a.alive);
+    if(!foes.length) return null;
+    // threat 是 sim.js 传进来的敌方已公开意图（只有 p1 拿得到）。
+    // **必须接住它**，否则量的是「看不见下一击的玩家」，防御类技能会一直显示 0%。
+    const opts = { tempo: 1, teamwork: 1, ctx, threat: threat || null };
+    const scored = u.skills.filter(s => canUse(u, s))
+      .map(s => ({ s, v: scoreSkill(u, s, foes, friends, scene, opts) }))
+      .sort((a, b) => b.v - a.v);
+    if(!scored.length) return null;
 
-  turns++;
-  use[u.charId][scored[0].s.name]++;
-  if(scored.length === 1) { onlyOne++; forced++; }
-  else {
-    const [a, b] = scored;
-    const span = Math.abs(a.v);
-    if(span > 0 && (a.v - b.v) / span > 0.30) forced++;
-  }
-  return { skill: scored[0].s, target: pickTarget(u, scored[0].s, foes, friends, opts) };
+    if(count){
+      turns++;
+      use[u.charId][scored[0].s.name]++;
+      if(scored.length === 1) { onlyOne++; forced++; }
+      else {
+        const [a, b] = scored;
+        const span = Math.abs(a.v);
+        if(span > 0 && (a.v - b.v) / span > 0.30) forced++;
+      }
+    }
+    return { skill: scored[0].s, target: pickTarget(u, scored[0].s, foes, friends, opts) };
+  };
 }
+const aiProbe = makeProbe(true), aiPlain = makeProbe(false);
 
+// 每个角色都要在 p1 位置上出场，否则只统计得到一半的角色。
 for(let i = 0; i < N; i++){
   const ids = shuffle(CHARACTERS.map(c => c.id));
   const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-  simOneBattle(ids.slice(0, 2), ids.slice(2, 4), scene, { p1Ai: aiProbe, p2Ai: aiProbe });
+  simOneBattle(ids.slice(0, 2), ids.slice(2, 4), scene, { p1Ai: aiProbe, p2Ai: aiPlain });
 }
 
 console.log(`\n${N} 局 / ${turns} 个决策点。完美玩家的技能使用分布：\n`);

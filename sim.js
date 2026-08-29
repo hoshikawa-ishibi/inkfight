@@ -13,7 +13,7 @@ import {
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff
 } from './combat.js';
 import { makeTeamContext } from './ai-scoring.js';
-import { nextActor } from './intent.js';
+import { nextActor, makeIntent, resolveIntent } from './intent.js';
 import { aiEasy, aiNormal, aiHard } from './ai.js';
 
 function noteKill(died, killer, stats){
@@ -122,6 +122,17 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
   // 谁上次出手过——`nextActor` 靠它决定这一方轮到哪个单位。
   const lastActed = { 1:null, 2:null };
 
+  // ── 承诺制（和 battle.js 同构） ─────────────────────────
+  // 信息是**不对称**的，真实游戏里就是这样：
+  //   p1（玩家一侧）在出手前看得见 p2 下一个单位要干什么；
+  //   p2 则被自己的承诺锁住，哪怕 p1 的操作已经让那步棋变臭。
+  // 不模拟这一层的话，difficulty-check / depth-check 量出来的「玩家」
+  // 就是个无视游戏核心机制的人，所有难度数字都失真。
+  // `opts.intent:false` 可以关掉，用来做「意图公开到底值多少」的对照实验。
+  const useIntent = opts.intent !== false;
+  let intent = null;
+  const clearIfMine = u => { if(intent && intent.unitId === u.id) intent = null; };
+
   for(let round=0; round<MAX_ROUNDS; round++){
     // **一个回合 = 双方各行动一个单位**，和 battle.js 完全一致。
     //
@@ -134,6 +145,17 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
     // 于是 campaign-check 把墨皇量得远比实战弱，第 8 关校到的 42% 是虚的。
     // 现在两边共用 intent.js 的 `nextActor`，同一份规则只有一处实现。
     for(const side of [1,2]){
+      // p1 出手之前，先把 p2 下一个行动单位的打算算出来并**锁定**。
+      // 这一步必须在 p1 决策之前，它正是 p1 能拿到的那份情报。
+      if(useIntent && side === 1){
+        intent = null;
+        const foe = nextActor(p2, lastActed[2]);
+        const foeEnemies = p1.filter(e => e.alive);
+        if(foe && foeEnemies.length){
+          const foeAllies = p2.filter(a => a.alive);
+          intent = makeIntent(foe, aiOf[2](foe, foeEnemies, foeAllies, scene, ctx[2]), scene);
+        }
+      }
       const team = side===1 ? p1 : p2;
       const u = nextActor(team, lastActed[side]);
       if(!u) continue;
@@ -144,16 +166,25 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       // 于是 npm run balance 跑的是「机制不全的世界」，胜率表看着正常却是错的。
       // 返回的 {passiveEvent, poison, berserk} 只给 battle.js 做日志/特效，无头模拟不需要。
       processStartOfTurn(u, {allies:team});
-      if(!u.alive) continue;
+      // 预告的单位被中毒带走 / 被眩晕 → 那一击就没了，这正是玩家操作的回报
+      if(!u.alive){ clearIfMine(u); continue; }
       // 眩晕跳过是回合流程编排（battle.js 那边在 activateUnit 里做），不是战斗规则，留在这
-      if(u.stunned){ u.stunned=false; continue; }
+      if(u.stunned){ u.stunned=false; clearIfMine(u); continue; }
       applyTurnRegen(u, scene);
 
       const enemies=(side===1?p2:p1).filter(e=>e.alive);
       const allies=team.filter(a=>a.alive);
       if(!enemies.length) break;
 
-      const chosen=aiOf[side](u,enemies,allies,scene,ctx[side]);
+      // p2 兑现承诺；p1 拿着情报现算。承诺作废（原单位已死）时退回现算。
+      let chosen = null;
+      if(useIntent && side === 2){
+        chosen = resolveIntent(u, intent, enemies, allies, { teamwork:1, ctx:ctx[2] });
+        if(chosen) intent = null;
+      }
+      if(!chosen){
+        chosen = aiOf[side](u, enemies, allies, scene, ctx[side], side===1 ? intent : null);
+      }
       if(!chosen||!chosen.skill) continue;
       executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
     }

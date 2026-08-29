@@ -94,6 +94,7 @@ data.js（技能配置）
 | `render.js` | `initRender`, `renderBattle`, `redrawUnit`, `animateUnit`, `lungeActor`（含 idle 动画 setInterval） |
 | **`ai-scoring.js`** | **技能评分的唯一实现，`ai.js`（并经由它被 `sim.js`）共用**。`scoreSkill(u, s, foes, friends, scene, opts)` 把各类技能收益折算成「等效伤害」以便横向比较；`pickTarget` 选目标；`focusFoe` 定集火目标；`makeTeamContext()` 造队伍战术上下文。`opts.tempo`（0~1）控制是否计入「占掉一回合」的机会成本，`opts.teamwork`（0~1）控制配合意识强度 |
 | `ai.js` | 纯函数，可在 Node 运行。只做**难度包装**：`aiEasy`/`aiNormal`/`aiHard`(u, enemies, allies, scene, ctx)，三档的区别是噪声大小、`tempo` 权重、`teamwork` 权重、以及 hard 独有的 `tacticalBonus`。`ctx` 是本方队伍的战术上下文，同队单位共享才能集火 |
+| **`intent.js`** | **敌人意图公开 + 承诺制**（战斗深度重做的地基）。纯函数：`nextActor`（下一个该行动的单位——`battle.js` 和 `sim.js` **必须共用这一份**，各写一份的后果见 `COMBAT_PLAN.md` 任务 0）、`makeIntent`、`resolveIntent`（**只重解目标，绝不重选技能**）、`estimateDamage`。意图对象的字段是 **`estDmg`**，`ai-scoring.js` 的 `opts.threat` 读的就是它 |
 | **`combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`**。另含 `DIFFICULTY_MODS` / `applyDifficulty`（难度档位给 AI 的属性加成，改数值只改这一处） |
 | `battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
@@ -106,6 +107,7 @@ data.js（技能配置）
 | `depth-check.mjs` | **策略深度诊断**：把玩家替身的水平从「完美」降到「闭眼乱按」，胜率落差 = 打得好值多少。前三份 check 量的是「难不难」，这份量的是「策略有没有用」。见 `COMBAT_PLAN.md` |
 | `choice-check.mjs` | **决策存在性诊断**：完美玩家的技能使用分布 + 无悬念回合占比。主流技能占比越高，玩家越是在执行而不是决策 |
 | `stun-check.mjs` | 把眩晕命中率钉死在 0% / 100%，量「负面上没上」值多少胜率——这段落差玩家完全碰不到 |
+| `intent-value-check.mjs` | 拿 `sim.js` 的 `opts.intent` 开关做对照实验：意图公开到底值多少策略价值 |
 
 ### 踩过的坑（提炼）
 
