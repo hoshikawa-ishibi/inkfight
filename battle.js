@@ -18,6 +18,73 @@ export { createUnit, getEffectiveAtk };
 
 const DIFF_LABEL = { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' };
 
+// ── 观战控制（暂停 / 单步 / 倍速） ─────────────────────────
+// 只在观战模式生效。人机和战役里节奏本来就由玩家自己掌握，不需要这些。
+//
+// **闸门只设在 `nextTurn` 一处**——那是「一个单位行动完了、轮到下一个」的边界，
+// 也就是单步该停的粒度。设在别处（比如特效回调里）会把暂停变成
+// 「动画停在半路」：状态还没结算完，看到的局面是假的。
+let _specPaused = false;      // 暂停中
+let _specResume = null;       // 挂起的「继续」动作，单步时执行它
+let _specSpeed = 1;           // 倍速：所有节奏延时都除以它
+// 「放行一次」标记。没有它，单步会原地打转：stepSpectate 调用挂起的 nextTurn，
+// 而 nextTurn 第一件事就是再撞一次闸门（此时仍在暂停中），于是又挂起来。
+let _specStepOnce = false;
+
+// **所有战斗节奏的延时都过这个函数**，倍速才有意义。
+// 漏一处就会出现「别的都快了，就它还按原速」这种割裂感。
+function d(ms){ return Math.max(30, Math.round(ms / _specSpeed)); }
+
+function isSpectating(){ return gameState.mode === 'spectate'; }
+
+// 返回 true 表示「已挂起，调用方别再往下走」。
+function pauseGate(cont){
+  if(!isSpectating() || !_specPaused) return false;
+  if(_specStepOnce){ _specStepOnce = false; return false; }   // 单步放行这一次
+  _specResume = cont;
+  renderSpectateBar();
+  return true;
+}
+
+export function toggleSpectatePause(){
+  _specPaused = !_specPaused;
+  _specStepOnce = false;
+  // 从暂停恢复时，把挂起的那一步接上
+  if(!_specPaused && _specResume){ const f = _specResume; _specResume = null; f(); }
+  renderSpectateBar();
+}
+
+// 单步：没暂停时先暂停（下一个边界会停住），已暂停就放行一步。
+export function stepSpectate(){
+  if(!_specPaused){ _specPaused = true; renderSpectateBar(); return; }
+  if(!_specResume) return;
+  _specStepOnce = true;                    // 让下一次闸门放行
+  const f = _specResume; _specResume = null;
+  f();
+}
+
+export function cycleSpectateSpeed(){
+  const steps = [1, 2, 4, 0.5];
+  _specSpeed = steps[(steps.indexOf(_specSpeed) + 1) % steps.length];
+  renderSpectateBar();
+}
+
+function renderSpectateBar(){
+  const bar = document.getElementById('spectate-bar');
+  if(!bar) return;
+  bar.style.display = isSpectating() ? 'flex' : 'none';
+  if(!isSpectating()) return;
+  document.getElementById('spec-pause').textContent = _specPaused ? '▶ 继续' : '⏸ 暂停';
+  document.getElementById('spec-step').disabled = !_specPaused;
+  document.getElementById('spec-speed').textContent = `⏩ ${_specSpeed}×`;
+}
+
+// 每局开始时复位，否则上一局的暂停状态会带进下一局（下一局一开始就是卡住的）。
+function resetSpectateControls(){
+  _specPaused = false; _specResume = null; _specStepOnce = false;
+  renderSpectateBar();
+}
+
 // 每支队伍一份战术上下文，让同队的两个单位集火同一个目标。
 // 每局开始时重建（里面存着上一局单位的引用，留着会认错人）。
 let teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
@@ -119,6 +186,7 @@ export function startBattle(){
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
   gameState.resultShown=false; gameState.enemyIntent=null; gameState.extraActions=0;
+  resetSpectateControls();
   gameState.stats={
     p1:{dmg:0,heal:0,kills:0}, p2:{dmg:0,heal:0,kills:0},
     maxHit:{dmg:0,name:''}, units:{}
@@ -198,14 +266,14 @@ function beginTurnFor(u){
   processStartOfTurn(u);
   if(!u.alive){
     cancelIntentOf(u,'已阵亡');
-    setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600);
+    setTimeout(()=>{ if(!checkVictory()) nextTurn(); },d(600));
     return false;
   }
   if(u.stunned){
     addLog(`${u.name} 被打断，跳过本次行动！`,'stun');
     cancelIntentOf(u,'被打断');
     playSfx('stun'); u.stunned=false;
-    setTimeout(nextTurn,700);
+    setTimeout(nextTurn,d(700));
     return false;
   }
   // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
@@ -259,7 +327,7 @@ function activateUnit(u){
   renderBattle();
   if(isAiSide(u.player)){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
-    setTimeout(()=>aiAct(u),700+Math.random()*400);
+    setTimeout(()=>aiAct(u),d(700+Math.random()*400));
   } else {
     renderSkillPanel(u);
   }
@@ -296,6 +364,8 @@ function processStartOfTurn(u){
 
 function nextTurn(){
   if(checkVictory()) return;
+  // 观战暂停就挂在这里，单步时从这一点继续
+  if(pauseGate(nextTurn)) return;
   if(gameState.currentPlayer===2){
     gameState.round++;
     addLog(`═══ 回合 ${gameState.round} 开始 ═══`,'divider');
@@ -307,7 +377,7 @@ function nextTurn(){
 function checkVictory(){
   const p1=gameState.p1Units.some(u=>u.alive);
   const p2=gameState.p2Units.some(u=>u.alive);
-  if(!p1||!p2){ setTimeout(()=>showResult(p1?1:2),700); return true; }
+  if(!p1||!p2){ setTimeout(()=>showResult(p1?1:2),d(700)); return true; }
   return false;
 }
 
@@ -502,7 +572,7 @@ export function cancelTargeting(){
 function aiAct(u){
   const enemies=getEnemies(u.player).filter(e=>e.alive);
   const allies=getAllies(u.player).filter(e=>e.alive);
-  if(enemies.length===0){ setTimeout(nextTurn,400); return; }
+  if(enemies.length===0){ setTimeout(nextTurn,d(400)); return; }
   const ctx=teamCtx[u.player];
   // 兑现承诺：玩家回合看到的那条预告，就是这里要执行的行动。
   // **不重新决策**——哪怕玩家的操作已经让这步棋变臭。这正是玩家的操作空间。
@@ -516,7 +586,7 @@ function aiAct(u){
     // 没有可兑现的承诺时照旧现算（p1 侧的 AI、或首回合还没公开过意图）
     chosen=(AI_BY_LEVEL[aiLevelOf(u.player)]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
   }
-  if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
+  if(!chosen||!chosen.skill){ setTimeout(nextTurn,d(400)); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`+
          `${chosen.hesitated?'（似乎有些犹豫）':''}${note}`,'info');
   executeSkill(u,chosen.skill,chosen.target);
@@ -526,7 +596,7 @@ function executeSkill(actor,skill,target){
   payCosts(actor, skill);
   if(skill.sfx) playSfx(skill.sfx);
   lungeActor(actor); actor.pose='attack';
-  setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },500);
+  setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },d(500));
   switch(skill.type){
     case 'damage': playSkillVfx(actor,target,skill,()=>{
       doDamage(actor,target,skill);
@@ -534,7 +604,7 @@ function executeSkill(actor,skill,target){
     }); break;
     case 'damageAll': {
       const targets=getEnemies(actor.player).filter(e=>e.alive);
-      targets.forEach((t,i)=>setTimeout(()=>playSkillVfx(actor,t,skill,()=>doDamage(actor,t,skill)),i*120));
+      targets.forEach((t,i)=>setTimeout(()=>playSkillVfx(actor,t,skill,()=>doDamage(actor,t,skill)),d(i*120)));
       break;
     }
     case 'stun': playSkillVfx(actor,target,skill,()=>doStun(actor,target,skill)); break;
@@ -611,7 +681,7 @@ function executeSkill(actor,skill,target){
         t.debuffs.push({type:'poison',dur:skill.dotDur,value:skill.dot});
         addLog(`${t.name} 感染瘟疫，中毒${skill.dotDur}回合`,'buff');
         spawnFloatText(t,'瘟疫!','#9ccc65',16); spawnCurse(t);
-      },i*150));
+      },d(i*150)));
       break;
     }
     case 'corruptBurst': {
@@ -634,7 +704,7 @@ function executeSkill(actor,skill,target){
       spawnFloatText(actor,'不屈','#ffd54f',16); spawnAura(actor,'#ffd54f');
       break;
   }
-  setTimeout(()=>{ renderBattle(); setTimeout(afterAction,700); },900);
+  setTimeout(()=>{ renderBattle(); setTimeout(afterAction,d(700)); },d(900));
 }
 
 // 一次行动收尾。BOSS 阶段二「涂改」每回合行动两次——多出来的那次在这里接上，
@@ -651,7 +721,7 @@ function afterAction(){
     const aiSide = u && isAiSide(u.player);
     if(aiSide && u.alive && getEnemies(u.player).some(e=>e.alive)){
       addLog(`${u.name} 再次行动！`,'crit');
-      setTimeout(()=>aiAct(u), 500);
+      setTimeout(()=>aiAct(u), d(500));
       return;
     }
   }
@@ -685,7 +755,7 @@ function presentDamage(actor,target,r){
   animateUnit(target.id,'anim-hit'); spawnHitBurst(target);
   spawnFloatText(target,`-${r.dmg}`,r.isCrit?'#ffd54f':'#ff5252',r.isCrit?28:18+Math.min(12,r.dmg/8));
   playSfx('hit'); _screenShake(r.isCrit?14:6,r.isCrit?400:200);
-  target.pose='hurt'; setTimeout(()=>{target.pose='idle'; redrawUnit(target);},400);
+  target.pose='hurt'; setTimeout(()=>{target.pose='idle'; redrawUnit(target);},d(400));
   if(r.dotApplied) addLog(`${target.name} 中毒了`,'buff');
   if(r.selfHeal){
     gameState.stats['p'+actor.player].heal+=r.selfHeal;

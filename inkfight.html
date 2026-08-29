@@ -172,6 +172,17 @@ body {
 .meta-crit.crit-ready { color:#ffd54f; font-weight:bold; text-shadow:0 0 6px rgba(255,213,79,.8); }
 .dmg-preview.will-crit { color:#ffd54f; font-weight:bold; }
 
+/* 观战时的暂停 / 单步 / 倍速条。放在回合信息栏左侧，
+   和右侧的「退出战斗」对称。 */
+/* 单独占一行放在场景横幅下面。**别放进 turn-info**——那一行左上角被
+   固定定位的 #top-bar（音量条）压着，按钮会被盖住一半。 */
+#spectate-bar {
+  width:100%; display:flex; gap:8px; align-items:center; justify-content:center;
+  padding:5px; background:rgba(0,0,0,.25); border-bottom:1px solid rgba(233,69,96,.2);
+}
+#spectate-bar .btn { padding:4px 10px; font-size:12px; }
+#spectate-bar .btn:disabled { opacity:.35; }
+
 /* 观战设置里的难度小卡（比模式卡窄，两列并排放得下） */
 .spec-diff-row { display:flex; flex-direction:column; gap:8px; }
 .spec-diff {
@@ -495,6 +506,12 @@ body {
     <button class="btn btn-sm btn-danger exit-btn" onclick="playSfx('click'); confirmExit()">退出战斗 (ESC)</button>
   </div>
   <div class="scene-banner" id="scene-banner"></div>
+  <div id="spectate-bar" style="display:none;">
+    <button class="btn btn-sm" id="spec-pause" onclick="playSfx('click'); toggleSpectatePause()">⏸ 暂停</button>
+    <button class="btn btn-sm" id="spec-step" onclick="playSfx('click'); stepSpectate()" disabled>⏭ 单步</button>
+    <button class="btn btn-sm" id="spec-speed" onclick="playSfx('click'); cycleSpectateSpeed()">⏩ 1×</button>
+    <span style="font-size:11px;color:#888;">空格 暂停／继续 · → 单步</span>
+  </div>
   <div class="battle-field">
     <div class="team-side left" id="team-left"></div>
     <div class="vs-divider"></div>

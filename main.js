@@ -2,11 +2,11 @@ import { SCENES, CHARACTERS } from './data.js';
 import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
          availableAllies, unlockedAfter } from './campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
-import { gameState, rand, getUnit, teamSizeFor } from './state.js';
+import { gameState, rand, getUnit, teamSizeFor, isAiSide } from './state.js';
 import { drawStickman } from './stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from './scene.js';
 import { initRender, renderBattle } from './render.js';
-import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit } from './battle.js';
+import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from './sim.js';
 
 let _inBattle = false;
@@ -709,14 +709,18 @@ document.addEventListener('keydown',e=>{
     if(gameState.waitingForTarget) cancelTargeting();
     else if(document.getElementById('screen-battle').classList.contains('active')) confirmExit();
   }
+  // 观战快捷键：空格暂停 / 继续，→ 单步
+  if(gameState.mode==='spectate'&&document.getElementById('screen-battle').classList.contains('active')){
+    if(e.key===' '){ e.preventDefault(); playSfx('click'); toggleSpectatePause(); return; }
+    if(e.key==='ArrowRight'){ e.preventDefault(); playSfx('click'); stepSpectate(); return; }
+  }
   if(document.getElementById('screen-battle').classList.contains('active')&&!gameState.waitingForTarget){
     const n=parseInt(e.key);
     if(n>=1&&n<=4){
       const u=getUnit(gameState.activeUnitId);
-      // AI 控场的单位不接受键盘输入。战役模式的玩家2 也是 AI，
-      // 这里的判断要和 activateUnit() 里决定「是否交给 aiAct」的那个保持一致。
-      const aiControlled=(gameState.mode==='ai'||gameState.mode==='campaign')&&u?.player===2;
-      if(u&&!aiControlled&&u.skills[n-1]){
+      // AI 控场的单位不接受键盘输入。判断走 state.js 的 isAiSide——
+      // 和 battle.js 决定「是否交给 aiAct」的是同一份，不再各写一套。
+      if(u&&!isAiSide(u.player)&&u.skills[n-1]){
         const btns=document.querySelectorAll('#skill-panel .skill-btn');
         if(btns[n-1]&&!btns[n-1].disabled) btns[n-1].click();
       }
@@ -821,5 +825,6 @@ Object.assign(window, {
   confirmMode, confirmDifficulty, confirmSpectate, goBackFromScene, confirmScene,
   confirmSelection, clearLog, toggleLogPause, confirmExit,
   onCutsceneNext, resetCampaign, onRadarNext,
-  initTestScreen, startTestRun, initBanScreen
+  initTestScreen, startTestRun, initBanScreen,
+  toggleSpectatePause, stepSpectate, cycleSpectateSpeed
 });
