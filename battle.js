@@ -1,5 +1,5 @@
 import { Audio, playSfx } from './audio.js';
-import { gameState, clamp, getUnit, getEnemies, getAllies } from './state.js';
+import { gameState, clamp, getUnit, getEnemies, getAllies, aiLevelOf, isAiSide } from './state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
 import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
 import { AI_BY_LEVEL, aiNormal } from './ai.js';
@@ -15,6 +15,8 @@ import {
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
+
+const DIFF_LABEL = { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' };
 
 // 每支队伍一份战术上下文，让同队的两个单位集火同一个目标。
 // 每局开始时重建（里面存着上一局单位的引用，留着会认错人）。
@@ -99,13 +101,18 @@ export function startBattle(){
   gameState.p2Units=p2Roster.map((e,i)=>{ const [id,ov] = unitSpec(e); return createUnit(id,2,i,ov); });
   // 难度加成的具体数值在 combat.js 的 DIFFICULTY_MODS，
   // 与 difficulty-check.mjs 共用同一份，避免调了一处量的却是另一套数
-  if(gameState.mode==='ai'){
-    gameState.p2Units.forEach(u=>applyDifficulty(u, gameState.difficulty));
+  // 难度的属性加成按**每一方自己的档位**给。观战模式两边各有一档，
+  // 所以这里不能再写死「只给 p2」。战役走另一条路（下面的 stageMod），
+  // 它的 aiLevels 只用来决定决策档位，属性来自关卡的 enemyMod。
+  if(gameState.mode!=='campaign'){
+    [1,2].forEach(side=>{
+      const lv = aiLevelOf(side);
+      if(lv) (side===1?gameState.p1Units:gameState.p2Units).forEach(u=>applyDifficulty(u, lv));
+    });
   }
   // 战役是另一条路径：stage.difficulty 只决定 AI 决策档位，属性加成来自关卡
   // 自己的 enemyMod（campaign.js），由 campaign-check.mjs 逐关校准过。
-  // **不要**把上面那个 mode==='ai' 改成包含 campaign——两套加成叠在一起
-  // 会让校准好的 8 关曲线整体跳变。
+  // **上面那段刻意排除了 campaign**——两套加成叠在一起会让校准好的 8 关曲线整体跳变。
   if(gameState.mode==='campaign'){
     gameState.p2Units.forEach(u=>applyStageMod(u, gameState.stageMod));
   }
@@ -121,7 +128,10 @@ export function startBattle(){
   });
   buildTurnOrder();
   document.getElementById('battle-log').innerHTML='';
-  const modeLabel=gameState.mode==='campaign'?`战役·第${gameState.campaignStage}关`:gameState.mode==='ai'?('人机·'+({easy:'简单',normal:'普通',hard:'困难',nightmare:'墨皇'}[gameState.difficulty])):'双人';
+  const modeLabel =
+    gameState.mode==='campaign' ? `战役·第${gameState.campaignStage}关` :
+    gameState.mode==='spectate' ? `观战 A[${DIFF_LABEL[aiLevelOf(1)]}] vs B[${DIFF_LABEL[aiLevelOf(2)]}]` :
+    gameState.mode==='ai'       ? `人机·${DIFF_LABEL[aiLevelOf(2)]}` : '双人';
   document.getElementById('scene-banner').textContent=
     `战场：${gameState.scene.name} ｜ ${gameState.scene.buffText} ｜ 模式：${modeLabel}`;
   addLog('═══ 墨境之战 开始 ═══','divider');
@@ -143,7 +153,7 @@ function startTurn(){
   // **每回合都由这一方自己决定派谁上**（COMBAT_PLAN.md 任务 5）。
   // 以前是严格轮流，等于每局只有开局一次选择——一个白白丢掉的决策点。
   // 配套的「轮空回蓝」（applyRestRegen）防止它退化成「一直派最强的那个」。
-  const human = p===1 || gameState.mode==='pvp';
+  const human = !isAiSide(p);
   // **意图要在「选谁上」之前就公开**，否则玩家是盲选——
   // 而「看到预告再决定派谁去接这一下」正是这个决策点的全部价值。
   if(human) updateEnemyIntent();
@@ -223,12 +233,13 @@ function aiPickActor(player, units){
 // 注意只在玩家回合重算。AI 自己的回合要**兑现**已有的承诺，
 // 在那时重算等于承诺作废，玩家针对预告做的布置就全白费了。
 function updateEnemyIntent(){
-  if(gameState.mode!=='ai'&&gameState.mode!=='campaign'){ gameState.enemyIntent=null; return; }
+  // 只有 p2 由 AI 控制时才有「敌方意图」可公开——它靠的是 AI 的决策能提前算出来。
+  if(!isAiSide(2)){ gameState.enemyIntent=null; return; }
   const foe=aiPickActor(2, gameState.p2Units.filter(u=>u.alive));
   const foeEnemies=getEnemies(2).filter(e=>e.alive);
   const foeAllies=getAllies(2).filter(a=>a.alive);
   if(!foe||!foeEnemies.length){ gameState.enemyIntent=null; return; }
-  const ai=AI_BY_LEVEL[gameState.difficulty]||aiNormal;
+  const ai=AI_BY_LEVEL[aiLevelOf(2)]||aiNormal;
   const chosen=ai(foe,foeEnemies,foeAllies,gameState.scene,teamCtx[2]);
   gameState.enemyIntent=makeIntent(foe,chosen,gameState.scene);
 }
@@ -246,7 +257,7 @@ function cancelIntentOf(u,reason){
 function activateUnit(u){
   if(!beginTurnFor(u)) return;
   renderBattle();
-  if((gameState.mode==='ai'||gameState.mode==='campaign')&&u.player===2){
+  if(isAiSide(u.player)){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
     setTimeout(()=>aiAct(u),700+Math.random()*400);
   } else {
@@ -377,7 +388,9 @@ function showResult(w){
   document.getElementById('result-title').style.color=w===1?'#e94560':'#16c79a';
   document.getElementById('result-desc').textContent=
     w===1?'黑墨团赢得了墨境的统治权！':'白线派守护了墨境的秩序！';
-  const isPlayerWin=(gameState.mode==='ai'&&w===1)||gameState.mode==='pvp';
+  // 观战模式没有「玩家」，两边都是 AI，胜负音效不该按输赢给
+  const isPlayerWin=gameState.mode==='spectate' ? true
+    : (gameState.mode==='ai'&&w===1)||gameState.mode==='pvp';
   playSfx(isPlayerWin?'victory':'defeat');
   renderStatsPanel([
     ['玩家1 总伤害', gameState.stats.p1.dmg],
@@ -500,9 +513,8 @@ function aiAct(u){
     if(chosen.fellBack) note='（血量不足，改为普攻）';
     else if(chosen.retargeted) note='（原目标已阵亡，转打他人）';
   }else{
-    // PvP，或玩家回合没来得及公开意图（例如首回合敌方先手）时照旧现算
-    const d=gameState.difficulty;
-    chosen=(AI_BY_LEVEL[d]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
+    // 没有可兑现的承诺时照旧现算（p1 侧的 AI、或首回合还没公开过意图）
+    chosen=(AI_BY_LEVEL[aiLevelOf(u.player)]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
   }
   if(!chosen||!chosen.skill){ setTimeout(nextTurn,400); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`+
@@ -636,7 +648,7 @@ function afterAction(){
     // 这道保险是防「玩家单位走到 aiAct」这种会直接卡死回合的情况：
     // 目前 actionsFor 只对带 bossPhases 的单位返回 >1，而那只存在于 p2，
     // 但这条链路一旦错就是整局卡住，值得多一行。
-    const aiSide = u && u.player===2 && (gameState.mode==='ai'||gameState.mode==='campaign');
+    const aiSide = u && isAiSide(u.player);
     if(aiSide && u.alive && getEnemies(u.player).some(e=>e.alive)){
       addLog(`${u.name} 再次行动！`,'crit');
       setTimeout(()=>aiAct(u), 500);

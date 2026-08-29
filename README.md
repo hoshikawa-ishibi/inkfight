@@ -1,7 +1,7 @@
 # 墨境之战 (Ink Realm Clash)
 
 火柴人回合制对战游戏。纯 HTML5 + Canvas + ES modules，**零运行时依赖，无构建步骤**。
-双人 / 人机 / 8 关剧情战役 / 平衡测试四种模式，8 名角色、3 张战场。
+双人 / 人机 / 8 关剧情战役 / 观战 / 平衡测试五种模式，8 名角色、3 张战场。
 
 ## 运行
 
@@ -20,7 +20,7 @@ node serve-game.mjs
 也可以用 `npx serve .` 或 VS Code Live Server。
 **必须走 HTTP** —— ES modules 不能从 `file://` 加载。
 
-## 四种模式
+## 五种模式
 
 | 模式 | 说明 |
 |------|------|

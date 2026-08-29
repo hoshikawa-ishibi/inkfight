@@ -11,8 +11,10 @@ import { runSimulation } from './sim.js';
 
 let _inBattle = false;
 export function showScreen(id) {
-  document.querySelectorAll('#screen-title,#screen-mode,#screen-difficulty,#screen-scene,#screen-ban,#screen-select,#screen-battle,#screen-result,#screen-campaign,#screen-cutscene,#screen-radar,#screen-test')
-    .forEach(el => el.classList.remove('active'));
+  // 按前缀选，**不要写死屏幕列表**。原来这里手抄了 12 个 id，
+  // 而 inkfight.html 的 CSS 里还有同样一份——加「观战」屏时只改了 CSS
+  // 忘了这里，结果两个屏幕同时显示。同一份知识两份实现，又一次。
+  document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.remove('active'));
   const el = document.getElementById(id);
   el.classList.add('active');
   el.style.animation='none'; void el.offsetWidth; el.style.animation='';
@@ -24,6 +26,7 @@ export function showScreen(id) {
   if (id==='screen-ban') initBanScreen();
   if (id==='screen-select') startSelection();
   if (id==='screen-campaign') initCampaignScreen();
+  if (id==='screen-spectate') initSpectateScreen();
 }
 
 function showModal(inner){
@@ -82,8 +85,10 @@ function initModeScreen() {
 export function confirmMode() {
   if(!chosenMode) return;
   gameState.mode=chosenMode;
+  gameState.aiLevels = {1:null, 2:null};   // 每次重选模式都清干净
   if(chosenMode==='campaign') showScreen('screen-campaign');
   else if(chosenMode==='ai') showScreen('screen-difficulty');
+  else if(chosenMode==='spectate'){ showScreen('screen-spectate'); initSpectateScreen(); }
   else if(chosenMode==='test'){ showScreen('screen-test'); initTestScreen(); }
   else showScreen('screen-scene');
 }
@@ -111,9 +116,88 @@ function initDifficultyScreen(){
 export function confirmDifficulty(){
   if(!chosenDiff) return;
   gameState.difficulty=chosenDiff;
+  gameState.aiLevels={1:null, 2:chosenDiff};   // 人机：只有 p2 是 AI
   showScreen('screen-scene');
 }
-export function goBackFromScene(){ showScreen(gameState.mode==='ai'?'screen-difficulty':'screen-mode'); }
+export function goBackFromScene(){
+  showScreen(gameState.mode==='ai' ? 'screen-difficulty'
+    : gameState.mode==='spectate' ? 'screen-spectate' : 'screen-mode');
+}
+
+// ── 观战模式 ──────────────────────────────────────────────
+// 两边都交给 AI，各选一档。**A 方坐在「玩家」的位置上**——它拿得到 B 方的
+// 行动预告，而 B 方被自己的承诺锁住（见 intent.js）。所以这里看到的是
+// 「一个 A 档水平的玩家去打 B 档 AI」，正是 difficulty-check.mjs 量的那件事，
+// 只是变成了看得见的一整局。UI 上把这点说清楚了，别让人误以为是对等较量。
+const SPEC_DIFFS = [
+  { id:'easy',      name:'🟢 简单',  note:'常选错目标、偶尔白抡普攻、不会配合' },
+  { id:'normal',    name:'🟡 普通',  note:'按评分选，会集火但配合意识只有一半' },
+  { id:'hard',      name:'🔴 困难',  note:'整队集火、不浪费回合、会前瞻攒蓝' },
+  { id:'nightmare', name:'👑 墨皇',  note:'决策同困难，另有属性加成' },
+];
+let specA=null, specB=null, specRoster=null;
+
+function initSpectateScreen(){
+  specA=null; specB=null; specRoster=null;
+  const unlocked = getCampaignProgress() >= CAMPAIGN_STAGES.length;
+  [['spec-a','A'],['spec-b','B']].forEach(([elId, side])=>{
+    const box=document.getElementById(elId);
+    box.innerHTML='';
+    SPEC_DIFFS.forEach(d=>{
+      // 隐藏档「墨皇」通关战役才出现，和难度选择界面同一条规矩
+      if(d.id==='nightmare' && !unlocked) return;
+      const card=document.createElement('div');
+      card.className='spec-diff';
+      card.innerHTML=`<div class="sd-name">${d.name}</div><div class="sd-note">${d.note}</div>`;
+      card.onmouseenter=()=>playSfx('hover');
+      card.onclick=()=>{
+        playSfx('select');
+        [...box.children].forEach(x=>x.classList.remove('selected'));
+        card.classList.add('selected');
+        if(side==='A') specA=d.id; else specB=d.id;
+        updateSpectateUI();
+      };
+      box.appendChild(card);
+    });
+  });
+  document.querySelectorAll('#spec-roster .option-card').forEach(c=>{
+    c.classList.remove('selected');
+    c.onmouseenter=()=>playSfx('hover');
+    c.onclick=()=>{
+      playSfx('select');
+      document.querySelectorAll('#spec-roster .option-card').forEach(x=>x.classList.remove('selected'));
+      c.classList.add('selected'); specRoster=c.dataset.roster;
+      updateSpectateUI();
+    };
+  });
+  updateSpectateUI();
+}
+
+function updateSpectateUI(){
+  document.getElementById('btn-spec-next').disabled = !(specA && specB && specRoster);
+}
+
+export function confirmSpectate(){
+  if(!(specA && specB && specRoster)) return;
+  gameState.aiLevels = {1:specA, 2:specB};
+  gameState.difficulty = specB;          // 结算面板等处仍读它
+  if(specRoster==='random'){
+    const n=teamSizeFor(gameState.mode);
+    const pool=shuffleIds(CHARACTERS.map(c=>c.id));
+    gameState.p1Picks=pool.slice(0,n);
+    gameState.p2Picks=pool.slice(n,n*2);
+    showScreen('screen-scene');
+  } else {
+    showScreen('screen-scene');           // 场景选完再进选角
+  }
+}
+
+// Fisher-Yates。不要用 sort(()=>Math.random()-0.5)，理由见 sim.js 的 shuffle。
+function shuffleIds(arr){
+  const r=arr.slice();
+  for(let i=r.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [r[i],r[j]]=[r[j],r[i]]; }
+  return r;
+}
 
 let chosenScene=null;
 function initSceneScreen() {
@@ -145,6 +229,8 @@ export function confirmScene() {
   gameState.scene=chosenScene;
   applySceneBackground(chosenScene);
   if(gameState.mode==='pvp') { showScreen('screen-ban'); return; }
+  // 观战 + 随机分配：角色在 confirmSpectate 里已经抽好，直接进阵容对比
+  if(gameState.mode==='spectate' && gameState.p1Picks.length){ showRadar(); return; }
   showScreen('screen-select');
 }
 
@@ -285,6 +371,8 @@ function updateSelectUI(){
   const t=document.getElementById('select-title');
   const n=teamSizeFor(gameState.mode);
   if(gameState.mode==='campaign') t.textContent=CAMPAIGN_HERO.name+` 固定出战 — 再挑 ${n-1} 名同伴`;
+  else if(gameState.mode==='spectate')
+    t.textContent = selectPhase===1 ? `A 方（黑墨团）出战 ${n} 名角色` : `B 方（白线派）出战 ${n} 名角色`;
   else if(selectPhase===1) t.textContent=`玩家 1（黑墨团）选择 ${n} 名角色`;
   else t.textContent=gameState.mode==='ai'?`AI（白线派）选择 ${n} 名角色（自动随机）`:`玩家 2（白线派）选择 ${n} 名角色`;
   document.getElementById('select-count').textContent=`已选: ${tempPicks.length}/${n}`;
@@ -730,7 +818,7 @@ export function onRadarNext(){ startBattle(); }
 
 Object.assign(window, {
   playSfx, toggleMute, showScreen, showHelp,
-  confirmMode, confirmDifficulty, goBackFromScene, confirmScene,
+  confirmMode, confirmDifficulty, confirmSpectate, goBackFromScene, confirmScene,
   confirmSelection, clearLog, toggleLogPause, confirmExit,
   onCutsceneNext, resetCampaign, onRadarNext,
   initTestScreen, startTestRun, initBanScreen

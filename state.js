@@ -14,6 +14,16 @@ export function teamSizeFor(mode){
 
 export let gameState = {
   mode:null, difficulty:'normal', scene:null,
+  // **哪一方由 AI 控制，以及用哪一档** —— 唯一真相来源。
+  // null = 真人操作。以前这件事是各处自己判 `mode==='ai' && player===2`，
+  // 散在 battle.js 的 startTurn / activateUnit / aiAct / updateEnemyIntent
+  // 和 main.js 的快捷键里共 5 处；加「观战」模式（两边都是 AI、还各自选档）
+  // 时那 5 处都得改，正是这个项目反复出 bug 的模式。
+  //   双人   {1:null,      2:null}
+  //   人机   {1:null,      2:难度}
+  //   战役   {1:null,      2:关卡AI档}
+  //   观战   {1:A方难度,   2:B方难度}
+  aiLevels:{1:null, 2:null},
   p1Picks:[], p2Picks:[],
   p1Units:[], p2Units:[],
   // 当前正在行动的单位 id，由 battle.js 的 activateUnit() 写入。
@@ -55,3 +65,7 @@ export function getAllUnits(){return [...gameState.p1Units,...gameState.p2Units]
 export function getUnit(id){return getAllUnits().find(u=>u.id===id);}
 export function getEnemies(p){return p===1?gameState.p2Units:gameState.p1Units;}
 export function getAllies(p){return p===1?gameState.p1Units:gameState.p2Units;}
+
+// 这一方是 AI 在操作吗？返回它的难度档，真人则返回 null。
+export function aiLevelOf(player){ return gameState.aiLevels[player] || null; }
+export function isAiSide(player){ return !!aiLevelOf(player); }

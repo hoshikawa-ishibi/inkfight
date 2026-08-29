@@ -44,7 +44,8 @@ body {
 #top-bar label{ font-size:11px; color:#ccc; }
 #top-bar input[type=range]{ width:80px; }
 
-#screen-title, #screen-mode, #screen-difficulty, #screen-scene, #screen-ban, #screen-select, #screen-battle, #screen-result, #screen-campaign, #screen-cutscene, #screen-radar, #screen-test {
+/* 所有 #screen-* 默认隐藏。按前缀写，加新屏不用回来改这一行。 */
+[id^="screen-"] {
   display:none; width:100%; min-height:100vh;
   flex-direction:column; align-items:center; justify-content:center;
   animation:fadeIn .5s ease;
@@ -170,6 +171,17 @@ body {
    所以「快满了」这件事必须看得见，玩家才谈得上「留大招砸在必暴那一刀」。 */
 .meta-crit.crit-ready { color:#ffd54f; font-weight:bold; text-shadow:0 0 6px rgba(255,213,79,.8); }
 .dmg-preview.will-crit { color:#ffd54f; font-weight:bold; }
+
+/* 观战设置里的难度小卡（比模式卡窄，两列并排放得下） */
+.spec-diff-row { display:flex; flex-direction:column; gap:8px; }
+.spec-diff {
+  width:230px; padding:8px 12px; border:2px solid #0f3460; border-radius:8px;
+  background:rgba(15,52,96,.35); cursor:pointer; transition:all .2s; font-size:13px;
+}
+.spec-diff:hover { border-color:#16c79a; transform:translateX(3px); }
+.spec-diff.selected { border-color:#e94560; background:rgba(233,69,96,.18); }
+.spec-diff .sd-name { font-weight:bold; }
+.spec-diff .sd-note { font-size:11px; color:#999; margin-top:2px; }
 
 /* 「点我方角色查看技能」阶段的可点 / 预览高亮。
    以前这里是一个独立的选人界面，用户反馈那样「没法挨个点开看技能」。 */
@@ -361,6 +373,10 @@ body {
       <div class="ic">⚔️</div><h3>战役模式</h3>
       <div class="desc">挑战8关剧情战役，揭开墨境世界的秘密，击败墨皇。</div>
     </div>
+    <div class="option-card" data-mode="spectate">
+      <div class="ic">👁️</div><h3>观战模式</h3>
+      <div class="desc">两边都交给 AI，各选一档难度，你在旁边看一整局怎么打。</div>
+    </div>
     <div class="option-card" data-mode="test">
       <div class="ic">🧪</div><h3>平衡测试</h3>
       <div class="desc">双方AI自动对战多轮，统计胜率，检验角色数值平衡。</div>
@@ -373,6 +389,43 @@ body {
 </div>
 
 <!-- 难度 -->
+<div id="screen-spectate">
+  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">观 战 设 置</h2>
+  <p style="color:#aaa;font-size:12px;max-width:620px;text-align:center;line-height:1.8;margin-bottom:14px;">
+    <b style="color:#4fc3f7">A 方坐在「玩家」的位置上</b>——它能看见 B 方的行动预告，而 B 方要兑现自己的承诺。<br>
+    这正是玩家在人机对战里享有的信息优势，所以这里量的是
+    <b>「一个 A 档水平的玩家去打 B 档 AI」</b>，不是两个 AI 的对等较量。
+  </p>
+
+  <div style="display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;">
+    <div>
+      <h3 style="color:#e94560;text-align:center;margin-bottom:8px;">A 方（黑墨团）</h3>
+      <div class="spec-diff-row" id="spec-a"></div>
+    </div>
+    <div>
+      <h3 style="color:#16c79a;text-align:center;margin-bottom:8px;">B 方（白线派）</h3>
+      <div class="spec-diff-row" id="spec-b"></div>
+    </div>
+  </div>
+
+  <h3 style="color:#e94560;margin-bottom:8px;">出战角色</h3>
+  <div class="option-grid" id="spec-roster" style="margin:0 0 18px;">
+    <div class="option-card" data-roster="random">
+      <div class="ic">🎲</div><h3>随机分配</h3>
+      <div class="desc">双方各随机抽 3 名不重复的角色。</div>
+    </div>
+    <div class="option-card" data-roster="manual">
+      <div class="ic">✍️</div><h3>我来指定</h3>
+      <div class="desc">先给 A 方挑 3 名，再给 B 方挑 3 名。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
+    <button class="btn btn-confirm" id="btn-spec-next" disabled onclick="playSfx('confirm'); confirmSpectate()">下一步</button>
+  </div>
+</div>
+
 <div id="screen-difficulty">
   <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 AI 难 度</h2>
   <div class="option-grid" id="diff-grid">

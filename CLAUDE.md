@@ -100,7 +100,7 @@ data.js（技能配置）
 | `sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 189 条，`npm test` |
 | `campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
-| `main.js` | 入口：UI 流程、事件监听、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
+| `main.js` | 入口：UI 流程、事件监听（含**观战模式** `initSpectateScreen` / `confirmSpectate`）、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
 | `balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。**玩家替身不是 aiHard**——那是完美玩家，会把每一档都校偏；现在用 `ai.js` 的 `makeAi` 造三档人类替身（熟手/一般/生手，靠 `noise` 分档），公平线是「该水平玩家自己打自己」。属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
 | `campaign-check.mjs` | 战役难度曲线诊断（8 关分别有多难）。阵容 / AI档 / `enemyMod` 全读 `campaign.js`，属性加成走 `combat.js` 的 `applyStageMod`。**改完战役数据必跑** |
@@ -118,6 +118,12 @@ data.js（技能配置）
 
 - **本作回合流程是「双方各行动一个单位」**：队伍人数不影响行动次数，只影响血池。
   所以单人 BOSS 每回合都出手，两人队的 BOSS 只能隔回合出手一次。
+- **「哪一方由 AI 控制、用哪一档」的唯一真相来源是 `gameState.aiLevels`**
+  （`state.js` 的 `aiLevelOf` / `isAiSide`）。以前这件事是各处自己判
+  `mode==='ai' && player===2`，散在 5 处；观战模式两边都是 AI 且各有一档，
+  按老写法那 5 处都得改。**别再写 `mode==='ai'` 来判断谁是 AI。**
+- **别写死屏幕 id 列表。** `showScreen` 和 CSS 都改成按 `[id^="screen-"]` 选了——
+  原来两处各手抄一份 12 个 id，加「观战」屏时只改了 CSS，结果两个屏幕同时显示。
 - **每方 3 人（战役 2 人）**，唯一定义在 `state.js` 的 `teamSizeFor(mode)`。
   3v3 是扫出来的甜点：「完美 vs 一般」的落差 2v2 是 6.8、3v3 是 11.3、4v4 掉回 5.3
   （4v4 差是因为只有 8 个角色，双方各 4 人等于每局用光全部角色，阵容没了变化）。
