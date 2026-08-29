@@ -4,9 +4,13 @@
 // 把玩家的决策水平从「完美」一路降到「闭眼乱按」，胜率会掉多少？
 // 这个落差就是**策略的全部价值**。落差越小，说明胜负越是骰子说了算。
 //
-// 对照组把 crit / dodge 两个纯输出随机源清零（它们只是单位字段，
-// 不用改任何游戏代码），看落差会不会变大——如果变大，就证明
-// 暴击和闪避正在把玩家的决策淹掉。
+// 对照组把 crit / dodge 两个字段清零（它们只是单位字段，不用改游戏代码）。
+//
+// **注意这一行的含义在任务 2 之后变了。** 改造前暴击和闪避是掷骰，
+// 清零 = 移除两个随机源，用来验证「随机在不在稀释决策」（答案是：不是主因）。
+// 现在两者都已确定化（暴击蓄能条 / 闪避改恒定减伤），清零 = **移除机制本身**，
+// 量的是「这两个机制给策略贡献了多少」。落差比原样低，说明它们现在
+// 是在**增加**决策而不是淹没决策——这正是想要的结果。
 //
 // 用法：node depth-check.mjs [每格局数]
 import { simOneBattle, shuffle } from './sim.js';
@@ -93,7 +97,7 @@ function table(label, fn){
   console.log('    ────────────' + '─'.repeat(7 * LADDER.length) + '───┼──────────');
   console.log('    原样        ' + on.map(v => `${v.toFixed(1)}%`.padStart(7)).join('') +
               `   │  ${span.toFixed(1)} 点`);
-  console.log('    暴击闪避归零' + off.map(v => `${v.toFixed(1)}%`.padStart(7)).join('') +
+  console.log('    机制归零  ' + off.map(v => `${v.toFixed(1)}%`.padStart(7)).join('') +
               `   │  ${spanO.toFixed(1)} 点`);
   return { span, spanO };
 }

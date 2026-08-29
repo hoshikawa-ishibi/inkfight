@@ -8,7 +8,7 @@
 // 才能横向比较。难度差异由 ai.js 在此之上做包装（噪声 + 战术加成），
 // 而不是各写一套评分。
 
-import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget } from './combat.js';
+import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit } from './combat.js';
 
 // 技能评分：把每种技能的收益统一折算成「等效伤害」，好让 17 种技能类型
 // 能够横向比较。旧版本只给 damage/heal/stun/drain 四种打分，其余 13 种
@@ -73,6 +73,21 @@ export function focusFoe(foes, ctx, teamwork = 1){
   const focus = foes.includes(ctx.focusTarget) ? ctx.focusTarget : null;
   if(focus && killValue(focus) * 1.25 >= killValue(best)) return focus;
   return best;
+}
+
+// 打断的目标：只有 SP 够满、又不在免疫期的目标才打得断（规则在 combat.js 的
+// `canInterrupt`）。**scoreSkill 和 pickTarget 必须共用这一份**——
+// 这两处历史上各挑各的（评分挑「最容易晕的」、实际却打在集火目标身上），
+// 于是算出来的收益和实际发生的事对不上。
+// 一个都打不断时退回集火目标：技能自带伤害，不至于白扔一个回合。
+export function stunTarget(foes, skill, ctx, tw = 1){
+  if(!foes.length) return null;
+  const taunter = foes.find(e => e.buffs.some(b => b.type === 'taunt'));
+  if(taunter) return taunter;                       // 被嘲讽了就没得选
+  const hittable = foes.filter(f => canInterrupt(f, skill));
+  if(!hittable.length) return focusFoe(foes, ctx, tw);
+  // 打得断的里面挑威胁最大的——打断的收益就是「它少打的那一下」
+  return hittable.reduce((a, b) => threatOf(a) >= threatOf(b) ? a : b);
 }
 
 // 伤害类技能的收益。超出目标有效血量的部分打不出去（40 点伤害砸在 5 血的
@@ -142,7 +157,11 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   const sceneMul = scene?.buff === 'damageUp' ? 1.15 : 1;   // scene 可缺省
   // 粗估：无视防御的伤害（中毒等）按原值算，普通伤害按目标平均减伤折算
   const avgDefMul = 1 - (foes.reduce((n,f)=>n+f.def,0)/foes.length) / ((foes.reduce((n,f)=>n+f.def,0)/foes.length) + 50);
-  const dmgOf = p => atk * (p||1) * sceneMul * avgDefMul;
+  // 暴击是确定的了（蓄能条），所以评分也必须把它算进来——否则 AI 不会
+  // 「留着大招砸在必暴的那一刀上」，而那正是任务 2b 想创造的决策。
+  // 注意倍率要按**这个技能自己的** crit 加成算（暗影突袭自带 +40）。
+  const dmgOf = (p, sk) => atk * (p||1) * sceneMul * avgDefMul
+    * (sk && willCrit(u, sk) ? 1.5 : 1);
 
   // ── 已知的下一击 ─────────────────────────────────────
   // 承诺制公开出来的敌方意图（`opts.threat = {unitId, targetId, dmg}`）。
@@ -192,33 +211,35 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
 
   switch(s.type){
     case 'damage': {
-      const d = dmgOf(s.power);
+      const d = dmgOf(s.power, s);
       return damageWorth(d, mainFoe, s) + preempt(mainFoe, d);
     }
 
     case 'damageAll':
       // 打到每个存活敌人，但单体收益略低于同威力的单体技能
-      return dmgOf(s.power) * foes.length * 0.9;
+      return dmgOf(s.power, s) * foes.length * 0.9;
 
     case 'drain': {
-      const d = dmgOf(s.power);
+      const d = dmgOf(s.power, s);
       // 吸血按实际打出的伤害算，溢杀的部分照样吸得回来，所以这里不封顶
       const healed = Math.min(d * (s.drainPct/100), u.maxHp - u.hp);
       return damageWorth(d, mainFoe, s) + healed * 0.8 + preempt(mainFoe, d);
     }
 
     case 'stun': {
-      // 挑最容易晕到的目标（SP 越满命中率越高），收益 = 对方少打的那一回合，
-      // 要按它能放出来的最强技能估，而不是裸 atk。
-      const cand = foes.reduce((a,b)=>
-        (s.basePct + s.spScale*(a.sp/a.maxSp)) >= (s.basePct + s.spScale*(b.sp/b.maxSp)) ? a : b);
-      const p = Math.min(1, (s.basePct + s.spScale * (cand.sp/cand.maxSp)) / 100);
-      // 已知这个目标下一步要干什么时，「它少打的那一回合」就不必再粗估了。
+      // 打断是**确定性**的了（见 combat.js 的 calcStun）：没有概率可算，
+      // 只有「打得断 / 打不断」。目标和 pickTarget 共用 stunTarget。
+      const cand = stunTarget(foes, s, opts.ctx, tw) || mainFoe;
+      const works = canInterrupt(cand, s);
+      // 收益 = 它少打的那一下。已知它下一步要干什么时就用真实数字，
       // 取两者较大：预告是治疗/增益类时 threatDmg 为 0，那就退回 threatOf。
-      const lost = (threat && threat.unitId === cand.id)
-        ? Math.max(threatDmg, threatOf(cand)) : threatOf(cand);
-      // 带 power 的眩晕技能自带一次伤害，要算进收益
-      return dmgOf(s.power || 0) + p * lost;
+      const lost = works
+        ? ((threat && threat.unitId === cand.id)
+            ? Math.max(threatDmg, threatOf(cand)) : threatOf(cand))
+        : 0;
+      // 带 power 的打断技能自带一次伤害，打不断时它就退化成一个普通伤害技能
+      const d = dmgOf(s.power || 0, s);
+      return damageWorth(d, cand, s) + lost + preempt(cand, d);
     }
 
     case 'plague': {
@@ -275,7 +296,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const perTurn = s.buffType === 'berserk' ? (s.selfDmg ?? BUFF_DEFAULTS.berserkSelfDmg) : 0;
       const cost = perTurn * (s.dur||1) * (hpFrac < 0.4 ? 3 : 1);
       // 带 power 的边打边上 buff，不算浪费回合
-      const immediate = s.power ? dmgOf(s.power) : 0;
+      const immediate = s.power ? dmgOf(s.power, s) : 0;
       return immediate + gain - cost - (s.power ? 0 : tempo);
     }
 
@@ -355,6 +376,13 @@ export function pickTarget(actor, skill, enemies, allies, opts = {}){
   const friends = allies.filter(a=>a.alive);
   const tw = opts.teamwork ?? 1;
   const ctx = opts.ctx;
+
+  // 打断有自己的挑人规则（要挑打得断的），必须走和 scoreSkill 同一份实现。
+  // 放在 needsEnemyTarget 之前——'stun' 也在那个列表里，会被它先截走。
+  if(skill.type === 'stun'){
+    // 不写回 ctx.focusTarget：打断是一次针对性的操作，不代表整队改集火。
+    return stunTarget(foes, skill, ctx, tw);
+  }
 
   if(needsEnemyTarget(skill)){
     const focus = focusFoe(foes, ctx, tw);

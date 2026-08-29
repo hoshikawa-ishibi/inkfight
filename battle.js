@@ -10,7 +10,7 @@ import {
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
-  applyDifficulty, applyStageMod, unitSpec
+  applyDifficulty, applyStageMod, unitSpec, willCrit
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -200,14 +200,18 @@ function activateUnit(u){
   gameState.activeUnitId=u.id;
   if(u.player===1) gameState.p1LastActed=u.id;
   else gameState.p2LastActed=u.id;
+  // 回合开始流程必须先跑，再判打断：中毒照样掉血、buff 照样递减、
+  // 打断免疫照样倒计时。以前被眩晕的单位直接 return，这三件事一件都不发生
+  // ——等于「被控住」还附赠中毒免疫和 buff 保鲜。而 sim.js 那边是先跑再判，
+  // 两份实现对不上（和任务 0 那个行动经济 bug 是同一类病）。
+  processStartOfTurn(u);
+  if(!u.alive){ cancelIntentOf(u,'已阵亡'); setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
   if(u.stunned){
-    addLog(`${u.name} 被眩晕，跳过回合！`,'stun');
+    addLog(`${u.name} 被打断，跳过本次行动！`,'stun');
     cancelIntentOf(u,'被打断');
     playSfx('stun'); u.stunned=false;
     setTimeout(nextTurn,700); return;
   }
-  processStartOfTurn(u);
-  if(!u.alive){ cancelIntentOf(u,'已阵亡'); setTimeout(()=>{ if(!checkVictory()) nextTurn(); },600); return; }
   applyTurnRegen(u, gameState.scene);
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent=
@@ -370,7 +374,7 @@ export function renderSkillPanel(u){
       <span class="key-hint">[${i+1}]</span>
       ${s.name}
       <span class="sp-cost">${s.cost>0?s.cost+'SP':'免费'}${s.hpCost?` -${s.hpCost}HP`:''}</span>
-      ${dmg!==null?`<span class="dmg-preview">≈${dmg}伤害</span>`:''}`;
+      ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?'💥':'≈'}${dmg}伤害</span>`:''}`;
     btn.onmouseenter=(e)=>{ if(!btn.disabled) playSfx('hover');
       _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`,e.clientX,e.clientY);
     };
@@ -604,14 +608,17 @@ function doStun(actor,target,skill){
   // 带 power 的眩晕技能会先结算一次伤害
   if(r.damage) presentDamage(actor, target, r.damage);
   if(r.skipped) return;
-  addLog(`${actor.name} 对 ${target.name} 施放${skill.name}，眩晕概率 ${r.prob.toFixed(1)}%`,'stun');
   if(r.success){
-    addLog(`${target.name} 被眩晕了！`,'stun');
-    spawnFloatText(target,'眩晕!','#f5a623',18); spawnHitBurst(target,'#f5a623');
+    addLog(`${target.name} 被打断了！下一次行动取消`,'stun');
+    spawnFloatText(target,'打断!','#f5a623',18); spawnHitBurst(target,'#f5a623');
     playSfx('stun'); _screenShake(8,250);
+  } else if(r.reason === 'immune'){
+    // 失败的原因必须说清楚，否则玩家学不会这个机制该怎么用
+    addLog(`${target.name} 刚被打断过，处于免疫中`,'miss');
+    spawnFloatText(target,'免疫','#888',16); playSfx('miss');
   } else {
-    addLog(`${target.name} 抵抗了眩晕`,'miss');
-    spawnFloatText(target,'抵抗','#888',16); playSfx('miss');
+    addLog(`${target.name} 灵能不足 ${r.need}，打不断`,'miss');
+    spawnFloatText(target,`需SP${r.need}`,'#888',14); playSfx('miss');
   }
 }
 

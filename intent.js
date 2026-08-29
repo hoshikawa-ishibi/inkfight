@@ -35,9 +35,12 @@ export function nextActor(units, lastActedId){
 
 // 预估这一击会造成多少伤害。
 // combat.js 的 previewDmg 不看目标（技能面板用它给玩家看自己的攻击力），
-// 这里知道目标是谁，所以要把减防和「减防中」的增伤折进去——
+// 这里知道目标是谁，所以要把减防、「减防中」增伤、被动闪避减伤都折进去——
 // 报给玩家的数字不准，公开意图就失去意义了。
-// 暴击不算进来：它是浮动项，标题上的「≈」就是在说这一点。
+//
+// **暴击也算进来**：任务 2b 之后暴击是蓄能条驱动的确定事件，previewDmg
+// 已经把它算好了。改造前这里报 ≈43 而实际打出 66（暴击），差额一半以上
+// 的时候是错的——现在这个数字是准的。
 export function estimateDamage(unit, skill, target, scene){
   if(!skill.power) return null;
   const raw = previewDmg(unit, skill, scene);
@@ -45,6 +48,7 @@ export function estimateDamage(unit, skill, target, scene){
   if(!target) return raw;
   let d = raw * (1 - target.def / (target.def + 50));
   if(target.debuffs.some(x => x.type === 'defDown')) d *= 1.2;
+  if(target.dodge) d *= (1 - target.dodge / 100);
   return Math.max(1, Math.floor(d));
 }
 

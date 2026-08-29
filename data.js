@@ -27,7 +27,7 @@ export const CHARACTERS = [
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
       { name:'墨之洪流', type:'damage', cost:35, power:3.1, desc:'消耗35SP，310%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
-      { name:'灵能过载', type:'stun', cost:20, power:1.4, basePct:30, spScale:35, desc:'140%伤害，眩晕概率随目标SP上升', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
+      { name:'灵能过载', type:'stun', cost:20, power:1.4, spThreshold:0.5, desc:'140%伤害；目标SP过半则必定打断', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
       { name:'冥想', type:'healSp', cost:0, hpCost:0, spGain:30, desc:'恢复30SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
   { id:'guardian', name:'守卫', role:'坦克/反制', hp:155, sp:65, atk:14, def:9, crit:5, dodge:2, spRegen:8, color:'#8d6e63', weapon:'shield',
@@ -68,7 +68,7 @@ export const CHARACTERS = [
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
       { name:'穿透箭', type:'damageAll', cost:28, power:1.6, desc:'对所有敌人160%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'束缚箭', type:'stun', cost:25, power:1.3, basePct:35, spScale:30, desc:'130%伤害，眩晕1回合', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
+      { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则必定打断', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
   { id:'warlock', name:'术士', role:'腐化/爆发', hp:100, sp:120, atk:14, def:4, crit:12, dodge:5, spRegen:12, color:'#7e57c2', weapon:'orb',
     passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×8 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },

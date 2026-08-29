@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createUnit, getEffectiveAtk, previewDmg, applyTurnRegen, handleDeath,
-  triggerPassive, processStartOfTurn, calcDamage, calcStun,
+  triggerPassive, processStartOfTurn, calcDamage, calcStun, canInterrupt, interruptNeed, willCrit,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
   needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec
 } from '../combat.js';
@@ -14,6 +14,7 @@ function makeUnit(overrides={}){
     maxHp:100, hp:100, maxSp:100, sp:100, atk:20, def:0, crit:0, dodge:0, spRegen:10,
     skills:[], passive:null, passiveStacks:0,
     alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
+    interruptImmune:0, critMeter:0,
     pose:'idle', blink:0
   }, overrides);
 }
@@ -130,28 +131,148 @@ describe('calcDamage', () => {
   });
 });
 
-describe('calcStun', () => {
-  test('概率 = basePct + spScale * (sp/maxSp)', () => {
-    const actor = makeUnit();
-    const target = makeUnit({sp:50, maxSp:100});
-    const r = withRandom(0.999, () => calcStun(actor, target, {basePct:30, spScale:35}));
-    assert.equal(r.prob, 47.5);
+// 打断（原「眩晕」）现在是**确定性**的，见 COMBAT_PLAN.md 任务 2a。
+// 旧断言锁的是 `basePct + spScale × SP占比` 这个概率公式，
+// 那一个骰子实测值 29.6 个百分点的胜率、而玩家的全部技术只值 12.6 点。
+// 这一组测试现在锁的是新契约：**同样的局面必须给出同样的结果，不掷骰。**
+// 暴击 / 闪避改成确定性（COMBAT_PLAN.md 任务 2b + 2c）。
+// 这一组锁的核心是：**同样的输入必须给出同样的输出**。
+// 期望伤害要和原来的概率模型一致，否则等于偷偷改了平衡。
+describe('暴击蓄能条：确定性，且期望值不变', () => {
+  test('攒满 100 才暴击，攒的速度就是暴击率', () => {
+    const actor = makeUnit({crit:25, critMeter:0});
+    const hits = [];
+    for(let i = 0; i < 8; i++){
+      hits.push(calcDamage(actor, makeUnit({def:0, dodge:0}), {power:1}).isCrit);
+    }
+    // 每次 +25，第 4、8 次攒满
+    assert.deepEqual(hits, [false,false,false,true,false,false,false,true]);
   });
 
-  test('随机数低于概率时眩晕成功', () => {
-    const actor = makeUnit();
-    const target = makeUnit({sp:100, maxSp:100});
-    const r = withRandom(0, () => calcStun(actor, target, {basePct:30, spScale:35}));
-    assert.equal(r.success, true);
-    assert.equal(target.stunned, true);
+  test('技能自带暴击加成算进蓄能速度', () => {
+    const actor = makeUnit({crit:10, critMeter:0});
+    // 10 + 40 = 50/次 → 第 2 次必暴
+    assert.equal(calcDamage(actor, makeUnit({def:0,dodge:0}), {power:1, crit:40}).isCrit, false);
+    assert.equal(calcDamage(actor, makeUnit({def:0,dodge:0}), {power:1, crit:40}).isCrit, true);
   });
 
-  test('随机数高于概率时眩晕失败', () => {
-    const actor = makeUnit();
-    const target = makeUnit({sp:0, maxSp:100}); // prob = 30
-    const r = withRandom(0.99, () => calcStun(actor, target, {basePct:30, spScale:35}));
-    assert.equal(r.success, false);
-    assert.equal(target.stunned, false);
+  test('结果与 Math.random 无关', () => {
+    const a = makeUnit({crit:50, critMeter:50});
+    const b = makeUnit({crit:50, critMeter:50});
+    assert.equal(withRandom(0,    () => calcDamage(a, makeUnit({def:0,dodge:0}), {power:1})).isCrit, true);
+    assert.equal(withRandom(0.99, () => calcDamage(b, makeUnit({def:0,dodge:0}), {power:1})).isCrit, true);
+  });
+
+  test('长期期望伤害与旧的概率模型一致（20% 暴击 = 平均 1.1 倍）', () => {
+    const N = 100;
+    let total = 0;
+    const actor = makeUnit({atk:100, crit:20, critMeter:0});
+    for(let i = 0; i < N; i++){
+      total += calcDamage(actor, makeUnit({def:0, dodge:0, hp:1e9, maxHp:1e9}), {power:1}).dmg;
+    }
+    const avg = total / N;
+    // 期望 = 100 × (1 + 0.20×0.5) = 110
+    assert.ok(Math.abs(avg - 110) < 1, `平均伤害应当接近 110，实际 ${avg}`);
+  });
+
+  test('willCrit 和 calcDamage 判断一致（预览与结算必须同口径）', () => {
+    const u = makeUnit({crit:30, critMeter:80});
+    const s = {power:1};
+    assert.equal(willCrit(u, s), true);
+    assert.equal(calcDamage(u, makeUnit({def:0,dodge:0}), s).isCrit, true);
+    // 打完之后 meter 归到 10，下一刀就不暴了
+    assert.equal(willCrit(u, s), false);
+  });
+});
+
+describe('被动闪避：改成确定性减伤，期望值不变', () => {
+  test('10% 闪避 = 恒定少受 10% 伤害，而不是 10% 概率完全免疫', () => {
+    const actor = makeUnit({atk:100, crit:0});
+    const a = calcDamage(actor, makeUnit({def:0, dodge:0, hp:1e9, maxHp:1e9}), {power:1}).dmg;
+    const b = calcDamage(actor, makeUnit({def:0, dodge:10, hp:1e9, maxHp:1e9}), {power:1}).dmg;
+    assert.equal(b, Math.floor(a * 0.9));
+  });
+
+  test('闪避不再让攻击落空（dodged 恒为 false）', () => {
+    const actor = makeUnit({atk:100, crit:0});
+    for(let i = 0; i < 50; i++){
+      assert.equal(calcDamage(actor, makeUnit({dodge:90}), {power:1}).dodged, false);
+    }
+  });
+
+  test('主动闪避（「消失」）仍然是完全免疫，且一次性', () => {
+    const actor = makeUnit({atk:100, crit:0});
+    const t = makeUnit({dodge:0, dodging:true});
+    assert.equal(calcDamage(actor, t, {power:1}).dodged, true);
+    assert.equal(t.dodging, false, '用掉之后要清掉');
+    assert.equal(calcDamage(actor, t, {power:1}).dodged, false);
+  });
+});
+
+describe('calcStun：确定性打断', () => {
+  const SKILL = {spThreshold:0.5};
+
+  test('SP 达到阈值 → 必定打断（连跑 50 次结果完全一致）', () => {
+    for(let i = 0; i < 50; i++){
+      const target = makeUnit({sp:50, maxSp:100});
+      const r = calcStun(makeUnit(), target, SKILL);
+      assert.equal(r.success, true);
+      assert.equal(target.stunned, true);
+    }
+  });
+
+  test('SP 低于阈值 → 必定打不断（连跑 50 次结果完全一致）', () => {
+    for(let i = 0; i < 50; i++){
+      const target = makeUnit({sp:49, maxSp:100});
+      const r = calcStun(makeUnit(), target, SKILL);
+      assert.equal(r.success, false);
+      assert.equal(r.reason, 'lowSp');
+      assert.equal(target.stunned, false);
+    }
+  });
+
+  test('结果与 Math.random 无关（这正是本次改动的全部意义）', () => {
+    const hi = makeUnit({sp:80, maxSp:100});
+    const lo = makeUnit({sp:10, maxSp:100});
+    assert.equal(withRandom(0,    () => calcStun(makeUnit(), hi, SKILL)).success, true);
+    hi.stunned = false; hi.interruptImmune = 0;
+    assert.equal(withRandom(0.99, () => calcStun(makeUnit(), hi, SKILL)).success, true);
+    assert.equal(withRandom(0,    () => calcStun(makeUnit(), lo, SKILL)).success, false);
+    assert.equal(withRandom(0.99, () => calcStun(makeUnit(), lo, SKILL)).success, false);
+  });
+
+  test('阈值随技能配置走，need 报得出具体数字（UI 要显示它）', () => {
+    const t = makeUnit({sp:60, maxSp:200});
+    assert.equal(interruptNeed(t, {spThreshold:0.5}), 100);
+    assert.equal(calcStun(makeUnit(), t, {spThreshold:0.5}).need, 100);
+    assert.equal(calcStun(makeUnit(), makeUnit({sp:60,maxSp:200}), {spThreshold:0.25}).success, true);
+  });
+
+  test('打断后进入免疫期，防止被锁死', () => {
+    const t = makeUnit({sp:100, maxSp:100});
+    assert.equal(calcStun(makeUnit(), t, SKILL).success, true);
+    assert.ok(t.interruptImmune > 0, '成功打断后应进入免疫期');
+    t.stunned = false;
+    const again = calcStun(makeUnit(), t, SKILL);
+    assert.equal(again.success, false);
+    assert.equal(again.reason, 'immune');
+  });
+
+  test('免疫期按被打断者自己的回合递减', () => {
+    const t = makeUnit({sp:100, maxSp:100});
+    calcStun(makeUnit(), t, SKILL);
+    const start = t.interruptImmune;
+    processStartOfTurn(t, {});
+    assert.equal(t.interruptImmune, start - 1);
+  });
+
+  test('canInterrupt 和 calcStun 判断一致（评分与执行必须同口径）', () => {
+    const hi = makeUnit({sp:60, maxSp:100});
+    const lo = makeUnit({sp:20, maxSp:100});
+    assert.equal(canInterrupt(hi, SKILL), true);
+    assert.equal(canInterrupt(lo, SKILL), false);
+    assert.equal(calcStun(makeUnit(), hi, SKILL).success, true);
+    assert.equal(calcStun(makeUnit(), lo, SKILL).success, false);
   });
 });
 

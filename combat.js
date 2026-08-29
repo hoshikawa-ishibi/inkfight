@@ -23,6 +23,10 @@ export function createUnit(charId, player, slot, override){
     skills:JSON.parse(JSON.stringify(b.skills)),
     passive:(o.passive !== undefined ? o.passive : (b.passive||null)), passiveStacks:0,
     alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
+    // 打断免疫的剩余回合数（见 calcStun）。在 processStartOfTurn 里递减。
+    interruptImmune:0,
+    // 暴击蓄能条（见 calcDamage）。攒满 100 必暴击，玩家看得见。
+    critMeter:0,
     pose:'idle', blink:0
   };
 }
@@ -46,6 +50,9 @@ export function previewDmg(u, s, scene){
   if(!s.power) return null;
   let d = getEffectiveAtk(u)*s.power;
   if(scene && scene.buff==='damageUp') d*=1.15;
+  // 暴击现在是确定的（蓄能条），所以预览也该是确定的——
+  // 攒满了就把 1.5 倍算进去。玩家正是靠这个数字决定「大招留不留到下一刀」。
+  if(willCrit(u, s)) d*=1.5;
   return Math.floor(d);
 }
 
@@ -163,25 +170,57 @@ export function processStartOfTurn(u, ctx={}){
 
   u.buffs = u.buffs.filter(b=>--b.dur>0);
   u.debuffs = u.debuffs.filter(d=>--d.dur>0);
+  // 打断免疫倒计时。放在这里（而不是攻击方回合）是因为它衡量的是
+  // 「这个单位又能被打断了没有」，该按它自己的回合数走。
+  if(u.interruptImmune > 0) u.interruptImmune--;
 
   return { passiveEvent, poison, berserk };
 }
 
 // ── 伤害结算 ──────────────────────────────────────────
+// ── 暴击：蓄能条，不掷骰 ────────────────────────────────
+// （COMBAT_PLAN.md 任务 2b。原计划是「满足条件必暴击」，改成蓄能条是因为
+// 那个方案会废掉弓手「鹰眼」被动、也动到角色身份——而身份是红线。）
+//
+// 每次攻击把 `暴击率` 点数攒进 `critMeter`，攒满 100 就必定暴击并清 100。
+// **期望伤害和原来的概率模型完全一致**（每 100/暴击率 次攻击暴一次），
+// 但波动为零，而且**玩家看得见条子**——于是产生一个新决策：
+// 「留着大招砸在必暴的那一下」。这是把随机变成计划的典型手法。
+export const CRIT_METER_FULL = 100;
+
+export function critRateOf(actor, skill){
+  return (skill.crit || 0) + (actor.crit || 0);
+}
+
+// 这一击会不会暴击？UI 的伤害预览、敌方意图预估、AI 评分都要问它，
+// 三处必须和 calcDamage 判断一致，所以收敛成一个函数。
+export function willCrit(actor, skill){
+  return (actor.critMeter || 0) + critRateOf(actor, skill) >= CRIT_METER_FULL;
+}
+
 export function calcDamage(actor, target, skill, scene){
-  if(target.dodging || Math.random()*100 < target.dodge){
+  // 主动闪避（刺客「消失」）：说好了免疫下一次攻击就一定免疫，本来就是确定的。
+  // **被动闪避率那一掷已经删掉**——见下面的减伤项。
+  if(target.dodging){
     target.dodging = false;
     return { dodged:true, dmg:0, isCrit:false, shieldAbsorbed:0, baseAtk:getEffectiveAtk(actor), killed:false, undying:false, passiveEvents:[] };
   }
   const baseAtk = getEffectiveAtk(actor);
   let dmg = baseAtk * (skill.power||1);
   let isCrit = false;
-  const totalCrit = (skill.crit||0) + actor.crit;
-  if(Math.random()*100 < totalCrit){ dmg *= 1.5; isCrit = true; }
+  actor.critMeter = (actor.critMeter || 0) + critRateOf(actor, skill);
+  if(actor.critMeter >= CRIT_METER_FULL){
+    actor.critMeter -= CRIT_METER_FULL;
+    dmg *= 1.5; isCrit = true;
+  }
   if(target.debuffs.some(d=>d.type==='defDown')) dmg *= 1.2;
   if(scene && scene.buff==='damageUp') dmg *= 1.15;
   const defReduce = target.def/(target.def+50);
   dmg *= (1-defReduce);
+  // 被动闪避（原来是「dodge% 概率完全免疫」）改成**确定性减伤**。
+  // 期望伤害一模一样，但不再有「这一下闪没闪掉」的骰子。
+  // 5~10% 的闪避率本来也构不成任何决策，只贡献噪声。
+  if(target.dodge) dmg *= (1 - target.dodge/100);
   actor.buffs = actor.buffs.filter(b=>b.type!=='atkUp1');
   dmg = Math.max(1, Math.floor(dmg));
 
@@ -222,22 +261,51 @@ export function calcDamage(actor, target, skill, scene){
   return { dodged:false, dmg, isCrit, shieldAbsorbed, baseAtk, dotApplied:!!skill.dot, defDownApplied:skill.debuff==='defDown', selfHeal, killed, undying, passiveEvents };
 }
 
-export function calcStun(actor, target, skill){
-  const prob = skill.basePct + skill.spScale*(target.sp/target.maxSp);
-  const success = Math.random()*100 < prob;
-  if(success) target.stunned = true;
-  return { prob, success };
+// ── 打断（原「眩晕」） ──────────────────────────────────
+// **确定性，不掷骰。**（COMBAT_PLAN.md 任务 2a）
+//
+// 旧设计是概率命中（`basePct + spScale × SP占比`）。实测那一个骰子值
+// **29.6 个百分点**的胜率，而玩家的全部技术只值 12.6 点——骰子的话语权
+// 是玩家技术的 2.3 倍。用户的原话「输赢纯看负面有没有上」说的就是它。
+//
+// 现在改成看得见的确定条件：**目标 SP ≥ 阈值就一定打断，否则一定不打断**。
+// 保留了原设计的意图（越蓄力越容易被打断），但把「赌」换成了「算」——
+// SP 条双方都一直看得见。
+//
+// 附带产生一个新的策略维度：**坐在满蓝上会被打断**，所以「攒够就放」
+// 不再是无脑最优解。这一条正面削弱了任务 3 要打的「有蓝放大招」。
+export const DEFAULT_INTERRUPT_SP = 0.5;
+
+export function interruptNeed(target, skill){
+  return Math.ceil((skill.spThreshold ?? DEFAULT_INTERRUPT_SP) * target.maxSp);
 }
 
-// 眩晕技能：带 power 的先结算伤害，再判定眩晕。
-// 闪避或直接打死的情况下不再判眩晕。
+// 免疫期（`interruptImmune`）防连锁：没有它，两个打断角色可以把对方锁死。
+// 计数在 processStartOfTurn 里递减，所以设 2 意味着「最多隔一次打断一回」。
+export function canInterrupt(target, skill){
+  return !target.interruptImmune && target.sp >= interruptNeed(target, skill);
+}
+
+export const INTERRUPT_IMMUNE_TURNS = 2;
+
+export function calcStun(actor, target, skill){
+  const need = interruptNeed(target, skill);
+  if(target.interruptImmune) return { success:false, reason:'immune', need };
+  if(target.sp < need)       return { success:false, reason:'lowSp', need };
+  target.stunned = true;
+  target.interruptImmune = INTERRUPT_IMMUNE_TURNS;
+  return { success:true, reason:'ok', need };
+}
+
+// 打断技能：带 power 的先结算伤害，再判定打断。
+// 闪避或直接打死的情况下不再判打断。
 export function resolveStun(actor, target, skill, scene){
   const damage = skill.power ? calcDamage(actor, target, skill, scene) : null;
   if(damage && (damage.dodged || damage.killed || !target.alive)){
-    return { damage, prob:0, success:false, skipped:true };
+    return { damage, success:false, reason:'dead', need:0, skipped:true };
   }
-  const { prob, success } = calcStun(actor, target, skill);
-  return { damage, prob, success, skipped:false };
+  const r = calcStun(actor, target, skill);
+  return { damage, ...r, skipped:false };
 }
 
 // ── buff/debuff 构造 ────────────────────────────────────
