@@ -1,13 +1,13 @@
-import { SCENES, CHARACTERS } from './data.js';
+import { SCENES, CHARACTERS } from '../data/data.js';
 import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
-         availableAllies, unlockedAfter } from './campaign.js';
-import { Audio, playSfx, toggleMute, syncMuteButton } from './audio.js';
-import { gameState, rand, getUnit, teamSizeFor, isAiSide } from './state.js';
-import { drawStickman } from './stickman.js';
-import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from './scene.js';
-import { initRender, renderBattle } from './render.js';
+         availableAllies, unlockedAfter } from '../data/campaign.js';
+import { Audio, playSfx, toggleMute, syncMuteButton } from '../view/audio.js';
+import { gameState, rand, getUnit, teamSizeFor, isAiSide } from '../core/state.js';
+import { drawStickman } from '../view/stickman.js';
+import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from '../view/scene.js';
+import { initRender, renderBattle } from '../view/render.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
-import { runSimulation } from './sim.js';
+import { runSimulation } from '../../tools/sim.js';
 
 let _inBattle = false;
 export function showScreen(id) {

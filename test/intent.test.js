@@ -9,9 +9,9 @@
 // 玩家针对它做的所有布置都白费。那正是本次重做要消灭的东西。
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { createUnit } from '../combat.js';
-import { nextActor, makeIntent, resolveIntent, estimateDamage } from '../intent.js';
-import { scoreSkill } from '../ai-scoring.js';
+import { createUnit } from '../src/core/combat.js';
+import { nextActor, makeIntent, resolveIntent, estimateDamage } from '../src/core/intent.js';
+import { scoreSkill } from '../src/ai/ai-scoring.js';
 
 const mk = (id, player, slot) => createUnit(id, player, slot);
 

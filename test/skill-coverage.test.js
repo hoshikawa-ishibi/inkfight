@@ -1,10 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { executeSkill } from '../sim.js';
-import { createUnit, applyCorrupt } from '../combat.js';
-import { CHARACTERS, SCENES } from '../data.js';
-import { clamp } from '../state.js';
+import { executeSkill } from '../tools/sim.js';
+import { createUnit, applyCorrupt } from '../src/core/combat.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { clamp } from '../src/core/state.js';
 
 // 这条测试补的洞和 combat.test.js 完全不同。
 //
@@ -51,7 +51,7 @@ const ALLY_TARGETED = new Set(['heal', 'cleanse', 'buff']);
 // 是因为手写清单必然和代码漂移——这个项目已经因为「同一份知识两份实现」
 // 出过三次 bug 了。
 function handledTypes(){
-  const src = fs.readFileSync(new URL('../sim.js', import.meta.url), 'utf8');
+  const src = fs.readFileSync(new URL('../tools/sim.js', import.meta.url), 'utf8');
   return [...new Set([...src.matchAll(/case +'([a-zA-Z]+)' *:/g)].map(m => m[1]))];
 }
 

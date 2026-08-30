@@ -1,9 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiEasy, aiNormal, aiHard } from '../ai.js';
-import { createUnit } from '../combat.js';
-import { scoreSkill, pickTarget, focusFoe, makeTeamContext } from '../ai-scoring.js';
-import { SCENES, CHARACTERS } from '../data.js';
+import { aiEasy, aiNormal, aiHard } from '../src/ai/ai.js';
+import { createUnit } from '../src/core/combat.js';
+import { scoreSkill, pickTarget, focusFoe, makeTeamContext } from '../src/ai/ai-scoring.js';
+import { SCENES, CHARACTERS } from '../src/data/data.js';
 
 // Phase 3：队伍配合。
 // 配合行为按 teamwork 权重分档（easy 0 / normal 0.5 / hard 1），所以每组行为

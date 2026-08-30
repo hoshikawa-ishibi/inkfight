@@ -9,13 +9,13 @@
 //   2. **策略价值（完美 − 乱按）的落差变大**——这才是重点。
 //      光让玩家变强不算深度，要「打得好」比「乱按」更值钱才算。
 import { simOneBattle, shuffle } from './sim.js';
-import { teamSizeFor } from './state.js';
+import { teamSizeFor } from '../src/core/state.js';
 const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
-import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { DIFFICULTY_MODS, applyStageMod, canUseSkill } from './combat.js';
-import { CHARACTERS, SCENES } from './data.js';
-import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from './campaign.js';
-import { pickTarget } from './ai-scoring.js';
+import { makeAi, AI_BY_LEVEL } from '../src/ai/ai.js';
+import { DIFFICULTY_MODS, applyStageMod, canUseSkill } from '../src/core/combat.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from '../src/data/campaign.js';
+import { pickTarget } from '../src/ai/ai-scoring.js';
 
 const N = Number(process.argv[2] || 1500);
 const skilled = noise => makeAi(

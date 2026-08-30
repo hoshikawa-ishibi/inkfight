@@ -1,7 +1,7 @@
 // 战斗规则引擎：纯函数，无 DOM / Audio / setTimeout 依赖。
 // battle.js（真人对战，负责渲染/动画/音效）和 sim.js（无头模拟，负责统计数据）
 // 都从这里调用同一套规则，避免两边各自实现出现漂移。
-import { CHARACTERS } from './data.js';
+import { CHARACTERS } from '../data/data.js';
 import { clamp } from './state.js';
 
 // override（可选）用来做「同一个角色、不同身份」：战役里敌人有剧情名，

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { shuffle } from '../sim.js';
+import { shuffle } from '../tools/sim.js';
 
 describe('shuffle（平衡测试的采样公平性）', () => {
   test('保留全部元素，不重复不丢失', () => {

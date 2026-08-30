@@ -135,6 +135,25 @@ node serve-game.mjs
 | 赤焰熔岩 | 所有伤害技能 +15% |
 | 碧蓝灵泉 | 每回合开始所有单位额外 +5 SP |
 
+## 目录结构
+
+```
+inkfight.html        游戏入口
+launch-game.vbs      桌面快捷方式（一键启动）
+serve-game.mjs       零依赖静态服务器
+src/core/            规则引擎、意图系统、全局状态（纯逻辑）
+src/ai/              技能评分与难度包装（纯逻辑）
+src/data/            角色 / 场景 / 战役关卡配置
+src/game/            回合流程编排 + UI 入口
+src/view/            渲染、火柴人、场景、特效、音频
+tools/               无头模拟器 + 11 个平衡/深度诊断脚本
+test/                单元测试（283 条）
+docs/                改动史与历次计划文档
+```
+
+**`src/core` `src/ai` `src/data` 是纯逻辑，能直接在 Node 里跑**——
+所有平衡诊断都靠这一点。`src/game` 和 `src/view` 碰 DOM，只能在浏览器里跑。
+
 ## 模块结构
 
 游戏逻辑全部在根目录的 ES modules 里，`inkfight.html` 只剩结构和样式。
@@ -166,15 +185,15 @@ node serve-game.mjs
 npm test                          # 单元测试（Node 内置 node --test，无外部依赖）
 npm run balance                   # 无头模拟 4000 局，输出各角色胜率 + 采样均匀度
 npm run balance 10000             # 指定局数
-node difficulty-check.mjs 6000    # 难度公平性：玩家打各档 AI 的胜率
-node campaign-check.mjs 3000      # 战役难度曲线：玩家打 8 关各自的胜率
-node campaign-tune.mjs 600        # 战役校准器：逐关扫 enemyMod，直接给出「该填什么」
+node tools/difficulty-check.mjs 6000    # 难度公平性：玩家打各档 AI 的胜率
+node tools/campaign-check.mjs 3000      # 战役难度曲线：玩家打 8 关各自的胜率
+node tools/campaign-tune.mjs 600        # 战役校准器：逐关扫 enemyMod，直接给出「该填什么」
 
-node depth-check.mjs 2000         # 策略深度：打得好到底值多少胜率
-node choice-check.mjs 1500        # 决策存在性：完美玩家的技能使用分布
-node skill-audit.mjs 500          # 技能承重：逐个禁掉技能，看主人胜率掉多少
-node intent-value-check.mjs 1500  # 对照实验：意图公开值多少策略价值
-node stun-check.mjs 3000          # 打断机制值多少胜率
+node tools/depth-check.mjs 2000         # 策略深度：打得好到底值多少胜率
+node tools/choice-check.mjs 1500        # 决策存在性：完美玩家的技能使用分布
+node tools/skill-audit.mjs 500          # 技能承重：逐个禁掉技能，看主人胜率掉多少
+node tools/intent-value-check.mjs 1500  # 对照实验：意图公开值多少策略价值
+node tools/stun-check.mjs 3000          # 打断机制值多少胜率
 ```
 
 判读这几个数字有坑（先手优势、`npm run balance` 只能发现离群角色、

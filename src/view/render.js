@@ -1,8 +1,8 @@
-import { CHARACTERS } from './data.js';
+import { CHARACTERS } from '../data/data.js';
 import { playSfx } from './audio.js';
-import { gameState, pct, getAllUnits, getUnit } from './state.js';
+import { gameState, pct, getAllUnits, getUnit } from '../core/state.js';
 import { drawStickman } from './stickman.js';
-import { bossPhase } from './combat.js';
+import { bossPhase } from '../core/combat.js';
 
 let _getEffectiveAtk, _onTargetClick, _onPreviewUnit;
 export function initRender(getEffectiveAtk, onTargetClick, onPreviewUnit){

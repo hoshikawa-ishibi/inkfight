@@ -43,7 +43,9 @@ describe('语法体检（node --check）', () => {
   // 防止「扫描器自己坏了」把整组测试变成空跑：这 7 个正是本组测试存在的理由，
   // 它们必须在名单里。
   test('扫到的文件里包含那 7 个没有单测覆盖的模块', () => {
-    const names = SOURCES.map(rel);
+    // **按文件名匹配，不写死目录**：源码 2026-08-29 整理进了 src/ 的子目录，
+    // 写死路径的话每次搬家都要回来改，而它本该盯的是「扫描器有没有空跑」。
+    const names = SOURCES.map(f => rel(f).split('/').pop());
     for(const f of ['main.js','battle.js','vfx.js','scene.js','stickman.js','audio.js','render.js']){
       assert.ok(names.includes(f), `扫描漏了 ${f}——这组测试就是为了覆盖它`);
     }

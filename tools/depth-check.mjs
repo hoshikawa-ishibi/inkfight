@@ -14,13 +14,13 @@
 //
 // 用法：node depth-check.mjs [每格局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { teamSizeFor } from './state.js';
+import { teamSizeFor } from '../src/core/state.js';
 const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
-import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { applyStageMod, DIFFICULTY_MODS, canUseSkill } from './combat.js';
-import { CHARACTERS, SCENES } from './data.js';
-import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from './campaign.js';
-import { pickTarget } from './ai-scoring.js';
+import { makeAi, AI_BY_LEVEL } from '../src/ai/ai.js';
+import { applyStageMod, DIFFICULTY_MODS, canUseSkill } from '../src/core/combat.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from '../src/data/campaign.js';
+import { pickTarget } from '../src/ai/ai-scoring.js';
 
 const N = Number(process.argv[2] || 3000);
 

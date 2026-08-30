@@ -1,9 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiEasy, aiNormal, aiHard, aiNightmare } from '../ai.js';
-import { createUnit, needsEnemyTarget, AOE_TYPES } from '../combat.js';
-import { scoreSkill } from '../ai-scoring.js';
-import { SCENES, CHARACTERS } from '../data.js';
+import { aiEasy, aiNormal, aiHard, aiNightmare } from '../src/ai/ai.js';
+import { createUnit, needsEnemyTarget, AOE_TYPES } from '../src/core/combat.js';
+import { scoreSkill } from '../src/ai/ai-scoring.js';
+import { SCENES, CHARACTERS } from '../src/data/data.js';
 
 // 这个测试文件本身就是 Phase 1 的验收标准：
 // 它能在 Node 里 import 并调用 ai.js，就证明 ai.js 已经不依赖浏览器

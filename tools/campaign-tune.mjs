@@ -9,10 +9,10 @@
 //
 // 用法：node campaign-tune.mjs [每格局数] [只扫第几关]
 import { simOneBattle } from './sim.js';
-import { AI_BY_LEVEL, aiHard } from './ai.js';
-import { applyStageMod } from './combat.js';
-import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from './campaign.js';
-import { SCENES } from './data.js';
+import { AI_BY_LEVEL, aiHard } from '../src/ai/ai.js';
+import { applyStageMod } from '../src/core/combat.js';
+import { CAMPAIGN_STAGES, CAMPAIGN_HERO, availableAllies } from '../src/data/campaign.js';
+import { SCENES } from '../src/data/data.js';
 
 const N = Number(process.argv[2] || 600);
 const ONLY = process.argv[3] ? Number(process.argv[3]) : null;

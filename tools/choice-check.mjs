@@ -10,10 +10,10 @@
 //
 // 用法：node choice-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { teamSizeFor } from './state.js';
+import { teamSizeFor } from '../src/core/state.js';
 const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
-import { scoreSkill, pickTarget } from './ai-scoring.js';
-import { CHARACTERS, SCENES } from './data.js';
+import { scoreSkill, pickTarget } from '../src/ai/ai-scoring.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
 
 const N = Number(process.argv[2] || 1500);
 
@@ -22,7 +22,7 @@ const use = {};
 let turns = 0, forced = 0, onlyOne = 0;
 CHARACTERS.forEach(c => { use[c.id] = {}; c.skills.forEach(s => { use[c.id][s.name] = 0; }); });
 
-import { canUseSkill as canUse } from './combat.js';
+import { canUseSkill as canUse } from '../src/core/combat.js';
 
 // 完美决策 + 埋点。评分口径与 aiHard 一致（tempo 1 / teamwork 1），
 // 只是去掉噪声与 tacticalBonus，好让「最优 vs 次优」的差距干净可读。

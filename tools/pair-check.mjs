@@ -10,9 +10,9 @@
 //
 // 用法：node pair-check.mjs [每对局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { aiHard } from './ai.js';
-import { CHARACTERS, SCENES } from './data.js';
-import { teamSizeFor } from './state.js';
+import { aiHard } from '../src/ai/ai.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { teamSizeFor } from '../src/core/state.js';
 
 const N = Number(process.argv[2] || 300);
 const N_TEAM = teamSizeFor('ai');

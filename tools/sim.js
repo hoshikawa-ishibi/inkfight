@@ -5,18 +5,18 @@
 // 决策同理：直接调 ai.js 的 aiHard，也就是玩家在困难难度下面对的那个 AI。
 // 以前这里有一份自己的 pickSkill，于是「平衡测试测的根本不是玩家打的 AI」，
 // 胜率结论对真实对局未必成立。现在这条链路上只剩一份实现。
-import { CHARACTERS, SCENES } from './data.js';
-import { clamp, teamSizeFor } from './state.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { clamp, teamSizeFor } from '../src/core/state.js';
 import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen, applyRestRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse,
   actionsFor, processBenchedTurn, resolveHits, chargeCrit,
   applyHealAll, applyShieldAll, applyBuffAll
-} from './combat.js';
-import { makeTeamContext, pickActor } from './ai-scoring.js';
-import { nextActor, makeIntent, resolveIntent } from './intent.js';
-import { aiEasy, aiNormal, aiHard } from './ai.js';
+} from '../src/core/combat.js';
+import { makeTeamContext, pickActor } from '../src/ai/ai-scoring.js';
+import { nextActor, makeIntent, resolveIntent } from '../src/core/intent.js';
+import { aiEasy, aiNormal, aiHard } from '../src/ai/ai.js';
 
 function noteKill(died, killer, stats){
   if(died && killer && stats) stats[killer.charId].kills++;

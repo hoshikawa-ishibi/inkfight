@@ -8,7 +8,7 @@
 // 才能横向比较。难度差异由 ai.js 在此之上做包装（噪声 + 战术加成），
 // 而不是各写一套评分。
 
-import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill, CORRUPT_BONUS_PER_STACK } from './combat.js';
+import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill, CORRUPT_BONUS_PER_STACK } from '../core/combat.js';
 
 // 技能评分：把每种技能的收益统一折算成「等效伤害」，好让 17 种技能类型
 // 能够横向比较。旧版本只给 damage/heal/stun/drain 四种打分，其余 13 种

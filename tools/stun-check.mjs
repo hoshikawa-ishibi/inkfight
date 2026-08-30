@@ -14,10 +14,10 @@
 //   落差变小 = 这个机制不再一手遮天
 //   实际值不变 = 机制强度没被削，只是波动没了
 import { simOneBattle, shuffle } from './sim.js';
-import { teamSizeFor } from './state.js';
+import { teamSizeFor } from '../src/core/state.js';
 const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
-import { aiHard } from './ai.js';
-import { CHARACTERS, SCENES } from './data.js';
+import { aiHard } from '../src/ai/ai.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
 
 const N = Number(process.argv[2] || 4000);
 const STUNNERS = ['mage', 'archer'];   // 灵能过载 / 束缚箭

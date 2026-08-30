@@ -1,10 +1,10 @@
-import { Audio, playSfx } from './audio.js';
-import { gameState, clamp, getUnit, getEnemies, getAllies, aiLevelOf, isAiSide } from './state.js';
-import { renderBattle, redrawUnit, animateUnit, lungeActor } from './render.js';
-import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from './vfx.js';
-import { AI_BY_LEVEL, aiNormal } from './ai.js';
-import { makeTeamContext, pickActor } from './ai-scoring.js';
-import { makeIntent, resolveIntent } from './intent.js';
+import { Audio, playSfx } from '../view/audio.js';
+import { gameState, clamp, getUnit, getEnemies, getAllies, aiLevelOf, isAiSide } from '../core/state.js';
+import { renderBattle, redrawUnit, animateUnit, lungeActor } from '../view/render.js';
+import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from '../view/vfx.js';
+import { AI_BY_LEVEL, aiNormal } from '../ai/ai.js';
+import { makeTeamContext, pickActor } from '../ai/ai-scoring.js';
+import { makeIntent, resolveIntent } from '../core/intent.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -13,7 +13,7 @@ import {
   applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
   actionsFor, bossPhase, processBenchedTurn, resolveHits, chargeCrit,
   applyHealAll, applyShieldAll, applyBuffAll
-} from './combat.js';
+} from '../core/combat.js';
 
 export { createUnit, getEffectiveAtk };
 

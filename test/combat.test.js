@@ -6,8 +6,8 @@ import {
   CORRUPT_BONUS_PER_STACK,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
   needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec
-} from '../combat.js';
-import { CHARACTERS } from '../data.js';
+} from '../src/core/combat.js';
+import { CHARACTERS } from '../src/data/data.js';
 
 function makeUnit(overrides={}){
   return Object.assign({

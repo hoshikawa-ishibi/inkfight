@@ -16,7 +16,7 @@
 // **只重解目标，绝不重选技能。** 否则「承诺」就是假的——玩家针对预告
 // 做的所有布置都会落空，而这正是 Into the Breach 那套设计要避免的东西。
 import { previewDmg, canUseSkill } from './combat.js';
-import { pickTarget } from './ai-scoring.js';
+import { pickTarget } from '../ai/ai-scoring.js';
 
 // 下一个该行动的单位。
 // **battle.js 的 startTurn 和意图预测必须共用这一份**，否则会出现

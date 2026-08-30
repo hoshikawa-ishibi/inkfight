@@ -9,8 +9,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import {
   createUnit, bossPhase, actionsFor, sealSkill, canUseSkill, processStartOfTurn,
-} from '../combat.js';
-import { CAMPAIGN_STAGES } from '../campaign.js';
+} from '../src/core/combat.js';
+import { CAMPAIGN_STAGES } from '../src/data/campaign.js';
 
 const PHASES = [
   { at: 1.00, name: '书写', actions: 1 },

@@ -14,11 +14,11 @@
 //
 // 用法：node difficulty-check.mjs [局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { teamSizeFor } from './state.js';
+import { teamSizeFor } from '../src/core/state.js';
 const N_TEAM = teamSizeFor('ai');   // 随机对战 3v3，见 state.js 的 teamSizeFor
-import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { DIFFICULTY_MODS, applyStageMod } from './combat.js';
-import { CHARACTERS, SCENES } from './data.js';
+import { makeAi, AI_BY_LEVEL } from '../src/ai/ai.js';
+import { DIFFICULTY_MODS, applyStageMod } from '../src/core/combat.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
 
 const N = Number(process.argv[2] || 4000);
 

@@ -11,11 +11,11 @@
 //
 // 用法：node dup-check.mjs [每格局数]
 import { simOneBattle, shuffle } from './sim.js';
-import { makeAi, AI_BY_LEVEL } from './ai.js';
-import { canUseSkill, DIFFICULTY_MODS, applyStageMod } from './combat.js';
-import { pickTarget } from './ai-scoring.js';
-import { CHARACTERS, SCENES } from './data.js';
-import { teamSizeFor } from './state.js';
+import { makeAi, AI_BY_LEVEL } from '../src/ai/ai.js';
+import { canUseSkill, DIFFICULTY_MODS, applyStageMod } from '../src/core/combat.js';
+import { pickTarget } from '../src/ai/ai-scoring.js';
+import { CHARACTERS, SCENES } from '../src/data/data.js';
+import { teamSizeFor } from '../src/core/state.js';
 
 const N = Number(process.argv[2] || 800);
 const N_TEAM = teamSizeFor('ai');
