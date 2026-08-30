@@ -3,6 +3,7 @@ import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
          availableAllies, unlockedAfter } from '../data/campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from '../view/audio.js';
 import { gameState, rand, getUnit, teamSizeFor, isAiSide } from '../core/state.js';
+import { DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER } from '../core/combat.js';
 import { drawStickman } from '../view/stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from '../view/scene.js';
 import { initRender, renderBattle } from '../view/render.js';
@@ -48,9 +49,10 @@ function showModal(inner){
 export function showHelp(){
   showModal(`<h3 style="text-align:center;">📖 玩法说明</h3>
     <p style="text-align:left;">
-    • 双方各选 3 名角色（战役 2 名），<b>每回合各出手一人，你自己挑派谁上</b>。<br>
+    • 双方各选 ${teamSizeFor('pvp')} 名角色（战役 ${teamSizeFor('campaign')} 名），<b>每回合各出手一人，你自己挑派谁上</b>。<br>
     • <b>HP</b> = 生命值，<b>SP</b> = 灵能值（释放技能消耗）。<br>
-    • 每回合自动恢复 SP，<b>SP 越满越容易被眩晕</b>。<br>
+    • 每回合自动恢复 SP，<b>SP 超过 ${Math.round(DEFAULT_INTERRUPT_SP*100)}% 就一定会被「灵能扰乱」</b>
+      （下一次行动的伤害和治疗降到 ${Math.round(INTERRUPT_OUTPUT_MULTIPLIER*100)}%，护盾和净化不受影响）。<br>
     • <b>暴击</b>×1.5 伤害；<b>护盾</b>优先承伤；<b>嘲讽</b>强制集火。<br>
     • <b>键盘1-4</b> 释放技能，<b>ESC</b> 取消选目标/退出。<br>
     • 战场效果会影响伤害或SP回复。
@@ -166,7 +168,16 @@ function initSpectateScreen(){
       box.appendChild(card);
     });
   });
+  // 人数和「两边能不能撞人」都从规则里取，**别写死在 HTML 里**——
+  // 3v3 改 4v4 时这两句话就地过期了，玩家看到的还是「各抽 3 名不重复的角色」。
+  const n=teamSizeFor(gameState.mode);
+  const rosterDesc={
+    random:`双方各随机抽 ${n} 名角色，两边可能撞到同一个人。`,
+    manual:`先给 A 方挑 ${n} 名，再给 B 方挑 ${n} 名；两边允许选同样的角色。`
+  };
   document.querySelectorAll('#spec-roster .option-card').forEach(c=>{
+    const desc=c.querySelector('.desc');
+    if(desc && rosterDesc[c.dataset.roster]) desc.textContent=rosterDesc[c.dataset.roster];
     c.classList.remove('selected');
     c.onmouseenter=()=>playSfx('hover');
     c.onclick=()=>{

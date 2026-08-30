@@ -158,8 +158,6 @@ body {
 .scene-banner { width:100%; text-align:center; font-size:12px; color:#ccc; background:rgba(0,0,0,.4); padding:5px; }
 
 .battle-field { display:flex; width:100%; flex:1; min-height:380px; min-height:0; }
-/* 每方 3 人（见 state.js 的 teamSizeFor）。三张卡竖排在 900px 高的窗口里会溢出，
-   所以这一列必须能滚，而且卡片本身要收紧。 */
 /* 每方最多 4 人（见 state.js 的 teamSizeFor）。竖排 4 张卡在任何屏幕上都会溢出，
    所以改成**会换行的网格**：2 人一列、3~4 人自动排成两列。
    仍然保留 overflow-y:auto 兜底。 */
@@ -396,7 +394,7 @@ body {
   <h1>墨 境 之 战</h1>
   <div class="title-deco"></div>
   <p>在黑白交织的墨境世界中，火柴人战士们以灵能（SP）为力量源泉展开对决。<br>
-  小心灵能过载——SP越满，越容易被眩晕！</p>
+  小心灵能过载——SP 蓄得太满，就会被对手扰乱！</p>
   <div style="display:flex; gap:12px;">
     <button class="btn" onclick="playSfx('click'); showScreen('screen-mode')">⚔ 开始对战</button>
     <button class="btn" onclick="playSfx('click'); showScreen('screen-archive')">◈ 角色档案</button>
@@ -471,11 +469,11 @@ body {
   <div class="option-grid" id="spec-roster" style="margin:0 0 18px;">
     <div class="option-card" data-roster="random">
       <div class="ic">🎲</div><h3>随机分配</h3>
-      <div class="desc">双方各随机抽 3 名不重复的角色。</div>
+      <div class="desc">双方各随机抽满一队角色。</div>
     </div>
     <div class="option-card" data-roster="manual">
       <div class="ic">✍️</div><h3>我来指定</h3>
-      <div class="desc">先给 A 方挑 3 名，再给 B 方挑 3 名。</div>
+      <div class="desc">先给 A 方挑满，再给 B 方挑满。</div>
     </div>
   </div>
 
@@ -505,7 +503,7 @@ body {
     </div>
     <div class="option-card" data-diff="nightmare" id="diff-card-nightmare" style="display:none;">
       <div class="ic">👑</div><h3>墨皇</h3>
-      <div class="desc">墨皇的意志。整队集火、不浪费任何一个回合、攒蓝放大招、专挑满蓝的目标眩晕——它不会失误。</div>
+      <div class="desc">墨皇的意志。整队集火、不浪费任何一个回合、攒蓝放大招、专挑满蓝的目标扰乱——它不会失误。</div>
       <div class="buff">伤害 ×1.07，SP回复 ×1.1</div>
     </div>
   </div>
