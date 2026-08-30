@@ -570,7 +570,7 @@ export function renderSkillPanel(u){
       <span class="key-hint">[${i+1}]</span>
       ${s.name}
       <span class="sp-cost">${cdLeft>0?`⏳${cdLeft}回合`:(s.cost>0?s.cost+'SP':'免费')}${s.hpCost?` -${s.hpCost}HP`:''}</span>
-      ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?`💥${dmg} 必定重击`:`≈${dmg}伤害`}</span>`:''}`;
+      ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?`💥≈${dmg} 必定重击`:`≈${dmg}伤害`}</span>`:''}`;
     btn.onmouseenter=(e)=>{ if(!btn.disabled) playSfx('hover');
       _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`
         +(s.cd?`<br><span style="color:#f5a623">冷却 ${s.cd} 回合${cdLeft>0?`（还剩 ${cdLeft}）`:''}</span>`:''),e.clientX,e.clientY);
@@ -860,7 +860,7 @@ function presentDamage(actor,target,r){
     return 0;
   }
   if(r.isCrit){
-    addLog(`💥 重击！`,'crit'); playSfx('crit'); spawnCritBurst(target);
+    addLog(`重击！`,'crit');   // 💥 由 LOG_ICON.crit 补，这里再写一个会变成 💥💥 playSfx('crit'); spawnCritBurst(target);
   }
   if(r.shieldAbsorbed > 0){
     addLog(`${target.name} 护盾吸收 ${r.shieldAbsorbed}`,'info');

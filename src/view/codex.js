@@ -15,6 +15,7 @@ import { playSfx } from './audio.js';
 import {
   DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER,
   INK_EROSION_FROM, INK_EROSION_STEP,
+  CRIT_METER_FULL, CRIT_MULTIPLIER, INTERRUPT_IMMUNE_TURNS,
 } from '../core/combat.js';
 
 const P = n => Math.round(n * 100);
@@ -29,8 +30,8 @@ export const CODEX = [
     icon: '💥',
     title: '锋芒 / 重击',
     short: '锋芒攒满了，这一击<b>必定</b>重击——不是运气，是数出来的。',
-    body: `每次攻击都会往角色的<b>锋芒</b>条里攒点数（单位卡上的「锋芒 47/100」），
-      攒满 100 就<b>必定</b>打出一次<b>重击</b>（伤害 ×1.5），然后清零重攒。
+    body: `每次攻击都会往角色的<b>锋芒</b>条里攒点数（单位卡上的「锋芒 47/${CRIT_METER_FULL}」），
+      攒满 ${CRIT_METER_FULL} 就<b>必定</b>打出一次<b>重击</b>（伤害 ×${CRIT_MULTIPLIER}），然后清零重攒。
       <b>这是确定的，不是概率</b>——所以你可以数出来是哪一下，
       把最贵的那个技能留到那一刀上。技能按钮上写着 <b>💥N 必定重击</b> 的时候就是它了。`,
   },
@@ -49,7 +50,7 @@ export const CODEX = [
     icon: '💫',
     title: '灵能扰乱（被打断）',
     short: `你 SP 过半被抓了；这次行动只有 ${P(INTERRUPT_OUTPUT_MULTIPLIER)}% 威力，
-      但接下来 2 个回合不会再被打断。`,
+      但接下来 ${INTERRUPT_IMMUNE_TURNS} 个回合不会再被打断。`,
     body: `打断<b>不是概率，是条件</b>：只有当目标的 SP 超过上限的
       <b>${P(DEFAULT_INTERRUPT_SP)}%</b> 时才打得断，否则必定打不断。
       SP 条一直看得见，所以这是判断不是赌博——代价是<b>坐在满蓝上很危险</b>，该花就得花。<br><br>
@@ -61,7 +62,7 @@ export const CODEX = [
     icon: '🚫',
     title: '打断免疫',
     short: '',
-    body: `被打断的<b>副作用</b>：挨了一次打断之后，接下来自己的 2 个回合内不会再被打断。
+    body: `被打断的<b>副作用</b>：挨了一次打断之后，接下来自己的 ${INTERRUPT_IMMUNE_TURNS} 个回合内不会再被打断。
       它存在的理由是<b>防连锁</b>——没有它，两个带打断的角色能把对方一直锁死。<br><br>
       状态条上它是绿色的（对自己有利），和红色的「扰乱」分在两组，中间有分隔线。
       两个都在，说明你刚被打断；只剩绿的，说明扰乱已经用掉了。`,
@@ -155,7 +156,6 @@ function markTaught(id){
   const s = taughtSet(); s.add(id);
   localStorage.setItem(TAUGHT_KEY, JSON.stringify([...s]));
 }
-export function resetTaught(){ localStorage.removeItem(TAUGHT_KEY); }
 
 // ── 弹窗 ───────────────────────────────────────────────────
 // 自带一份，不去依赖 main.js 的 showModal——那个没导出，而且这里要的

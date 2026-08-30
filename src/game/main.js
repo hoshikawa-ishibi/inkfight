@@ -3,7 +3,8 @@ import { CAMPAIGN_STAGES, enemyIds, CAMPAIGN_HERO, CAMPAIGN_ALLIES,
          availableAllies, unlockedAfter } from '../data/campaign.js';
 import { Audio, playSfx, toggleMute, syncMuteButton } from '../view/audio.js';
 import { gameState, rand, getUnit, teamSizeFor, isAiSide } from '../core/state.js';
-import { DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER } from '../core/combat.js';
+import { DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER,
+  CRIT_METER_FULL, CRIT_MULTIPLIER } from '../core/combat.js';
 import { drawStickman } from '../view/stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from '../view/scene.js';
 import { initRender, renderBattle } from '../view/render.js';
@@ -55,7 +56,7 @@ export function showHelp(){
     • <b>HP</b> = 生命值，<b>SP</b> = 灵能值（释放技能消耗）。<br>
     • 每回合自动恢复 SP，<b>SP 超过 ${Math.round(DEFAULT_INTERRUPT_SP*100)}% 就一定会被「灵能扰乱」</b>
       （下一次行动的伤害和治疗降到 ${Math.round(INTERRUPT_OUTPUT_MULTIPLIER*100)}%，护盾和净化不受影响）。<br>
-    • <b>锋芒</b>攒满 100 触发<b>重击</b>（伤害 ×1.5）然后清零重攒——<b>这是确定的，不是概率</b>，每击攒多少写在角色的锋芒条上。多段技能每一段都单独攒，所以充得特别快。<br>
+    • <b>锋芒</b>攒满 ${CRIT_METER_FULL} 触发<b>重击</b>（伤害 ×${CRIT_MULTIPLIER}）然后清零重攒——<b>这是确定的，不是概率</b>，每击攒多少写在角色的锋芒条上。多段技能每一段都单独攒，所以充得特别快。<br>
     • <b>护盾</b>优先承伤。<br>
     • <b>嘲讽</b>：让敌人<b>之后的决策</b>优先打你——但敌人<b>已经预告出来的那一击不会改道</b>，拿嘲讽去接已预告的一刀是接不住的。<br>
     • <b>键盘1-4</b> 释放技能，<b>ESC</b> 取消选目标/退出。<br>

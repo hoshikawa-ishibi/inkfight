@@ -2,7 +2,8 @@ import { CHARACTERS } from '../data/data.js';
 import { playSfx } from './audio.js';
 import { gameState, pct, getAllUnits, getUnit } from '../core/state.js';
 import { drawStickman } from './stickman.js';
-import { bossPhase, DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER } from '../core/combat.js';
+import { bossPhase, DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER,
+  CRIT_METER_FULL, CRIT_MULTIPLIER, willCrit } from '../core/combat.js';
 
 let _getEffectiveAtk, _onTargetClick, _onPreviewUnit;
 export function initRender(getEffectiveAtk, onTargetClick, onPreviewUnit){
@@ -152,13 +153,24 @@ function renderUnit(u){
   div.id='unit-'+u.id;
   const eff=_getEffectiveAtk(u);
   const atkChanged=Math.abs(eff-u.atk)>0.5;
+  // 锋芒条。两件事以前是手写的，现在都收敛到 combat.js：
+  //   1. 「快满了吗」原来写成 `critMeter >= 100 - u.crit`——那是 willCrit 的
+  //      第四份实现，而 combat.js 里 willCrit 的注释明说「三处必须一致所以
+  //      收敛成一个函数」。传 {} 表示「拿普通攻击算」，技能自带的加成不在这层。
+  //   2. 蓄能可以超过 100（刀娘「蓄刃」直接充 45，不打人也能攒）。
+  //      原来直接显示成「锋芒 150/100」，读起来像坏了。超出的部分单独写在后面——
+  //      它是真的会留到下一击的（calcDamage 是 -= 100，不是清零）。
+  const meter = u.critMeter || 0;
+  const meterText = meter > CRIT_METER_FULL
+    ? `${CRIT_METER_FULL}/${CRIT_METER_FULL} +${meter - CRIT_METER_FULL}`
+    : `${meter}/${CRIT_METER_FULL}`;
   div.innerHTML=`
     <canvas class="unit-canvas" width="100" height="92" id="cv-${u.id}"></canvas>
     <div class="unit-name"><span style="color:${u.color}">${u.name}</span><span style="font-size:11px;color:#aaa">${u.player===1?'P1':'P2'}</span></div>
     <div class="unit-meta">
       <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${u.atk}</s>→${eff.toFixed(0)}`:u.atk}</span>
       <span class="meta-def">🛡 ${u.def}</span>
-      <span class="meta-crit${u.critMeter>=100-u.crit?' crit-ready':''}" title="锋芒：每击攒 ${u.crit} 点（技能自带的加成另算，多段技能每段各攒一次），攒满 100 下一击必定重击（伤害 x1.5）然后清零重攒。这是确定的，不是概率">锋芒 ${u.critMeter||0}/100</span>
+      <span class="meta-crit${willCrit(u, {})?' crit-ready':''}" title="锋芒：每击攒 ${u.crit} 点（技能自带的加成另算，多段技能每段各攒一次），攒满 ${CRIT_METER_FULL} 下一击必定重击（伤害 ×${CRIT_MULTIPLIER}）然后清零重攒。这是确定的，不是概率">锋芒 ${meterText}</span>
     </div>
     <div class="bar-wrap bar-hp">
       <div class="bar-fill" style="width:${pct(u.hp,u.maxHp)}%"></div>

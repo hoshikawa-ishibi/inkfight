@@ -57,7 +57,7 @@ export function previewDmg(u, s, scene){
   if(scene && scene.buff==='damageUp') d*=1.15;
   // 暴击现在是确定的（蓄能条），所以预览也该是确定的——
   // 攒满了就把 1.5 倍算进去。玩家正是靠这个数字决定「大招留不留到下一刀」。
-  if(willCrit(u, s)) d*=1.5;
+  if(willCrit(u, s)) d*=CRIT_MULTIPLIER;
   return Math.floor(d);
 }
 
@@ -302,6 +302,8 @@ export function processStartOfTurn(u, ctx={}){
 // 但波动为零，而且**玩家看得见条子**——于是产生一个新决策：
 // 「留着大招砸在必暴的那一下」。这是把随机变成计划的典型手法。
 export const CRIT_METER_FULL = 100;
+// 重击倍率。UI 有三处要说「伤害 ×1.5」，全部读这里，别再各抄一遍。
+export const CRIT_MULTIPLIER = 1.5;
 
 export function critRateOf(actor, skill){
   return (skill.crit || 0) + (actor.crit || 0);
@@ -326,7 +328,7 @@ export function calcDamage(actor, target, skill, scene){
   actor.critMeter = (actor.critMeter || 0) + critRateOf(actor, skill);
   if(actor.critMeter >= CRIT_METER_FULL){
     actor.critMeter -= CRIT_METER_FULL;
-    dmg *= 1.5; isCrit = true;
+    dmg *= CRIT_MULTIPLIER; isCrit = true;
   }
   if(target.debuffs.some(d=>d.type==='defDown')) dmg *= 1.2;
   if(scene && scene.buff==='damageUp') dmg *= 1.15;
