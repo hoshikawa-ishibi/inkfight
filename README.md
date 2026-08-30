@@ -202,8 +202,10 @@ node tools/stun-check.mjs 3000          # 打断机制值多少胜率
 ## 项目文档
 
 - `CLAUDE.md` —— 工作约定、架构说明、历次改动的原因和实测数据。**改代码前先读。**
-- `COMBAT_PLAN.md` —— **战斗深度重做**（意图公开、去随机、BOSS 阶段化、全面重校）。
+- `docs/COMBAT_PLAN.md` —— **战斗深度重做**（意图公开、去随机、BOSS 阶段化、全面重校）。
   里面记着好几条**实测否定**的方案，动手前先看，别重走。
-- `HISTORY.md` —— 历次改动的完整经过、实测数字和当时的推理。
-- `REFACTOR_PLAN.md` / `AI_MERGE_PLAN.md` / `CAMPAIGN_PLAN.md` /
-  `ENGINE_PLAN.md` / `DIFFICULTY_PLAN.md` —— 已完成的五份计划。
+- `docs/HISTORY.md` —— 历次改动的完整经过、实测数字和当时的推理。
+- `docs/ART_PLAN.md` —— **进行中**：视觉与音频升级（角色渲染 / 场景 / 算法作曲）。
+- `docs/ROSTER_PLAN.md` —— 加新角色时读这份，有 16 人各占哪个机制空位的表。
+- `docs/archive/` —— 已收尾的五份计划 + 去年那份 `Game todo.html`，
+  目录里的 `README.md` 说明每份还值得翻回来的理由。

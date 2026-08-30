@@ -27,7 +27,7 @@ node serve-game.mjs      # 零依赖静态服务器（launch-game.vbs 用的就�
 
 游戏本身无构建步骤。
 
-## AI 架构（`AI_MERGE_PLAN.md` 已全部完成）
+## AI 架构（`docs/archive/AI_MERGE_PLAN.md` 已全部完成）
 
 **AI 只有一条链路**：
 
@@ -94,7 +94,7 @@ src/
   view/   render.js stickman.js scene.js vfx.js audio.js   呈现层（依赖 DOM）
 tools/    sim.js + 11 个诊断脚本               无头模拟与平衡诊断
 test/     单元测试
-docs/     HISTORY.md + 7 份 *_PLAN.md
+docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）；archive/ 放已收尾的
 ```
 
 **分界线是「能不能在 Node 里 import」**：`core` / `ai` / `data` / `tools` / `test`
@@ -136,7 +136,7 @@ docs/     HISTORY.md + 7 份 *_PLAN.md
 
 ### 踩过的坑（提炼）
 
-完整的改动经过、实测数字和当时的推理过程见 [HISTORY.md](HISTORY.md)。
+完整的改动经过、实测数字和当时的推理过程见 [docs/HISTORY.md](docs/HISTORY.md)。
 这里只留**每次动手前都该记得**的硬规则：
 
 - **本作回合流程是「双方各行动一个单位」**：队伍人数不影响行动次数，只影响血池。
@@ -162,7 +162,7 @@ docs/     HISTORY.md + 7 份 *_PLAN.md
   **改人数会大幅改变 AoE 技能的强度**——AoE 收益随目标数线性增长，
   3v3 那次弓手「穿透箭」冲到 69.2%、4v4 这次四个 AoE 角色集体到 57~63%。
   **每次改人数都必须专门做一轮 AoE 下调。**
-- **加新角色看 `ROSTER_PLAN.md`。** 原则是「每个新角色占一个没人占的机制空位」，
+- **加新角色看 `docs/ROSTER_PLAN.md`。** 原则是「每个新角色占一个没人占的机制空位」，
   文件里有现有 16 人各自占着哪个位置的表。
 - **玩家在战场上直接点我方角色看技能，点技能才出手**（`beginActorChoice` /
   `beginTurnFor`）。以前是弹一个独立的选人界面，用户反馈那样「没法挨个点开看技能」。
