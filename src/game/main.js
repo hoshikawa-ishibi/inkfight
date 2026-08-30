@@ -6,6 +6,7 @@ import { gameState, rand, getUnit, teamSizeFor, isAiSide } from '../core/state.j
 import { drawStickman } from '../view/stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from '../view/scene.js';
 import { initRender, renderBattle } from '../view/render.js';
+import { initCharacterGallery } from '../view/character-gallery.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
 
@@ -31,6 +32,7 @@ export function showScreen(id) {
   if (id==='screen-select') startSelection();
   if (id==='screen-campaign') initCampaignScreen();
   if (id==='screen-spectate') initSpectateScreen();
+  if (id==='screen-archive') initCharacterGallery();
 }
 
 function showModal(inner){
