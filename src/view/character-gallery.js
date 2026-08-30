@@ -1,4 +1,5 @@
 import { CHARACTERS } from '../data/data.js';
+import { portraitFor } from '../data/character-portraits.js';
 import { drawStickman } from './stickman.js';
 
 let selectedId=CHARACTERS[0]?.id;
@@ -16,12 +17,13 @@ function rosterHtml(){
 }
 
 function detailHtml(c){
+  const portrait=portraitFor(c.id);
   const skills=c.skills.map((s,i)=>`<article class="archive-skill" style="--skill:${s.iconColor||c.color}">
     <div class="archive-skill-icon">${s.icon||i+1}</div><div><header><b>${s.name}</b><span>${s.cost?`${s.cost} SP`:'无消耗'}</span></header><p>${s.desc}</p></div>
   </article>`).join('');
   return `<section class="archive-portrait" style="--char:${c.color}">
-      <div class="archive-portrait-slot" data-portrait-for="${c.id}">
-        <span>CHARACTER ILLUSTRATION</span><b>立绘预留区</b><small>未来可直接接入透明 PNG / WebP</small>
+      <div class="archive-portrait-slot${portrait?' has-portrait':''}" data-portrait-for="${c.id}">
+        ${portrait?`<img src="${portrait}" alt="${c.name}立绘">`:'<span>CHARACTER ILLUSTRATION</span><b>立绘预留区</b><small>未来可直接接入透明 PNG / WebP</small>'}
       </div>
       <div class="archive-identity"><span>NO. ${String(CHARACTERS.indexOf(c)+1).padStart(2,'0')}</span><h2>${c.name}</h2><p>${c.role}</p></div>
     </section>
