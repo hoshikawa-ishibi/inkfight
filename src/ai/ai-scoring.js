@@ -458,9 +458,27 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     }
 
     case 'healSp': {
-      // 回蓝的价值取决于它能解锁什么；不缺蓝时基本没用
-      const locked = u.skills.filter(k => k.cost > u.sp && k.cost <= u.sp + (s.spGain||0));
-      const unlockWorth = locked.length ? Math.max(...locked.map(k => atk * (k.power||1.2))) * 0.5 : 0;
+      // 回蓝的价值取决于它能解锁什么；不缺蓝时基本没用。
+      //
+      // **解锁价值必须用 scoreSkill 自己算，不能另写一份估值。**
+      // 原来这里是手写的 `atk * (k.power||1.2)`，等于假设「每个技能都只打
+      // 一个目标」，于是所有群体技能在这条路径上被按单体估价：
+      //   鼓姬「雷鸣震」1.05 倍率 × 4 个敌人被当成 1.05 倍率 × 1 个，
+      //   AI 于是宁可用 1.1 倍率的普攻「鼓点」，也不肯花一回合回蓝去开 AoE。
+      // skill-audit 实测抓到的正是这个：**禁掉「鼓点」她的胜率反而 +7.8**。
+      // 没有 power 字段的技能（铁幕的护盾、腐化爆发的层数伤害）更离谱，
+      // 直接吃那个凭空的 1.2 默认值。
+      //
+      // 这是本项目的头号病因在评分模块里的又一例：「一个技能值多少」这份
+      // 知识已经有唯一实现了，这里不该再写第二份。递归时把 tempo 归零——
+      // 「占掉一个回合」的代价这一回合已经扣过了，下一回合的那次不该再扣。
+      // healSp 排除在外，免得两个回蓝技能互相递归。
+      const locked = u.skills.filter(k =>
+        k.cost > u.sp && k.cost <= u.sp + (s.spGain||0) && k.type !== 'healSp');
+      const unlockWorth = locked.length
+        ? Math.max(...locked.map(k =>
+            scoreSkill(u, k, foes, friends, scene, { ...opts, tempo:0 }))) * 0.5
+        : 0;
       const starved = u.sp / u.maxSp < SP_STARVED ? 1.5 : 0.6;
       // 「每点 SP 恒定值 0.35 伤害」这个白送项是错的：不缺蓝的时候多出来的
       // SP 一点用都没有。skill-audit 实测禁掉「剑气」胜率 +6.8、禁掉「集中」

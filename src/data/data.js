@@ -27,15 +27,15 @@ export const CHARACTERS = [
     passive:{ name:'剑意', desc:'暴击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'斩击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'⚔️', iconColor:'#e94560', sfx:'slash', vfx:'slash' },
-      { name:'旋风斩', type:'damage', cost:22, power:1.8, desc:'消耗25SP，170%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
+      { name:'旋风斩', type:'damage', cost:22, power:1.8, desc:'消耗22SP，180%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
       { name:'剑气', type:'healSp', cost:0, hpCost:18, spGain:22, desc:'消耗18HP回复22SP', icon:'✨', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'破甲突刺', type:'damage', cost:30, power:2.2, debuff:'defDown', debuffDur:2, desc:'210%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
+      { name:'破甲突刺', type:'damage', cost:30, power:2.2, debuff:'defDown', debuffDur:2, desc:'220%伤害，减防2回合', icon:'🗡️', iconColor:'#ffd54f', sfx:'crit', vfx:'pierce' }
     ]},
   { id:'mage', name:'法师', role:'高爆发/控制', hp:112, sp:130, atk:18, def:3, crit:15, dodge:6, spRegen:11, color:'#4fc3f7', weapon:'staff',
     passive:{ name:'法力涌动', desc:'回合开始时 SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
-      { name:'墨之洪流', type:'damage', cost:32, power:3.2, desc:'消耗35SP，310%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
+      { name:'墨之洪流', type:'damage', cost:32, power:3.2, desc:'消耗32SP，320%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
       { name:'灵能过载', type:'stun', cost:20, power:1.4, spThreshold:0.5, desc:'140%伤害；目标SP过半则扰乱其下一次行动（伤害/治疗-40%）', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
       { name:'冥想', type:'healSp', cost:0, hpCost:0, spGain:30, desc:'恢复30SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
@@ -45,13 +45,13 @@ export const CHARACTERS = [
       { name:'盾击', type:'damage', cost:0, power:1.2, desc:'基础攻击，120%伤害', icon:'🛡️', iconColor:'#8d6e63', sfx:'hit', vfx:'bash' },
       { name:'铁壁', type:'shield', cost:20, shieldAmt:45, desc:'获得45护盾', icon:'🏰', iconColor:'#90caf9', sfx:'shield', vfx:'shield' },
       { name:'嘲讽', type:'taunt', cost:15, dur:2, desc:'嘲讽敌方2回合', icon:'😡', iconColor:'#f5a623', sfx:'debuff', vfx:'taunt' },
-      { name:'盾墙反击', type:'damage', cost:30, power:2.2, selfHeal:15, desc:'200%伤害+回15HP', icon:'⚒️', iconColor:'#ffd54f', sfx:'hit', vfx:'bash' }
+      { name:'盾墙反击', type:'damage', cost:30, power:2.2, selfHeal:15, desc:'220%伤害+回15HP', icon:'⚒️', iconColor:'#ffd54f', sfx:'hit', vfx:'bash' }
     ]},
   { id:'assassin', name:'刺客', role:'高伤/脆皮', hp:110, sp:100, atk:20, def:3, crit:18, dodge:10, spRegen:9, color:'#ab47bc', weapon:'dagger',
     passive:{ name:'暴击蓄能', desc:'暴击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'匕首', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🗡️', iconColor:'#ab47bc', sfx:'slash', vfx:'slash' },
-      { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'180%伤害，40%暴击', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
+      { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'210%伤害，40%暴击', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
       { name:'毒刃', type:'damage', cost:20, power:1.2, dot:8, dotDur:3, desc:'120%伤害+中毒3回合', icon:'☠️', iconColor:'#9ccc65', sfx:'slash', vfx:'poison' },
       { name:'消失', type:'dodge', cost:25, dur:1, desc:'下回合闪避所有攻击', icon:'💨', iconColor:'#fff', sfx:'buff', vfx:'smoke' }
     ]},
@@ -59,7 +59,7 @@ export const CHARACTERS = [
     passive:{ name:'圣光庇护', desc:'回合开始时，若任意友方 HP<30% 则自动治疗其 12 HP', trigger:'onTurnStart', effect:'allyHeal', value:12 },
     skills:[
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
-      { name:'治愈之光', type:'heal', cost:28, healAmt:42, desc:'治疗友方48HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
+      { name:'治愈之光', type:'heal', cost:28, healAmt:42, desc:'治疗友方42HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
       { name:'净化', type:'cleanse', cost:20, healAmt:20, desc:'清除友方负面状态并治疗20HP', icon:'🕊️', iconColor:'#fff', sfx:'heal', vfx:'cleanse' },
       { name:'祝福', type:'buff', cost:28, buffType:'atkUp', dur:3, buffValue:0.5, desc:'友方攻击+50% 3回合', icon:'🌟', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' }
     ]},
@@ -75,7 +75,7 @@ export const CHARACTERS = [
     passive:{ name:'鹰眼', desc:'每回合开始暴击率+3%（最多叠加 4 层）', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:4 },
     skills:[
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
-      { name:'穿透箭', type:'damageAll', cost:32, power:1.1, desc:'对所有敌人140%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
+      { name:'穿透箭', type:'damageAll', cost:32, power:1.1, desc:'对所有敌人110%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
       { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则扰乱其下一次行动（伤害/治疗-40%）', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
@@ -109,7 +109,7 @@ export const CHARACTERS = [
     passive:{ name:'式神', desc:'回合开始时SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
     skills:[
       { name:'符射', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'📜', iconColor:'#b39ddb', sfx:'arrow', vfx:'orb' },
-      { name:'破魔符', type:'damageAll', cost:24, power:0.9, debuff:'defDown', debuffDur:3, desc:'全体85%伤害并减防3回合', icon:'🎴', iconColor:'#ce93d8', sfx:'debuff', vfx:'pierceArrow' },
+      { name:'破魔符', type:'damageAll', cost:24, power:0.9, debuff:'defDown', debuffDur:3, desc:'全体90%伤害并减防3回合', icon:'🎴', iconColor:'#ce93d8', sfx:'debuff', vfx:'pierceArrow' },
       { name:'缚灵', type:'stun', cost:22, power:1.2, spThreshold:0.45, desc:'120%伤害；目标SP过45%则扰乱其下一次行动（伤害/治疗-40%）', icon:'⛓️', iconColor:'#9575cd', sfx:'thunder', vfx:'bindArrow' },
       { name:'咒返', type:'damage', cost:28, power:1.5, dot:8, dotDur:3, desc:'150%伤害+中毒3回合', icon:'🌀', iconColor:'#7e57c2', sfx:'shadow', vfx:'curse' }
     ]},
@@ -120,7 +120,7 @@ export const CHARACTERS = [
     skills:[
       { name:'齿轮击', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'⚙️', iconColor:'#90a4ae', sfx:'hit', vfx:'bash' },
       { name:'铁幕', type:'shieldAll', cost:30, shieldAmt:26, desc:'全队获得26护盾', icon:'🛡️', iconColor:'#90caf9', sfx:'shield', vfx:'shield' },
-      { name:'过载', type:'damage', cost:24, power:2.1, hpCost:6, desc:'消耗8HP，190%伤害', icon:'💥', iconColor:'#ff7043', sfx:'fire', vfx:'smash' },
+      { name:'过载', type:'damage', cost:24, power:2.1, hpCost:6, desc:'消耗6HP，210%伤害', icon:'💥', iconColor:'#ff7043', sfx:'fire', vfx:'smash' },
       { name:'检修', type:'healSp', cost:0, spGain:24, desc:'回复24SP', icon:'🔧', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' }
     ]},
 
@@ -129,8 +129,8 @@ export const CHARACTERS = [
     passive:{ name:'战鼓不歇', desc:'回合开始时全队回复 5 SP', trigger:'onTurnStart', effect:'allySp', value:5 },
     skills:[
       { name:'鼓点', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'🥁', iconColor:'#ffb74d', sfx:'hit', vfx:'bash' },
-      { name:'进军令', type:'buffAll', cost:28, buffType:'atkUp', dur:3, buffValue:0.30, desc:'全队攻击+40% 3回合', icon:'📣', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' },
-      { name:'雷鸣震', type:'damageAll', cost:24, power:1.05, desc:'对所有敌人115%伤害', icon:'🌩️', iconColor:'#ffca28', sfx:'thunder', vfx:'shockwave' },
+      { name:'进军令', type:'buffAll', cost:26, buffType:'atkUp', dur:3, buffValue:0.38, desc:'全队攻击+38% 3回合', icon:'📣', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' },
+      { name:'雷鸣震', type:'damageAll', cost:24, power:1.12, desc:'对所有敌人112%伤害', icon:'🌩️', iconColor:'#ffca28', sfx:'thunder', vfx:'shockwave' },
       { name:'振奋', type:'healSp', cost:0, spGain:22, desc:'回复22SP', icon:'🎶', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' }
     ]},
 
@@ -139,7 +139,7 @@ export const CHARACTERS = [
     passive:{ name:'回春', desc:'回合开始时自身回复 7 HP', trigger:'onTurnStart', effect:'selfHeal', value:7 },
     skills:[
       { name:'银针', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'💉', iconColor:'#81c784', sfx:'arrow', vfx:'light' },
-      { name:'百草汤', type:'healAll', cost:38, healAmt:18, desc:'全队回复24HP', icon:'🍵', iconColor:'#66bb6a', sfx:'heal', vfx:'heal' },
+      { name:'百草汤', type:'healAll', cost:38, healAmt:18, desc:'全队回复18HP', icon:'🍵', iconColor:'#66bb6a', sfx:'heal', vfx:'heal' },
       { name:'金疮药', type:'heal', cost:20, healAmt:40, desc:'治疗友方40HP', icon:'🧪', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
       { name:'醒神', type:'cleanse', cost:18, healAmt:16, desc:'清除负面并治疗16HP', icon:'🌿', iconColor:'#fff', sfx:'heal', vfx:'cleanse' }
     ]},
@@ -160,8 +160,8 @@ export const CHARACTERS = [
   { id:'monk', name:'拳师', role:'多段连击', hp:128, sp:85, atk:17, def:6, crit:12, dodge:7, spRegen:9, color:'#a1887f', weapon:'fist',
     passive:{ name:'寸劲', desc:'暴击后回复 10 SP', trigger:'onCrit', effect:'spGain', value:10 },
     skills:[
-      { name:'直拳', type:'damage', cost:0, power:1.2, hits:2, desc:'两段共100%伤害', icon:'👊', iconColor:'#a1887f', sfx:'hit', vfx:'bash' },
-      { name:'连环崩拳', type:'damage', cost:24, power:2.5, hits:4, desc:'四段共210%伤害，充能极快', icon:'💢', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
+      { name:'直拳', type:'damage', cost:0, power:1.2, hits:2, desc:'两段共120%伤害', icon:'👊', iconColor:'#a1887f', sfx:'hit', vfx:'bash' },
+      { name:'连环崩拳', type:'damage', cost:24, power:2.5, hits:4, desc:'四段共250%伤害，充能极快', icon:'💢', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
       { name:'铁山靠', type:'damage', cost:22, power:1.5, debuff:'defDown', debuffDur:2, desc:'150%伤害，减防2回合', icon:'🪨', iconColor:'#8d6e63', sfx:'hit', vfx:'bash' },
       { name:'调息', type:'healSp', cost:0, spGain:26, desc:'回复26SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
