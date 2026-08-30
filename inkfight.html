@@ -334,6 +334,28 @@ body {
 .modal-box p { color:#ccc; margin-bottom:18px; }
 .modal-box .row { display:flex; gap:10px; justify-content:center; }
 
+/* ── 教学提示 + 机制词典（UX_PLAN 阶段 3）────────────────── */
+.modal-box.modal-wide { max-width:min(760px, 92vw); width:760px; text-align:left; }
+.codex-tip-tag {
+  display:inline-block; font-size:11px; letter-spacing:1px; color:#16c79a;
+  border:1px solid rgba(22,199,154,.5); border-radius:10px; padding:1px 8px; margin-bottom:8px;
+}
+.modal-box .codex-tip-foot { font-size:11px; color:#777; margin-bottom:14px; }
+.codex-nav { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.codex-nav-item {
+  font-family:inherit; font-size:12px; cursor:pointer; color:#ccc;
+  background:rgba(255,255,255,.05); border:1px solid rgba(233,69,96,.35);
+  border-radius:12px; padding:3px 10px;
+}
+.codex-nav-item:hover { background:rgba(233,69,96,.2); color:#fff; }
+/* 词典要能滚动，而且**不能把整个页面撑高**——战斗界面本来就满屏了 */
+.codex-body { max-height:min(52vh, 420px); overflow-y:auto; padding-right:6px; }
+.codex-entry { border-top:1px dashed #333; padding:12px 2px; scroll-margin-top:4px; }
+.codex-entry:first-child { border-top:none; }
+.codex-entry h4 { color:#f5a623; font-size:14px; margin-bottom:6px; }
+.modal-box .codex-entry p { color:#bbb; font-size:13px; line-height:1.9; margin-bottom:0; }
+.modal-box .codex-entry b { color:#e94560; }
+
 /* 雷达图预览 */
 #screen-radar { text-align:center; }
 .radar-wrap { display:flex; gap:40px; justify-content:center; align-items:flex-start; margin:16px 0 24px; flex-wrap:wrap; }
@@ -576,6 +598,9 @@ body {
   <div class="log-controls">
     <button class="btn btn-sm" onclick="clearLog()">清空</button>
     <button class="btn btn-sm" id="btn-log-pause" onclick="toggleLogPause()">暂停滚动</button>
+    <!-- 战斗内的词典入口。用户明确要的是「打到一半忘记了可以看」，
+         所以这个入口是必须的，不能只留在标题界面的玩法说明里。 -->
+    <button class="btn btn-sm" id="btn-codex" onclick="openCodex()" title="机制词典：锋芒、扰乱、墨蚀、轮空回蓝…">❓ 机制</button>
   </div>
   <div class="battle-log" id="battle-log"></div>
 </div>

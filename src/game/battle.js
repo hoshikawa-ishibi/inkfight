@@ -5,6 +5,7 @@ import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealC
 import { AI_BY_LEVEL, aiNormal } from '../ai/ai.js';
 import { makeTeamContext, pickActor } from '../ai/ai-scoring.js';
 import { makeIntent, resolveIntent } from '../core/intent.js';
+import { teachOnce } from '../view/codex.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -12,12 +13,24 @@ import {
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
   applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
   actionsFor, bossPhase, processBenchedTurn, resolveHits, chargeCrit,
-  applyHealAll, applyShieldAll, applyBuffAll, consumeInterruptedSkill
+  applyHealAll, applyShieldAll, applyBuffAll, consumeInterruptedSkill,
+  INTERRUPT_OUTPUT_MULTIPLIER
 } from '../core/combat.js';
 
 export { createUnit, getEffectiveAtk };
 
 const DIFF_LABEL = { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' };
+
+// 一次性教学提示的闸门（UX_PLAN 阶段 3a）。
+// **只在事情落在玩家自己头上时弹**——观战模式两边都是 AI，
+// 在那里弹「你 SP 过半被抓了」是胡说八道；而且观战会把所有提示
+// 在玩家自己碰到之前就消耗掉（每条只弹一次）。
+// 真相源走 state.js 的 isAiSide，不写 mode==='ai' 那套。
+function teachPlayer(id, unit){
+  if(unit && isAiSide(unit.player)) return;
+  if(gameState.mode === 'spectate') return;
+  teachOnce(id);
+}
 
 // ── 观战控制（暂停 / 单步 / 倍速） ─────────────────────────
 // 只在观战模式生效。人机和战役里节奏本来就由玩家自己掌握，不需要这些。
@@ -289,7 +302,11 @@ function beginTurnFor(u){
     return false;
   }
   // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
-  applyRestRegen(u.player===1?gameState.p1Units:gameState.p2Units, u, gameState.scene);
+  const team = u.player===1?gameState.p1Units:gameState.p2Units;
+  applyRestRegen(team, u, gameState.scene);
+  // 只有真的有人轮空了才教——只剩一个人时 applyRestRegen 走的是
+  // 「没得换，照常回气」那条分支，那时弹「没上场的队友会回蓝」是错的。
+  if(team.filter(x=>x.alive && x!==u).length) teachPlayer('restregen', u);
   // 这一侧回合要行动几次（BOSS 阶段二是 2 次，其余都是 1 次）
   gameState.extraActions = actionsFor(u) - 1;
   document.getElementById('round-badge').textContent=`回合 ${gameState.round}`;
@@ -368,6 +385,9 @@ function processStartOfTurn(u){
     presentDeath(u, null, r.poison.died, r.poison.undying);
   }
   if(r.erosion){
+    // 墨蚀对双方对称，所以不管先碰到的是谁都该告诉玩家——
+    // 它说的是「局面必须收尾了」，不是「你被扭了」。
+    teachPlayer('erosion', null);
     addLog(`🕳 墨蚀侵蚀 ${u.name}，损失 ${r.erosion.dmg} HP（拖得越久越重）`,'dmg');
     spawnFloatText(u,`-${r.erosion.dmg}`,'#7e57c2',15);
     presentDeath(u, null, r.erosion.died, r.erosion.undying);
@@ -533,6 +553,10 @@ export function renderSkillPanel(u){
     btn.disabled=!canUseSkill(u,s);
     const cdLeft=(u.cooldowns&&u.cooldowns[s.name])||0;
     const dmg=previewDmg(u,s);
+    // 阶段 3a：预览里第一次出现「必定重击」的那一刻弹说明。
+    // 放在这里而不是「打出重击之后」：玩家需要在**决定放哪个技能之前**
+    // 就知道这一刀是确定的，否则这条知识对当下那个决策没用。
+    if(dmg!==null && willCrit(u,s)) teachPlayer('crit', u);
     btn.innerHTML=`
       <span class="skill-icon" style="background:${s.iconColor}33;color:${s.iconColor};border:1px solid ${s.iconColor}">${s.icon}</span>
       <span class="key-hint">[${i+1}]</span>
@@ -634,8 +658,12 @@ function executeSkill(actor,skill,target){
   const interrupted = consumeInterruptedSkill(actor, skill);
   skill = interrupted.skill;
   if(interrupted.consumed){
-    addLog(`${actor.name} 受到灵能扰乱，本次伤害与治疗降低40%`,'stun');
-    spawnFloatText(actor,'效力-40%','#f5a623',15);
+    // 百分比读 combat.js 的常量，别手抄——这两行原本写死的 40%
+    // 和常量是两份实现，改数值时它们不会跟着走。
+    const down = Math.round((1-INTERRUPT_OUTPUT_MULTIPLIER)*100);
+    addLog(`${actor.name} 受到灵能扰乱，本次伤害与治疗降低${down}%`,'stun');
+    spawnFloatText(actor,`效力-${down}%`,'#f5a623',15);
+    teachPlayer('interrupt', actor);
   }
   payCosts(actor, skill);
   if(skill.sfx) playSfx(skill.sfx);
@@ -645,6 +673,7 @@ function executeSkill(actor,skill,target){
     case 'damage': playSkillVfx(actor,target,skill,()=>{
       // 多段技能每段各自结算（各自给锋芒蓄能条充能），见 combat.js 的 resolveHits
       if(skill.hits>1){
+        teachPlayer('multihit', actor);
         resolveHits(actor,target,skill,gameState.scene).hits
           .forEach(r=>presentDamage(actor,target,r));
       } else {
@@ -854,7 +883,7 @@ function doStun(actor,target,skill){
   if(r.damage) presentDamage(actor, target, r.damage);
   if(r.skipped) return;
   if(r.success){
-    addLog(`${target.name} 被扰乱！下一次行动的伤害与治疗降低40%`,'stun');
+    addLog(`${target.name} 被扰乱！下一次行动的伤害与治疗降低${Math.round((1-INTERRUPT_OUTPUT_MULTIPLIER)*100)}%`,'stun');
     spawnFloatText(target,'扰乱!','#f5a623',18); spawnHitBurst(target,'#f5a623');
     playSfx('stun'); _screenShake(8,250);
   } else if(r.reason === 'immune'){

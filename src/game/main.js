@@ -8,6 +8,7 @@ import { drawStickman } from '../view/stickman.js';
 import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBackground } from '../view/scene.js';
 import { initRender, renderBattle } from '../view/render.js';
 import { initCharacterGallery } from '../view/character-gallery.js';
+import { openCodex, isModalOpen, closeTop } from '../view/codex.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
 
@@ -58,6 +59,11 @@ export function showHelp(){
     • <b>嘲讽</b>：让敌人<b>之后的决策</b>优先打你——但敌人<b>已经预告出来的那一击不会改道</b>，拿嘲讽去接已预告的一刀是接不住的。<br>
     • <b>键盘1-4</b> 释放技能，<b>ESC</b> 取消选目标/退出。<br>
     • 战场效果会影响伤害或SP回复。
+    </p>
+    <p style="text-align:center;margin-bottom:0;">
+      想看每个机制的完整因果（锋芒、扰乱、墨蚀、轮空回蓝…）：
+      <button class="btn btn-sm" onclick="openCodex()">📚 机制词典</button><br>
+      <span style="font-size:11px;color:#888;">战斗界面右下角的 ❓ 也能随时打开它。</span>
     </p>`);
 }
 
@@ -750,6 +756,13 @@ function showSimResults(charStats, rounds){
 
 
 document.addEventListener('keydown',e=>{
+  // 弹窗（教学提示 / 机制词典 / 各种确认框）开着时，游戏快捷键一律不响应。
+  // 遮罩挡得住鼠标但挡不住键盘——没有这一条，打开词典时按 1 会照样出招，
+  // 而「战斗中打开词典不能推进回合」正是阶段 3b 明确要求的。
+  if(isModalOpen()){
+    if(e.key==='Escape'){ e.preventDefault(); closeTop(); }
+    return;
+  }
   if(e.key==='Escape'){
     if(gameState.waitingForTarget) cancelTargeting();
     else if(document.getElementById('screen-battle').classList.contains('active')) confirmExit();
@@ -878,5 +891,6 @@ Object.assign(window, {
   confirmSelection, clearLog, toggleLogPause, confirmExit,
   onCutsceneNext, resetCampaign, onRadarNext,
   initTestScreen, startTestRun, initBanScreen,
-  toggleSpectatePause, stepSpectate, cycleSpectateSpeed
+  toggleSpectatePause, stepSpectate, cycleSpectateSpeed,
+  openCodex
 });
