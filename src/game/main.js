@@ -79,6 +79,7 @@ let chosenMode=null;
 function initModeScreen() {
   chosenMode=null;
   document.getElementById('btn-mode-next').disabled=true;
+  syncDebugOnlyCards();
   document.querySelectorAll('#mode-grid .option-card').forEach(c=>{
     c.classList.remove('selected');
     c.onmouseenter=()=>playSfx('hover');
@@ -105,11 +106,11 @@ let chosenDiff=null;
 function initDifficultyScreen(){
   chosenDiff=null;
   document.getElementById('btn-diff-next').disabled=true;
-  // 隐藏档「墨皇」：通关战役才出现（不是灰掉——被剧透就不叫隐藏了）。
-  // 解锁进度直接从 inkfight_campaign 推，**不另存 key**：
-  // 同一份知识两份实现迟早对不上，这个项目已经因此出过三次 bug。
-  document.getElementById('diff-card-nightmare').style.display =
-    getCampaignProgress() >= CAMPAIGN_STAGES.length ? '' : 'none';
+  // 隐藏档「墨皇」：只在调试模式下出现（不是灰掉——被剧透就不叫隐藏了）。
+  // 它原本的门槛是「通关战役」，但战役已暂弃并藏起，没人能再合法通关。
+  // **必须显式改成 isDebug()，不能指望它自然消失**——旧存档里
+  // inkfight_campaign 已经是 8 的玩家，按老条件照样看得到墨皇。
+  document.getElementById('diff-card-nightmare').style.display = isDebug() ? '' : 'none';
   document.querySelectorAll('#diff-grid .option-card').forEach(c=>{
     c.classList.remove('selected');
     c.onmouseenter=()=>playSfx('hover');
@@ -147,12 +148,11 @@ let specA=null, specB=null, specRoster=null;
 
 function initSpectateScreen(){
   specA=null; specB=null; specRoster=null;
-  const unlocked = getCampaignProgress() >= CAMPAIGN_STAGES.length;
+  const unlocked = isDebug();   // 墨皇档：和难度选择界面同一条规矩，两处必须一致
   [['spec-a','A'],['spec-b','B']].forEach(([elId, side])=>{
     const box=document.getElementById(elId);
     box.innerHTML='';
     SPEC_DIFFS.forEach(d=>{
-      // 隐藏档「墨皇」通关战役才出现，和难度选择界面同一条规矩
       if(d.id==='nightmare' && !unlocked) return;
       const card=document.createElement('div');
       card.className='spec-diff';
@@ -466,6 +466,19 @@ function syncDebugBadge(){
   const el = document.getElementById('debug-tap');
   el.textContent = isDebug() ? '🛠' : '🔊';
   el.title = isDebug() ? '调试模式开启中 — 连点 5 次关闭' : '音量';
+  syncDebugOnlyCards();
+}
+
+// 未完工的东西（战役、平衡测试）在 HTML 里标 data-debug-only，默认 display:none。
+// **别在 JS 里手抄一份 id 列表**——以后再多一个实验功能，
+// 只要在 HTML 里加这个属性就行（写死 id 列表踩过坑，见 CLAUDE.md）。
+// 难度屏 / 观战屏 的墨皇档不走这里：它们是进屏时动态生成的。
+function syncDebugOnlyCards(){
+  const dbg = isDebug();
+  document.querySelectorAll('[data-debug-only]').forEach(c=>{
+    c.style.display = dbg ? '' : 'none';
+    if(!dbg) c.classList.remove('selected');
+  });
 }
 
 function initDebugTap(){
@@ -478,15 +491,21 @@ function initDebugTap(){
     const on = !isDebug();
     localStorage.setItem(DEBUG_KEY, on ? '1' : '0');
     syncDebugBadge();
+    // 关掉调试时如果手里正选着一个调试专属模式，卡藏了但
+    // chosenMode 还在，「下一步」会把人送进本不该进的屏。重置选择。
+    if(!on && (chosenMode==='campaign' || chosenMode==='test') && document.getElementById('screen-mode').classList.contains('active')) initModeScreen();
     playSfx(on ? 'confirm' : 'click');
     const real = rawCampaignProgress();
     showModal(on
       ? `<h3 style="text-align:center;">🛠 调试模式已开启</h3>
-         <p>• 墨皇难度、全部 ${CAMPAIGN_STAGES.length} 关战役、全部队友，立即可用。<br>
+         <p style="color:#ffb74d;text-align:center;"><b>以下是未完成的测试中功能，随时可能不可用或不平衡。</b></p>
+         <p>• 模式选择里多出「战役（暂弃）」和「平衡测试」两张卡。<br>
+         • 人机 / 观战里多出「墨皇」难度档。<br>
+         • 全部 ${CAMPAIGN_STAGES.length} 关战役与全部队友立即可用。<br>
          • <b>真实存档没有被改动</b>（你实际通关到第 ${real} 关），关掉调试就恢复原样。<br>
          • 再连点 5 次左上角的 🛠 即可关闭。</p>`
       : `<h3 style="text-align:center;">🔊 调试模式已关闭</h3>
-         <p>解锁进度回到真实存档：已通关 ${real} / ${CAMPAIGN_STAGES.length} 关。</p>`);
+         <p>测试中功能已重新藏起。解锁进度回到真实存档：已通关 ${real} / ${CAMPAIGN_STAGES.length} 关。</p>`);
   });
 }
 
