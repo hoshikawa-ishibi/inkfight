@@ -180,6 +180,6 @@ setInterval(()=>{
   });
   CHARACTERS.forEach(c=>{
     const cv=document.getElementById('prev-'+c.id);
-    if(cv) drawStickman(cv,{color:c.color,weapon:c.weapon,player:1},'idle',idleAnimTime);
+    if(cv) drawStickman(cv,{id:c.id,charId:c.id,color:c.color,weapon:c.weapon,player:1},'idle',idleAnimTime);
   });
 },120);
