@@ -761,6 +761,13 @@ document.addEventListener('mousemove',e=>{
 document.getElementById('vol-bgm').addEventListener('input',e=>{ Audio.init(); Audio.setBgmVol(e.target.value/100); });
 document.getElementById('vol-sfx').addEventListener('input',e=>{ Audio.init(); Audio.setSfxVol(e.target.value/100); });
 document.addEventListener('click',()=>{ Audio.init(); Audio.startMenuBgm(); },{once:true});
+
+// 标签页切走就停 BGM，切回来续上。**只有音频需要这一条**——
+// 画面那边（场景层、idle 呼吸、特效、震动）全是 requestAnimationFrame，
+// 浏览器在标签页隐藏时会自动暂停它们；BGM 走的是 setInterval，不会。
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) Audio.pauseForHidden(); else Audio.resumeFromHidden();
+});
 syncMuteButton();   // 让静音按钮图标反映上次保存的状态
 syncDebugBadge();   // 🔊 / 🛠 反映调试模式状态
 initDebugTap();

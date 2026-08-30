@@ -169,8 +169,23 @@ export function lungeActor(actor){
   setTimeout(()=>cv.classList.remove(cls),350);
 }
 
+// idle 呼吸动画。**以前是模块顶层的裸 setInterval**：页面一加载就开始跑，
+// 不管当前在哪个屏幕、标签页是否可见。setInterval 在后台只会被节流到 ~1s，
+// 不会停，于是切走之后它仍在遍历全部单位 + 16 个角色预览重绘。
+//
+// 现在加一道 document.hidden 闸：定时器照常触发，但隐藏时**一笔都不画**。
+// 昂贵的是绘制不是定时器，所以后台开销实质归零。
+//
+// 为什么不干脆换成 requestAnimationFrame（它天生「隐藏即暂停」）：
+// 实测过，**rAF 的暂停条件不是「标签页隐藏」而是「这个页面在合成」**。
+// 在内置浏览器面板里 `document.visibilityState === 'visible'`、
+// `document.hidden === false`，而 rAF 一秒 0 帧——换成 rAF 会让动画在这类
+// 环境里静默冻住，而这个项目恰恰要在那种面板里做 UI 验收。
+// 拿一个「不保证会跑」的回调换一个 if，不划算。
+const IDLE_STEP_MS=120;
 let idleAnimTime=0;
 setInterval(()=>{
+  if(document.hidden) return;
   idleAnimTime++;
   getAllUnits().forEach(u=>{
     if(u.alive&&u.pose==='idle'){
@@ -182,4 +197,4 @@ setInterval(()=>{
     const cv=document.getElementById('prev-'+c.id);
     if(cv) drawStickman(cv,{id:c.id,charId:c.id,color:c.color,weapon:c.weapon,player:1},'idle',idleAnimTime);
   });
-},120);
+},IDLE_STEP_MS);

@@ -48,6 +48,7 @@ export const Audio = {
   },
   startMenuBgm(){
     this.stopBgm();
+    this._bgmKind='menu'; this._bgmScene=null;
     if(!this.ctx) return;
     // 神秘琶音：Am pentatonic，慢速，带回响
     const scale = [220, 261, 294, 330, 392, 440, 523, 587, 659];
@@ -70,6 +71,7 @@ export const Audio = {
   },
   startBgm(scene){
     this.stopBgm();
+    this._bgmKind='battle'; this._bgmScene=scene;
     if(!this.ctx) return;
     // 战斗BGM：鼓点 + 旋律，按场景变化音色和调式
     const themes = {
@@ -106,6 +108,24 @@ export const Audio = {
   stopBgm(){
     if(this.bgmTimer){ clearInterval(this.bgmTimer); this.bgmTimer=null; }
     this._menuTimer = null;
+    this._bgmKind = null;
+  },
+
+  // ── 切到后台就别响了 ──────────────────────────────────
+  // BGM 是 setInterval 驱动的，**不像 rAF 那样会被浏览器自动暂停**：
+  // 不处理的话切走之后音乐照样在放。回到前台按原来那段续上，
+  // 所以要先记住放的是菜单曲还是战斗曲（战斗曲还得记住是哪个场景）。
+  // 静音状态不受影响——playChime / tick 自己会看 this.muted。
+  pauseForHidden(){
+    if(!this.bgmTimer) return;
+    this._resumeKind = this._bgmKind; this._resumeScene = this._bgmScene;
+    this.stopBgm();
+  },
+  resumeFromHidden(){
+    const kind = this._resumeKind;
+    this._resumeKind = null;
+    if(kind === 'menu') this.startMenuBgm();
+    else if(kind === 'battle') this.startBgm(this._resumeScene);
   }
 };
 

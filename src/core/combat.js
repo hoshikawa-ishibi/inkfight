@@ -406,11 +406,26 @@ export const INTERRUPT_OUTPUT_MULTIPLIER = 0.6;
 
 // 正式打断不再没收行动：只把目标下一次行动的伤害 / 治疗压到 60%。
 // 两个调用方都必须经这两个函数取技能，避免 battle.js 和 sim.js 再各算一份。
+//
+// **按「技能实际产出什么」折算，不是按字段名折算。** 第一版只缩 power 和
+// healAmt，于是和写在 UI 上的规则对不上，而且是两个方向同时错：
+//   - 说了「伤害 -40%」却没做到：术士「腐化爆发」的伤害走 dmgPerStack、
+//     中毒走 dot，两个都没被缩——被扰乱时改放腐化爆发等于完全免疫，
+//     而且这条免票只有术士一个人有。
+//   - 说了「净化不受影响」却做过头：净化 / 醒神带的附带治疗也叫 healAmt，
+//     跟着被砍了 40%。净化本来是被明确留出来的应对手段。
+// 这不是改规则，是让实现追上早就写出去的那条规则。
 export function previewInterruptedSkill(actor, skill){
   if(!actor.disrupted) return skill;
+  const M = INTERRUPT_OUTPUT_MULTIPLIER;
+  const cut = v => Math.max(1, Math.round(v * M));
   const out = { ...skill };
-  if(out.power) out.power *= INTERRUPT_OUTPUT_MULTIPLIER;
-  if(out.healAmt) out.healAmt *= INTERRUPT_OUTPUT_MULTIPLIER;
+  // 伤害：直伤、持续伤害、按层数结算的爆发，三条路都要走同一个折扣
+  if(out.power)       out.power *= M;
+  if(out.dot)         out.dot = cut(out.dot);
+  if(out.dmgPerStack) out.dmgPerStack = cut(out.dmgPerStack);
+  // 治疗：净化除外——它和护盾 / 增益一样，是玩家被扰乱时该改用的东西
+  if(out.healAmt && out.type !== 'cleanse') out.healAmt = cut(out.healAmt);
   return out;
 }
 

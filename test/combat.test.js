@@ -292,6 +292,27 @@ describe('calcStun：确定性打断', () => {
     assert.equal(original.power, 2, '预览/执行不能污染技能原始配置');
   });
 
+  // 第一版按**字段名**折算（只缩 power / healAmt），于是和写在 UI 上的规则
+  // 两个方向同时对不上：伤害那边漏了 dot 和 dmgPerStack——术士被扰乱时
+  // 改放「腐化爆发」等于完全免疫；净化那边反而多砍了，因为它的附带治疗
+  // 也叫 healAmt，而净化本来是被明确留给玩家的应对手段。
+  test('扰乱按「产出什么」折算：持续伤害和层数爆发照样打折，净化不打折', () => {
+    const dis = () => makeUnit({disrupted:true});
+    const M = INTERRUPT_OUTPUT_MULTIPLIER;
+
+    const poison = consumeInterruptedSkill(dis(), {type:'damage', power:1.5, dot:8, dotDur:3}).skill;
+    assert.equal(poison.dot, Math.round(8 * M), '中毒也是伤害');
+
+    const burst = consumeInterruptedSkill(dis(), {type:'corruptBurst', dmgPerStack:9}).skill;
+    assert.equal(burst.dmgPerStack, Math.round(9 * M), '腐化爆发是纯伤害技能，没有豁免');
+
+    const heal = consumeInterruptedSkill(dis(), {type:'heal', healAmt:42}).skill;
+    assert.equal(heal.healAmt, Math.round(42 * M));
+
+    const cleanse = consumeInterruptedSkill(dis(), {type:'cleanse', healAmt:20}).skill;
+    assert.equal(cleanse.healAmt, 20, '净化和护盾 / 增益一样，是被扰乱时该改用的东西');
+  });
+
   test('未被扰乱时技能原样返回，也不会误报已消耗', () => {
     const u = makeUnit();
     const skill = {power:2, healAmt:50};
