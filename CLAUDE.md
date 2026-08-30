@@ -63,9 +63,17 @@ src/data/data.js（技能配置）
   敌方配置、不做浏览器手测；`campaign-check.mjs` 报异常也只记录，不修复。
   **任何改动只要会挪动战役难度，就不做**（比如「让嘲讽能改写已承诺的目标」会让
   第 8 关变易）。只有用户明确说重开战役，才恢复这条线。
-- **调试模式 = 实验功能总开关。** 顶栏 🔊 连点 5 次（`main.js` 的 `isDebug()`）。
+- **调试模式 = 实验功能总开关。** 顶栏 🔊 连点 5 次（`save.js` 的 `isDebug()`）。
   藏在后面的有：战役、墨皇难度、平衡测试（**它会把胜率直接摊给玩家看**）。
   以后再有「做了一半不该给玩家看」的东西，挂到这个开关上，别另造一个。
+- **玩家看得见的数字和百分比，一律读 `combat.js` 的常量，别手抄。**
+  `battle.js` 里「降低40%」写死过两处、`render.js` 的 tooltip 写死过一处，
+  和 `INTERRUPT_OUTPUT_MULTIPLIER` 是两份实现——改数值时它们不会跟着走，
+  而且**不报错**，只是安静地对玩家说错话。
+- **弹窗只有一个关闭出口。** 一个弹窗有三种关法（按钮 / 点背景 / ESC），
+  只要有一条路绕过统一的 `dismiss()`，队列类逻辑就会静默卡死。
+  教学提示踩过：ESC 关掉之后 `showing` 永远是 `true`，后面所有提示进队列再也不出来，
+  **而且已经被记成「教过了」，永远不会再弹**。`node --check` 和单元测试都发现不了。
 - **战斗规则只改 `combat.js`。** `battle.js` 和 `sim.js` 都依赖它。历史上这两个文件
   各自手写过一份战斗逻辑，漂移出过真实 bug（术士整套机制在平衡测试里静默失效）。
   不要为了图快在 `battle.js` 或 `sim.js` 里就地写规则。
@@ -135,6 +143,8 @@ docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）
 | `tools/sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
 | `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 311 条，`npm test` |
 | `src/data/campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
+| `src/view/codex.js` | **机制词典 + 一次性教学提示**（UX 阶段 3）。一份词条表 `CODEX` 同时供两者用：`short` 是提示弹窗那句、`body` 是词典常驻版。`teachOnce(id)` 每条只弹一次（存 `inkfight_taught`），`openCodex()` 打开词典。**所有关闭路径必须走 `dismiss()`** |
+| `src/game/save.js` | **本地存档的唯一入口**：`isDebug`/`setDebug`（实验功能总开关）、`recordCharPlays`/`insightUnlocked`（角色出战局数 → 机制解读解锁，key `inkfight_charplays`）。放在 `game/` 而不是 `core/` 是因为它碰 localStorage，Node 里跑不动 |
 | `src/game/main.js` | 入口：UI 流程、事件监听（含**观战模式** `initSpectateScreen` / `confirmSpectate`）、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
 | `tools/balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `tools/difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。**玩家替身不是 aiHard**——那是完美玩家，会把每一档都校偏；现在用 `ai.js` 的 `makeAi` 造三档人类替身（熟手/一般/生手，靠 `noise` 分档），公平线是「该水平玩家自己打自己」。属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |

@@ -9,6 +9,7 @@ import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBa
 import { initRender, renderBattle } from '../view/render.js';
 import { initCharacterGallery } from '../view/character-gallery.js';
 import { openCodex, isModalOpen, closeTop } from '../view/codex.js';
+import { isDebug, setDebug } from './save.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
 
@@ -452,8 +453,9 @@ export function confirmSelection(){
 // 是因为这个游戏所有的解锁门槛——墨皇难度、战役可选关卡、队友——
 // 全都从 getCampaignProgress() 推出来（当初刻意不给它们各存一份进度）。
 // 在这一处撒谎，就等于全部解锁。
-const DEBUG_KEY = 'inkfight_debug';
-function isDebug(){ return localStorage.getItem(DEBUG_KEY) === '1'; }
+// isDebug / setDebug 现在住在 save.js——character-gallery.js 也要问它
+// （机制解读的解锁门槛），而 main.js 反过来 import 那个文件，
+// 留在这里会绕成一个环。
 
 // ── 战役模式 ──────────────────────────────────────────────
 // rawCampaignProgress = 真实存档；getCampaignProgress = 各处判断解锁时看到的值。
@@ -497,7 +499,7 @@ function initDebugTap(){
     if(++hits < 5) return;
     hits = 0;
     const on = !isDebug();
-    localStorage.setItem(DEBUG_KEY, on ? '1' : '0');
+    setDebug(on);
     syncDebugBadge();
     // 关掉调试时如果手里正选着一个调试专属模式，卡藏了但
     // chosenMode 还在，「下一步」会把人送进本不该进的屏。重置选择。

@@ -25,6 +25,7 @@ export const SCENES = [
 export const CHARACTERS = [
   { id:'swordsman', name:'剑士', role:'均衡输出', hp:135, sp:80, atk:20, def:6, crit:10, dodge:5, spRegen:10, color:'#e94560', weapon:'sword',
     passive:{ name:'剑意', desc:'重击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
+    insight:`没有花活，赢在<b>没有短板</b>：135 血扛得住，20 攻打得动，「剑气」还能用血换蓝，所以他几乎不会卡在「有技能放不出」。真正的用法是<b>开路</b>——「破甲突刺」减防 2 回合，先由他破，再让爆发角色（墨鸦、法师）在那 2 回合里砸下去。不知道该派谁上的时候派他，这句话本身就是他的定位。`,
     skills:[
       { name:'斩击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'⚔️', iconColor:'#e94560', sfx:'slash', vfx:'slash' },
       { name:'旋风斩', type:'damage', cost:22, power:1.8, desc:'消耗22SP，180%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
@@ -33,6 +34,7 @@ export const CHARACTERS = [
     ]},
   { id:'mage', name:'法师', role:'高爆发/控制', hp:112, sp:130, atk:18, def:3, crit:15, dodge:6, spRegen:11, color:'#4fc3f7', weapon:'staff',
     passive:{ name:'法力涌动', desc:'回合开始时 SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
+    insight:`他是<b>唯一一个想让 SP 保持很满的角色</b>：被动「法力涌动」要求回合开始时 SP≥80%，给下一个技能 +20%。可这恰恰和「SP 过半会被打断」顶着来——所以法师天生是敌方打断技的头号目标，<b>满蓝的法师是最脆的法师</b>。「墨之洪流」320% 是全场单体最高倍率，攒够那一发就该砸出去，而不是继续坐在满蓝上等被抓。`,
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
       { name:'墨之洪流', type:'damage', cost:32, power:3.2, desc:'消耗32SP，320%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
@@ -41,6 +43,7 @@ export const CHARACTERS = [
     ]},
   { id:'guardian', name:'守卫', role:'坦克/反制', hp:160, sp:65, atk:16, def:9, crit:5, dodge:2, spRegen:8, color:'#8d6e63', weapon:'shield',
     passive:{ name:'铁甲反弹', desc:'受到伤害时反弹伤害的 10% 给攻击者', trigger:'onTakeDamage', effect:'reflect', value:0.10 },
+    insight:`全场<b>唯一带嘲讽</b>的角色，所以「怎么保护后排」这件事目前只有他能回答。但要记住嘲讽<b>拦不住已经预告出去的那一击</b>——它要<b>提前开</b>，在敌人做下一次决策之前，不是看到预告了才开。「铁壁」45 护盾不受防御影响，套在自己身上其实收益一般，真正的价值是他能一边扛一边用「盾墙反击」回血，把敌方一整轮的输出耗掉。`,
     skills:[
       { name:'盾击', type:'damage', cost:0, power:1.2, desc:'基础攻击，120%伤害', icon:'🛡️', iconColor:'#8d6e63', sfx:'hit', vfx:'bash' },
       { name:'铁壁', type:'shield', cost:20, shieldAmt:45, desc:'获得45护盾', icon:'🏰', iconColor:'#90caf9', sfx:'shield', vfx:'shield' },
@@ -49,6 +52,7 @@ export const CHARACTERS = [
     ]},
   { id:'assassin', name:'刺客', role:'高伤/脆皮', hp:110, sp:100, atk:20, def:3, crit:18, dodge:10, spRegen:9, color:'#ab47bc', weapon:'dagger',
     passive:{ name:'锋芒蓄能', desc:'重击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
+    insight:`18 点锋芒本来就快，「暗影突袭」自带锋芒 +40，<b>两下就能顶到必定重击</b>，重击后被动再回 8 SP——这条链能自己养活自己。「毒刃」的中毒无视防御，是他对付守卫、机关师这种高防目标的正解。110 血、3 防，被集火一轮就没了，所以他要么开「消失」躲掉预告的那一击，要么就得赶在挨打之前把人带走。`,
     skills:[
       { name:'匕首', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🗡️', iconColor:'#ab47bc', sfx:'slash', vfx:'slash' },
       { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'210%伤害，锋芒 +40', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
@@ -57,6 +61,7 @@ export const CHARACTERS = [
     ]},
   { id:'priest', name:'牧师', role:'治疗/辅助', hp:108, sp:115, atk:10, def:5, crit:5, dodge:5, spRegen:11, color:'#66bb6a', weapon:'cross',
     passive:{ name:'圣光庇护', desc:'回合开始时，若任意友方 HP<30% 则自动治疗其 12 HP', trigger:'onTurnStart', effect:'allyHeal', value:12 },
+    insight:`10 点攻击意味着他<b>一整局都不该指望打人</b>，他的回合全用来做别的事。「祝福」给友方 +50% 攻击 3 回合，是全场单体增益里最高的一档，套在墨鸦或狂战士身上比他自己打十下都值。「净化」是本作唯一能提前解掉「扰乱」的手段。被动会在友方掉到 30% 以下时自动治疗，所以<b>把他留在场上本身就有产出</b>。`,
     skills:[
       { name:'光击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'✨', iconColor:'#66bb6a', sfx:'arrow', vfx:'light' },
       { name:'治愈之光', type:'heal', cost:28, healAmt:42, desc:'治疗友方42HP', icon:'💚', iconColor:'#16c79a', sfx:'heal', vfx:'heal' },
@@ -65,6 +70,7 @@ export const CHARACTERS = [
     ]},
   { id:'berserker', name:'狂战士', role:'越残越强', hp:140, sp:70, atk:19, def:4, crit:10, dodge:3, spRegen:7, color:'#ff7043', weapon:'axe',
     passive:{ name:'血怒', desc:'HP<40% 时受击，获得额外 10% 攻击加成（最多叠加 3 层）', trigger:'onTakeDamage', effect:'bloodRage', value:0.1, maxStacks:3 },
+    insight:`他是唯一一个<b>被打反而变强</b>的角色：血怒要求 HP<40% 才叠层，所以前半局他只是个普通的 19 攻，后半局才是他的主场。「不屈」是配套的——先用它买一条命，再让血怒叠满，然后「鲜血之力」吸血 30% 把血续回来。风险在于这一整套要三个回合，被秒掉就全白搭。`,
     skills:[
       { name:'重击', type:'damage', cost:0, power:1.0, desc:'基础攻击(HP越低伤害越高)', icon:'🪓', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
       { name:'狂暴', type:'selfBuff', cost:25, power:0.8, buffType:'berserk', dur:3, buffValue:0.35, selfDmg:6, desc:'80%伤害并进入狂暴：3回合攻+35%，每回合-6HP', icon:'🔥', iconColor:'#ff5722', sfx:'buff', vfx:'rage' },
@@ -73,6 +79,7 @@ export const CHARACTERS = [
     ]},
   { id:'archer', name:'弓手', role:'远程/灵活', hp:105, sp:90, atk:19, def:4, crit:15, dodge:9, spRegen:9, color:'#ffd54f', weapon:'bow',
     passive:{ name:'鹰眼', desc:'每回合开始锋芒充能 +3/击（最多叠加 4 层）', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:4 },
+    insight:`「穿透箭」是全体伤害，<b>目标越多它越值</b>——对面剩一个人的时候它是废技，对面四个人齐的时候它是全场效率最高的技能之一。「束缚箭」让他能主动打断，配合被动「鹰眼」每回合白涨锋芒，他是少数<b>什么都不干也在变强</b>的角色。判断打不打得断只看一件事：目标 SP 有没有过半。`,
     skills:[
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
       { name:'穿透箭', type:'damageAll', cost:32, power:1.1, desc:'对所有敌人110%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
@@ -81,6 +88,7 @@ export const CHARACTERS = [
     ]},
   { id:'warlock', name:'术士', role:'腐化/爆发', hp:96, sp:110, atk:13, def:4, crit:12, dodge:5, spRegen:10, color:'#7e57c2', weapon:'orb',
     passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×5 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },
+    insight:`他前两回合几乎不造成伤害，<b>这是设计好的</b>：先用「瘟疫」给全体铺腐化层，被动让之后每一次攻击都额外 层数×5，最后「腐化爆发」一次性把所有层数兑现。所以术士的强度不看单回合，看<b>你有没有耐心铺完那三回合</b>。96 血是全场第二低，铺场期间他很容易被打断节奏——需要队友把火力拉过去。`,
     skills:[
       { name:'暗影弹', type:'damage', cost:0, power:1.1, corrupt:1, desc:'110%伤害，施加1层腐化', icon:'🌑', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowOrb' },
       { name:'腐化爆发', type:'corruptBurst', cost:32, dmgPerStack:9, desc:'消耗所有敌人腐化层，每层造成12伤害', icon:'💀', iconColor:'#ce93d8', sfx:'thunder', vfx:'shockwave' },
@@ -97,6 +105,7 @@ export const CHARACTERS = [
   // 机制空位：**锋芒蓄能操控**。蓄能条是新机制，之前没人主动玩它。
   { id:'bladedancer', name:'刀娘', role:'锋芒流/爆发', hp:108, sp:95, atk:18, def:4, crit:20, dodge:8, spRegen:10, color:'#ff6f91', weapon:'katana',
     passive:{ name:'残心', desc:'重击后锋芒 +15（可以连着重击）', trigger:'onCrit', effect:'critCharge', value:15 },
+    insight:`全场<b>唯一能主动操控锋芒条</b>的角色。「蓄刃」不打人，只充 45 点锋芒，看起来是亏一个回合，其实是<b>用这一回合买下一回合一个确定的重击</b>——这是本作里少见的真决策。再加上「樱花乱」三段各攒一次、被动「残心」重击后再 +15，她可以连着重击。什么时候该蓄、什么时候该砍，就是玩她的全部内容。`,
     skills:[
       { name:'拔刀', type:'damage', cost:0, power:1.0, critCharge:8, desc:'基础攻击，额外锋芒 +8', icon:'🗡️', iconColor:'#ff6f91', sfx:'slash', vfx:'slash' },
       { name:'樱花乱', type:'damage', cost:24, power:1.9, hits:3, desc:'三段共190%伤害；多段技能每段各自攒锋芒', icon:'🌸', iconColor:'#ff8fab', sfx:'slash', vfx:'whirl' },
@@ -107,6 +116,7 @@ export const CHARACTERS = [
   // 机制空位：**群体减防**。减防以前只有剑士单体带一手。
   { id:'onmyoji', name:'阴阳师', role:'咒缚/减防', hp:114, sp:120, atk:17, def:5, crit:10, dodge:6, spRegen:11, color:'#b39ddb', weapon:'ofuda',
     passive:{ name:'式神', desc:'回合开始时SP≥80%，下次技能伤害+20%', trigger:'onTurnStart', effect:'overchargeBuff' },
+    insight:`「破魔符」是全场唯一的<b>群体减防</b>，一次给对面全体挂 3 回合破防——这不是他自己的伤害，是<b>替全队放大伤害</b>，所以他该在开局就放。注意他的「缚灵」打断线是 45% 而不是 50%，比别人早一点点，偶尔能抓到自以为安全的目标。`,
     skills:[
       { name:'符射', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'📜', iconColor:'#b39ddb', sfx:'arrow', vfx:'orb' },
       { name:'破魔符', type:'damageAll', cost:24, power:0.9, debuff:'defDown', debuffDur:3, desc:'全体90%伤害并减防3回合', icon:'🎴', iconColor:'#ce93d8', sfx:'debuff', vfx:'pierceArrow' },
@@ -117,6 +127,7 @@ export const CHARACTERS = [
   // 机制空位：**群体护盾**。护盾以前只有守卫给自己开。
   { id:'artificer', name:'机关师', role:'群体防护', hp:128, sp:100, atk:14, def:7, crit:8, dodge:3, spRegen:10, color:'#90a4ae', weapon:'gear',
     passive:{ name:'自动机括', desc:'受到伤害时自动获得 8 点护盾', trigger:'onTakeDamage', effect:'selfShield', value:8 },
+    insight:`「铁幕」给全队一人 26 护盾。护盾不受防御影响，所以它对<b>低防的队友</b>（墨鸦、刺客、法师）价值最高，套在他自己身上反而最浪费。而且护盾<b>不会被「扰乱」削弱</b>——被打断的那个回合伤害只剩 60%，但套盾还是满额的，所以那个回合正好拿来布防。`,
     skills:[
       { name:'齿轮击', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'⚙️', iconColor:'#90a4ae', sfx:'hit', vfx:'bash' },
       { name:'铁幕', type:'shieldAll', cost:30, shieldAmt:26, desc:'全队获得26护盾', icon:'🛡️', iconColor:'#90caf9', sfx:'shield', vfx:'shield' },
@@ -127,6 +138,7 @@ export const CHARACTERS = [
   // 机制空位：**群体增益**。增益以前只有牧师单体。
   { id:'drummer', name:'鼓姬', role:'群体增益', hp:114, sp:110, atk:16, def:5, crit:10, dodge:5, spRegen:11, color:'#ffb74d', weapon:'drum',
     passive:{ name:'战鼓不歇', desc:'回合开始时全队回复 5 SP', trigger:'onTurnStart', effect:'allySp', value:5 },
+    insight:`「进军令」全队 +38% 攻击 3 回合，是<b>人越多越值</b>的技能：四人队里它相当于把接下来三回合的全部输出乘以 1.38。被动每回合给全队回 5 SP，等于<b>替全队续航</b>，所以她在场和不在场是两种打法。她自己 16 攻不高，别指望她输出。`,
     skills:[
       { name:'鼓点', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'🥁', iconColor:'#ffb74d', sfx:'hit', vfx:'bash' },
       { name:'进军令', type:'buffAll', cost:26, buffType:'atkUp', dur:3, buffValue:0.38, desc:'全队攻击+38% 3回合', icon:'📣', iconColor:'#ffd54f', sfx:'buff', vfx:'bless' },
@@ -137,6 +149,7 @@ export const CHARACTERS = [
   // 机制空位：**群体治疗**。治疗以前只有牧师单体。
   { id:'herbalist', name:'医仙', role:'群体治疗', hp:105, sp:125, atk:11, def:5, crit:5, dodge:6, spRegen:12, color:'#81c784', weapon:'gourd',
     passive:{ name:'回春', desc:'回合开始时自身回复 7 HP', trigger:'onTurnStart', effect:'selfHeal', value:7 },
+    insight:`「百草汤」全队回 18，看着不如牧师单体 42 多，但<b>四个人一起回就是 72</b>。所以她对付的是群体伤害（穿透箭、雷鸣震、腐化爆发），对付单点爆发不如牧师。被动每回合自回 7 HP 让她很难被慢慢磨死，真要杀她只能一轮带走。`,
     skills:[
       { name:'银针', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'💉', iconColor:'#81c784', sfx:'arrow', vfx:'light' },
       { name:'百草汤', type:'healAll', cost:38, healAmt:18, desc:'全队回复18HP', icon:'🍵', iconColor:'#66bb6a', sfx:'heal', vfx:'heal' },
@@ -148,6 +161,7 @@ export const CHARACTERS = [
   // 这里是「难打死的输出」——减伤高、反弹强，但血薄。
   { id:'shadow', name:'影武者', role:'闪避/反击', hp:104, sp:90, atk:18, def:3, crit:14, dodge:22, spRegen:9, color:'#78909c', weapon:'kunai',
     passive:{ name:'影身', desc:'受到伤害时反弹伤害的 20% 给攻击者', trigger:'onTakeDamage', effect:'reflect', value:0.20 },
+    insight:`22% 闪避是全场最高，但<b>本作的闪避不是「攻击落空」，是恒定减伤</b>——所以它不会有「这下闪没闪掉」的运气成分，就是稳稳少挨两成。再加上被动反弹 20%，敌人打他是亏本的。真正的用法是<b>故意让他站在集火路径上</b>：他难死、还咬人，而「残影」能把预告好的那一击整个吃掉。`,
     skills:[
       { name:'苦无', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'🔪', iconColor:'#78909c', sfx:'slash', vfx:'slash' },
       { name:'残影', type:'dodge', cost:20, dur:1, desc:'下回合闪避所有攻击', icon:'👤', iconColor:'#b0bec5', sfx:'buff', vfx:'smoke' },
@@ -159,6 +173,7 @@ export const CHARACTERS = [
   // 而多段和锋芒蓄能条天然联动（每段各充一次）。
   { id:'monk', name:'拳师', role:'多段连击', hp:128, sp:85, atk:17, def:6, crit:12, dodge:7, spRegen:9, color:'#a1887f', weapon:'fist',
     passive:{ name:'寸劲', desc:'重击后回复 10 SP', trigger:'onCrit', effect:'spGain', value:10 },
+    insight:`整个角色是<b>一个循环</b>：多段技能每段各自攒锋芒 → 锋芒涨得比谁都快 → 频繁重击 → 被动「寸劲」重击后回 10 SP → 又能放多段。「连环崩拳」四段，一次就能推近半条锋芒条。所以他不需要「攒资源」的回合，128 血也扛得住，是<b>最适合连续派上场</b>的角色——而这在轮空回蓝的规则下很少见。`,
     skills:[
       { name:'直拳', type:'damage', cost:0, power:1.2, hits:2, desc:'两段共120%伤害；每段各自攒锋芒', icon:'👊', iconColor:'#a1887f', sfx:'hit', vfx:'bash' },
       { name:'连环崩拳', type:'damage', cost:24, power:2.5, hits:4, desc:'四段共250%伤害；四段各自攒锋芒，所以极快', icon:'💢', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
@@ -170,6 +185,7 @@ export const CHARACTERS = [
   // 这个是纯爆发：全场最高攻击、最低血，抢在对面之前把人带走。
   { id:'raven', name:'墨鸦', role:'极限爆发/易碎', hp:92, sp:95, atk:24, def:2, crit:16, dodge:12, spRegen:10, color:'#5c6bc0', weapon:'scythe',
     passive:{ name:'不祥', desc:'重击后回复 12 SP', trigger:'onCrit', effect:'spGain', value:12 },
+    insight:`24 攻是全场最高，92 血 2 防是全场最低，<b>没有中间地带</b>：他要么在两三个回合里把对面的关键角色带走，要么自己先没。「断魂爪」260% 是最高倍率的单体技，配合牧师的「祝福」或鼓姬的「进军令」能一刀打出别人两刀的量。「夜幕」是他唯一的活路——看到预告指着他，就该躲，不是硬换。`,
     skills:[
       { name:'啄', type:'damage', cost:0, power:1.2, desc:'基础攻击', icon:'🪶', iconColor:'#5c6bc0', sfx:'slash', vfx:'slash' },
       { name:'断魂爪', type:'damage', cost:28, power:2.6, desc:'全场最高倍率：260%伤害', icon:'🦅', iconColor:'#3f51b5', sfx:'crit', vfx:'shadowstrike' },

@@ -94,6 +94,17 @@ body {
 .archive-combat-preview canvas { width:180px; height:166px; flex:none; filter:drop-shadow(0 8px 7px #000); }.archive-combat-preview b { color:#e8edf2; }.archive-combat-preview p { color:#16c79a; margin:7px 0; font-size:13px; }.archive-combat-preview small { color:#728096; font-size:10px; }
 .archive-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:12px 0; }.archive-stats div { background:rgba(255,255,255,.04); padding:8px 10px; border-bottom:2px solid #26374e; }.archive-stats span,.archive-stats b { display:block; }.archive-stats span { color:#77859a; font-size:10px; }.archive-stats b { margin-top:3px; color:#dce4ec; }
 .archive-passive { display:flex; gap:12px; padding:11px 13px; border-left:3px solid #ffd54f; background:rgba(255,213,79,.07); }.archive-passive>span { color:#ffd54f; font-size:11px; }.archive-passive b { font-size:13px; }.archive-passive p { color:#aeb7c2; font-size:11px; line-height:1.55; margin-top:3px; }
+/* 机制解读（UX_PLAN 阶段 4）。用这个角色出战满 3 局才解锁——
+   16 段一次性摊开玩家一段都不会看，而挂在角色自己身上，解锁的那一刻
+   他刚好打过、正想知道「我刚才那几下到底是怎么回事」。 */
+.archive-heading-insight { margin-top:18px; border-left-color:#16c79a; }
+.archive-heading-insight span { color:#16c79a; }
+.archive-insight { padding:12px 14px; border-left:3px solid #16c79a; background:rgba(22,199,154,.07); }
+.archive-insight p { color:#aeb7c2; font-size:12px; line-height:1.95; }
+.archive-insight b { color:#16c79a; }
+.archive-insight.is-locked { border-left-color:#4a5568; background:rgba(255,255,255,.03); }
+.archive-insight .archive-insight-locked { color:#7b8798; font-size:11px; }
+.archive-insight .archive-insight-locked b { color:#aeb7c2; }
 .archive-heading-skills { margin-top:18px; }.archive-skills { display:grid; grid-template-columns:1fr 1fr; gap:8px; }.archive-skill { display:flex; gap:9px; padding:10px; min-height:74px; background:rgba(255,255,255,.035); border:1px solid #26364b; }.archive-skill-icon { width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid var(--skill); color:var(--skill); background:color-mix(in srgb,var(--skill) 12%,transparent); }.archive-skill header { display:flex; justify-content:space-between; gap:10px; }.archive-skill header span { color:#16c79a; font-size:9px; white-space:nowrap; }.archive-skill p { margin-top:5px; color:#929eae; font-size:10px; line-height:1.45; }
 @media(max-width:850px){#screen-archive{padding:48px 10px 12px}.archive-shell{grid-template-columns:150px 1fr}.archive-detail{display:block;overflow-y:auto}.archive-portrait{height:360px}.archive-profile{overflow:visible}.archive-stats{grid-template-columns:repeat(2,1fr)}.archive-skills{grid-template-columns:1fr}.archive-roster-item small{display:none}}
 

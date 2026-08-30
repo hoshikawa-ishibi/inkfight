@@ -1,6 +1,7 @@
 import { CHARACTERS } from '../data/data.js';
 import { portraitFor } from '../data/character-portraits.js';
 import { drawStickman } from './stickman.js';
+import { insightUnlocked, playsOf, INSIGHT_UNLOCK_PLAYS } from '../game/save.js';
 
 let selectedId=CHARACTERS[0]?.id;
 let animHandle=0;
@@ -34,7 +35,27 @@ function detailHtml(c){
       <article class="archive-passive"><span>被动</span><div><b>${c.passive?.name||'无'}</b><p>${c.passive?.desc||'暂无被动能力'}</p></div></article>
       <div class="archive-heading archive-heading-skills"><span>SKILLS</span><h3>技能组</h3></div>
       <div class="archive-skills">${skills}</div>
+      ${insightHtml(c)}
     </section>`;
+}
+
+// 机制解读（UX_PLAN 阶段 4）。「定位」两个字说不出这个角色**靠什么循环赢**，
+// 那些巧思现在全埋在数值里。
+//
+// **带门槛**：用这个角色出战满 N 局才解锁他自己那一段。理由是
+// 16 段解读一次性摊开，玩家一段都不会看；而挂在角色自己身上，
+// 解锁的那一刻他刚好打过、正想知道「我刚才那几下到底是怎么回事」。
+// 锁着的时候**不剧透内容**，只说还差几局——被剧透就不叫门槛了。
+function insightHtml(c){
+  if(!c.insight) return '';
+  const inner = insightUnlocked(c.id)
+    ? `<p>${c.insight}</p>`
+    : `<p class="archive-insight-locked">
+         用<b>${c.name}</b>出战满 ${INSIGHT_UNLOCK_PLAYS} 局解锁（输赢都算）。
+         已出战 <b>${playsOf(c.id)} / ${INSIGHT_UNLOCK_PLAYS}</b> 局。
+       </p>`;
+  return `<div class="archive-heading archive-heading-insight"><span>INSIGHT</span><h3>机制解读</h3></div>
+    <article class="archive-insight${insightUnlocked(c.id)?'':' is-locked'}">${inner}</article>`;
 }
 
 function renderDetail(){

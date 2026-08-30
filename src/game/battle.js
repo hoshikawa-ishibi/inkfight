@@ -6,6 +6,7 @@ import { AI_BY_LEVEL, aiNormal } from '../ai/ai.js';
 import { makeTeamContext, pickActor } from '../ai/ai-scoring.js';
 import { makeIntent, resolveIntent } from '../core/intent.js';
 import { teachOnce } from '../view/codex.js';
+import { recordCharPlays } from './save.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -208,6 +209,13 @@ export function startBattle(){
   if(gameState.mode==='campaign'){
     gameState.p2Units.forEach(u=>applyStageMod(u, gameState.stageMod));
   }
+  // 机制解读的解锁门槛（UX_PLAN 阶段 4）：**只记玩家自己控的那一边**。
+  // 观战两边都是 AI，一局都不该算；PVP 两边都是玩家，两边都算。
+  // 谁是 AI 走 state.js 的 isAiSide，不写 mode==='ai'。
+  recordCharPlays([
+    ...(isAiSide(1) ? [] : gameState.p1Units.map(u=>u.charId)),
+    ...(isAiSide(2) ? [] : gameState.p2Units.map(u=>u.charId)),
+  ]);
   teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
   gameState.round=1; gameState.activeUnitId=null;
   gameState.resultShown=false; gameState.enemyIntent=null; gameState.extraActions=0;
