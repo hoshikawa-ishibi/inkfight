@@ -26,7 +26,9 @@ function limb(ctx,a,b,wa,wb,color){
 function poseOf(v,state,t,w,h,facing){
   const idle=state==='idle'||state==='stun';
   const breath=idle?Math.sin(t*.28)*h*.008:0;
-  const hurt=state==='hurt'?1:0, attack=state==='attack'?1:0;
+  // 非待机状态也保留一个动作循环，方便验收板直接看清完整幅度。
+  const attack=state==='attack' ? .82+.18*Math.sin(t*.22) : 0;
+  const hurt=state==='hurt' ? .88+.12*Math.sin(t*.28) : 0;
   const stance={
     forward:{lean:.025,crouch:0,spread:.13}, upright:{lean:0,crouch:-.01,spread:.10},
     low:{lean:.015,crouch:.035,spread:.17}, crouch:{lean:.07,crouch:.045,spread:.15},
@@ -34,23 +36,23 @@ function poseOf(v,state,t,w,h,facing){
     draw:{lean:-.015,crouch:.04,spread:.16}, open:{lean:0,crouch:.02,spread:.18},
     side:{lean:.045,crouch:.025,spread:.09}
   }[v.stance]||{lean:0,crouch:0,spread:.12};
-  const actionLean={dash:.10,bash:.07,lunge:.13,smash:.05,drawCut:.12,counter:-.06,combo:.08,reap:.08}[v.attack]||.025;
-  const cx=w*(.5+(stance.lean+attack*actionLean-hurt*.07)*facing);
-  const hipY=h*(.65+stance.crouch+hurt*.035)+breath;
-  const neckY=h*(.35+stance.crouch*.55+hurt*.05)+breath;
+  const actionLean={dash:.22,bash:.17,lunge:.24,smash:.15,drawCut:.25,counter:-.15,combo:.19,reap:.19,beat:.12}[v.attack]||.12;
+  const cx=w*(.5+(stance.lean+attack*actionLean-hurt*.17)*facing);
+  const hipY=h*(.65+stance.crouch+hurt*.07-attack*.018)+breath;
+  const neckY=h*(.35+stance.crouch*.55+hurt*.105-attack*.035)+breath;
   const float=v.stance==='float'?Math.sin(t*.18)*h*.018:0;
   const shoulder=point(cx-w*.01*facing,neckY+float), hip=point(cx,hipY+float);
   const armReach=attack?(['cast','curse','ritual','shoot'].includes(v.attack)?.20:.25):.14;
   return {cx,shoulder,hip,float,
-    head:point(cx-w*.005*facing,neckY-h*.125+float),
-    elbowFar:point(cx-w*.10*facing,neckY+h*.10+float),
-    handFar:point(cx-w*.15*facing,neckY+h*.19+float),
-    elbowNear:point(cx+w*(attack?armReach*.58:.09)*facing,neckY+h*(attack?.045:.10)+float),
-    handNear:point(cx+w*armReach*facing,neckY+h*(attack?-.005:.19)+float),
-    kneeFar:point(cx-w*stance.spread*.55*facing,h*.79+float),
-    footFar:point(cx-w*stance.spread*facing,h*(v.stance==='float'?.88:.92)+float),
-    kneeNear:point(cx+w*stance.spread*.5*facing,h*.79+float),
-    footNear:point(cx+w*stance.spread*facing,h*(v.stance==='float'?.88:.92)+float)
+    head:point(cx-w*(.005+hurt*.09)*facing,neckY-h*(.125+hurt*.035)+float),
+    elbowFar:point(cx-w*(.10+hurt*.08)*facing,neckY+h*(.10-hurt*.12)+float),
+    handFar:point(cx-w*(.15+hurt*.18)*facing,neckY+h*(.19-hurt*.23)+float),
+    elbowNear:point(cx+w*(attack?armReach*.58:.09-hurt*.13)*facing,neckY+h*(attack?.045:.10-hurt*.15)+float),
+    handNear:point(cx+w*(attack?armReach:.14-hurt*.23)*facing,neckY+h*(attack?-.005:.19-hurt*.28)+float),
+    kneeFar:point(cx-w*(stance.spread*.55+hurt*.08)*facing,h*(.79+hurt*.035)+float),
+    footFar:point(cx-w*(stance.spread+hurt*.12)*facing,h*(v.stance==='float'?.88:.92)+float),
+    kneeNear:point(cx+w*(stance.spread*.5-hurt*.05)*facing,h*(.79+hurt*.06)+float),
+    footNear:point(cx+w*(stance.spread-hurt*.08)*facing,h*(v.stance==='float'?.88:.92)+float)
   };
 }
 
@@ -58,7 +60,9 @@ const BODY={
   light:{shoulder:.075,hip:.05,limb:.032,head:.082}, balanced:{shoulder:.095,hip:.06,limb:.04,head:.088},
   heavy:{shoulder:.145,hip:.085,limb:.052,head:.086}, athletic:{shoulder:.12,hip:.07,limb:.048,head:.085},
   robe:{shoulder:.095,hip:.12,limb:.035,head:.087}, wideRobe:{shoulder:.13,hip:.18,limb:.038,head:.086},
-  tall:{shoulder:.09,hip:.055,limb:.036,head:.079}
+  tall:{shoulder:.09,hip:.055,limb:.036,head:.079},
+  petite:{shoulder:.078,hip:.055,limb:.03,head:.103},
+  petiteRobe:{shoulder:.092,hip:.13,limb:.031,head:.105}
 };
 
 function drawBody(ctx,P,b,p,w,h){
@@ -90,6 +94,14 @@ function drawHead(ctx,P,b,p,w,h,v,facing,t,state){
   if(state==='hurt'){
     ctx.strokeStyle='#17151d';ctx.lineWidth=Math.max(1,w*.014);ctx.beginPath();
     ctx.moveTo(x-r*.5,y);ctx.lineTo(x-r*.2,y+r*.18);ctx.moveTo(x+r*.2,y);ctx.lineTo(x+r*.5,y+r*.18);ctx.stroke();
+  }else if(v.face==='cute'){
+    ctx.fillStyle='#17151d';ctx.beginPath();ctx.ellipse(x-r*.32,y+r*.04,r*.11,r*.17,-.12,0,Math.PI*2);ctx.ellipse(x+r*.32,y+r*.04,r*.11,r*.17,.12,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#5b2538';ctx.lineWidth=Math.max(1,w*.01);ctx.beginPath();ctx.arc(x,y+r*.28,r*.2,.15,Math.PI-.15);ctx.stroke();
+    ctx.fillStyle='rgba(255,150,170,.55)';ctx.beginPath();ctx.ellipse(x-r*.58,y+r*.26,r*.2,r*.1,0,0,Math.PI*2);ctx.ellipse(x+r*.58,y+r*.26,r*.2,r*.1,0,0,Math.PI*2);ctx.fill();
+  }else if(v.face==='cheerful'){
+    ctx.strokeStyle='#17151d';ctx.lineWidth=Math.max(1,w*.015);ctx.beginPath();ctx.arc(x-r*.32,y+r*.05,r*.16,.15,Math.PI-.15);ctx.arc(x+r*.32,y+r*.05,r*.16,.15,Math.PI-.15);ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y+r*.2,r*.26,.12,Math.PI-.12);ctx.stroke();
+    ctx.fillStyle='rgba(255,145,120,.6)';ctx.beginPath();ctx.ellipse(x-r*.6,y+r*.27,r*.22,r*.11,0,0,Math.PI*2);ctx.ellipse(x+r*.6,y+r*.27,r*.22,r*.11,0,0,Math.PI*2);ctx.fill();
   }else{
     ctx.fillStyle='#17151d';ctx.beginPath();ctx.ellipse(x-r*.32,y+r*.05,r*.12,r*.16,0,0,Math.PI*2);ctx.ellipse(x+r*.32,y+r*.05,r*.12,r*.16,0,0,Math.PI*2);ctx.fill();
   }
@@ -106,10 +118,10 @@ function drawHeadgear(ctx,type,x,y,r,p,facing,t){
     case'mane':for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(x-r*.7+i*r*.35,y-r*.55);ctx.lineTo(x-r*.8+i*r*.4,y-r*(1.25+.2*Math.sin(t*.2+i)));ctx.lineTo(x-r*.25+i*r*.22,y-r*.6);ctx.fill();}break;
     case'ponytail':ctx.beginPath();ctx.arc(x-r*.6*facing,y-r*.45,r*.35,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(x-r*.7*facing,y-r*.3);ctx.quadraticCurveTo(x-r*(1.5+.18*Math.sin(t*.2))*facing,y,x-r*1.25*facing,y+r*.8);ctx.lineWidth=r*.32;ctx.strokeStyle=p.dark;ctx.stroke();break;
     case'hornCollar':ctx.beginPath();ctx.moveTo(x-r*.9,y+r*.5);ctx.lineTo(x-r*1.25,y-r*.65);ctx.lineTo(x-r*.45,y-r*.15);ctx.lineTo(x+r*.45,y-r*.15);ctx.lineTo(x+r*1.25,y-r*.65);ctx.lineTo(x+r*.9,y+r*.5);ctx.fill();break;
-    case'longKnot':ctx.beginPath();ctx.arc(x-r*.4*facing,y-r*.8,r*.3,0,Math.PI*2);ctx.fill();ctx.strokeStyle=p.dark;ctx.lineWidth=r*.32;ctx.beginPath();ctx.moveTo(x-r*.55*facing,y-r*.65);ctx.quadraticCurveTo(x-r*1.2*facing,y+r*.4,x-r*(1.1+.1*Math.sin(t*.2))*facing,y+r*1.2);ctx.stroke();break;
+    case'longKnot':ctx.beginPath();ctx.arc(x-r*.42*facing,y-r*.82,r*.34,0,Math.PI*2);ctx.fill();ctx.strokeStyle=p.dark;ctx.lineWidth=r*.38;ctx.beginPath();ctx.moveTo(x-r*.55*facing,y-r*.65);ctx.quadraticCurveTo(x-r*1.25*facing,y+r*.35,x-r*(1.15+.12*Math.sin(t*.2))*facing,y+r*1.35);ctx.stroke();ctx.fillStyle=p.light;ctx.beginPath();ctx.moveTo(x-r*.6*facing,y-r*.82);ctx.lineTo(x-r*1.08*facing,y-r*.98);ctx.lineTo(x-r*.82*facing,y-r*.52);ctx.closePath();ctx.fill();break;
     case'highCrown':ctx.fillRect(x-r*.38,y-r*1.35,r*.76,r*.72);ctx.beginPath();ctx.moveTo(x-r*.5,y-r*.65);ctx.lineTo(x,y-r*1.55);ctx.lineTo(x+r*.5,y-r*.65);ctx.closePath();ctx.fill();break;
     case'goggles':ctx.strokeStyle=p.glow;ctx.beginPath();ctx.arc(x-r*.38,y-r*.08,r*.28,0,Math.PI*2);ctx.arc(x+r*.38,y-r*.08,r*.28,0,Math.PI*2);ctx.stroke();break;
-    case'doubleBun':ctx.beginPath();ctx.arc(x-r*.72,y-r*.65,r*.38,0,Math.PI*2);ctx.arc(x+r*.72,y-r*.65,r*.38,0,Math.PI*2);ctx.fill();break;
+    case'doubleBun':ctx.beginPath();ctx.arc(x-r*.72,y-r*.62,r*.43,0,Math.PI*2);ctx.arc(x+r*.72,y-r*.62,r*.43,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.light;for(const s of[-1,1]){ctx.beginPath();ctx.arc(x+s*r*.73,y-r*.64,r*.15,0,Math.PI*2);ctx.fill();}break;
     case'herbPin':ctx.strokeStyle=p.rim;ctx.beginPath();ctx.moveTo(x+r*.2,y-r*.8);ctx.lineTo(x+r*.75,y-r*1.25);ctx.stroke();ctx.fillStyle=p.rim;ctx.beginPath();ctx.ellipse(x+r*.68,y-r*1.22,r*.28,r*.12,-.5,0,Math.PI*2);ctx.fill();break;
     case'halfMask':ctx.fillStyle=p.dark;ctx.beginPath();ctx.arc(x,y+r*.18,r*.82,0,Math.PI);ctx.fill();break;
     case'bare':ctx.strokeStyle=p.rim;ctx.globalAlpha=.55;ctx.beginPath();ctx.arc(x,y,r*.92,Math.PI*1.05,Math.PI*1.75);ctx.stroke();ctx.globalAlpha=1;break;
@@ -139,7 +151,7 @@ function drawOuterFront(ctx,type,P,p,w,h,facing,t,state){
     case'twinBlades':drawWeapon(ctx,P.handFar.x,P.handFar.y,'dagger',p.light,facing,false);break;
     case'mantle':ctx.beginPath();ctx.roundRect(P.shoulder.x-w*.14,P.shoulder.y-h*.02,w*.28,h*.11,w*.03);ctx.fill();break;
     case'talismans':for(let i=0;i<3;i++){const x=P.cx+w*(.14+i*.055)*facing,y=P.shoulder.y+h*(.02+i*.08);ctx.fillStyle=p.light;ctx.fillRect(x-w*.025,y,w*.05,h*.12);ctx.strokeStyle=p.shade;ctx.beginPath();ctx.moveTo(x-w*.015,y+h*.04);ctx.lineTo(x+w*.015,y+h*.07);ctx.stroke();}break;
-    case'warDrum':ctx.fillStyle=p.shade;ctx.beginPath();ctx.ellipse(P.cx,P.hip.y-h*.05,w*.19,h*.2,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=p.rim;ctx.lineWidth=w*.018;ctx.stroke();ctx.beginPath();ctx.moveTo(P.cx-w*.12,P.hip.y-h*.17);ctx.lineTo(P.cx+w*.12,P.hip.y+h*.07);ctx.moveTo(P.cx+w*.12,P.hip.y-h*.17);ctx.lineTo(P.cx-w*.12,P.hip.y+h*.07);ctx.stroke();break;
+    case'warDrum':ctx.fillStyle=p.shade;ctx.beginPath();ctx.ellipse(P.cx,P.hip.y-h*.035,w*.165,h*.17,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=p.rim;ctx.lineWidth=w*.018;ctx.stroke();ctx.fillStyle=p.glow;for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.beginPath();ctx.arc(P.cx+Math.cos(a)*w*.14,P.hip.y-h*.035+Math.sin(a)*h*.145,w*.012,0,Math.PI*2);ctx.fill();}ctx.beginPath();ctx.moveTo(P.cx-w*.1,P.hip.y-h*.13);ctx.lineTo(P.cx+w*.1,P.hip.y+h*.06);ctx.moveTo(P.cx+w*.1,P.hip.y-h*.13);ctx.lineTo(P.cx-w*.1,P.hip.y+h*.06);ctx.stroke();break;
     case'beads':for(let i=0;i<7;i++){const a=Math.PI*.15+i*Math.PI*.7/6;ctx.fillStyle=p.glow;ctx.beginPath();ctx.arc(P.cx+Math.cos(a)*w*.1,P.shoulder.y+h*.06+Math.sin(a)*h*.1,w*.018,0,Math.PI*2);ctx.fill();}break;
   }
 }
