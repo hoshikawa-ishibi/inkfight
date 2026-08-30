@@ -178,6 +178,10 @@ Constraints: environment only; no people, creatures, text, symbols that resemble
 
 不会直接跳到“16人 × 多姿态逐帧动画”。
 
+角色小人的细化路线、16 人视觉身份证、AI 概念试片边界与分阶段验收，见
+[`CHARACTER_ART_PLAN.md`](CHARACTER_ART_PLAN.md)。当前只完成方案，未生成角色资源，
+也未修改或提交工作区中的 `stickman.js` 原型。
+
 ### 音乐：场景之后单独立项
 
 原计划的五声音阶、加权随机游走和战况自适应方向可以保留，但不与场景首轮混做。
