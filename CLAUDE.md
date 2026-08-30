@@ -58,9 +58,14 @@ src/data/data.js（技能配置）
 
 ## 工作约定（重要）
 
-- **战役模式整体暂缓。** 不重校难度曲线、不改关卡/剧情/敌方配置，也不继续最终关
-  浏览器手测；即使 `campaign-check.mjs` 报出异常，也只记录，不自动修复。
-  只有用户之后明确说重新开启战役工作，才恢复这条线。
+- **战役模式已暂弃（2026-08-30，比原来的「暂缓」更进一步）。** 模式卡改名
+  「战役（暂弃）」并**藏进调试模式**，玩家看不到。不重校难度曲线、不改关卡/剧情/
+  敌方配置、不做浏览器手测；`campaign-check.mjs` 报异常也只记录，不修复。
+  **任何改动只要会挪动战役难度，就不做**（比如「让嘲讽能改写已承诺的目标」会让
+  第 8 关变易）。只有用户明确说重开战役，才恢复这条线。
+- **调试模式 = 实验功能总开关。** 顶栏 🔊 连点 5 次（`main.js` 的 `isDebug()`）。
+  藏在后面的有：战役、墨皇难度、平衡测试（**它会把胜率直接摊给玩家看**）。
+  以后再有「做了一半不该给玩家看」的东西，挂到这个开关上，别另造一个。
 - **战斗规则只改 `combat.js`。** `battle.js` 和 `sim.js` 都依赖它。历史上这两个文件
   各自手写过一份战斗逻辑，漂移出过真实 bug（术士整套机制在平衡测试里静默失效）。
   不要为了图快在 `battle.js` 或 `sim.js` 里就地写规则。
@@ -101,7 +106,9 @@ src/
   view/   render.js stickman.js scene.js vfx.js audio.js   呈现层（依赖 DOM）
 tools/    sim.js + 11 个诊断脚本               无头模拟与平衡诊断
 test/     单元测试
-docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）；archive/ 放已收尾的
+docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）
+  workflow/  照着做的步骤书（新增场景 / 新增角色小人）——**流程都放这，别散到 docs/ 根目录**
+  archive/   已收尾或已放弃的计划（战役相关全在这）
 ```
 
 **分界线是「能不能在 Node 里 import」**：`core` / `ai` / `data` / `tools` / `test`
@@ -126,7 +133,7 @@ docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）；archive/ 放
 | **`src/core/combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`**。另含 `DIFFICULTY_MODS` / `applyDifficulty`（难度档位给 AI 的属性加成，改数值只改这一处） |
 | `src/game/battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `tools/sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
-| `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 189 条，`npm test` |
+| `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 311 条，`npm test` |
 | `src/data/campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
 | `src/game/main.js` | 入口：UI 流程、事件监听（含**观战模式** `initSpectateScreen` / `confirmSpectate`）、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
 | `tools/balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |

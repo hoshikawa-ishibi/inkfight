@@ -1,7 +1,7 @@
 # 美术与音频升级 · 总体计划
 
 > 2026-08-29 重新审查。角色美术暂缓，先从场景开始。
-> 2026-08-30 三张场景底图与数据驱动接入已完成；新增场景按 `SCENE_WORKFLOW.md` 执行。
+> 2026-08-30 三张场景底图与数据驱动接入已完成；新增场景按 `workflow/SCENE_WORKFLOW.md` 执行。
 
 ---
 
@@ -141,7 +141,7 @@ Constraints: environment only; no people, creatures, text, symbols that resemble
 - [x] 三张统一检查笔触、色彩浓度、地平线位置与细节密度。
 - [x] 各场景保留独有动态层：虚空符尘、熔岩火星/热浪、灵泉水光/薄雾。
 - [x] 图片转为 WebP；三张合计约 410KB，单张均低于 1MB。
-- [x] 在 `docs/SCENE_WORKFLOW.md` 记录生成模板、选图逻辑与新增场景流程。
+- [x] 在 `docs/workflow/SCENE_WORKFLOW.md` 记录生成模板、选图逻辑与新增场景流程。
 
 ### Scene 3 — 程序化层精修（只做AI底图缺的东西）
 
@@ -179,7 +179,7 @@ Constraints: environment only; no people, creatures, text, symbols that resemble
 不会直接跳到“16人 × 多姿态逐帧动画”。
 
 角色小人的细化路线、16 人视觉身份证、AI 概念试片边界与分阶段验收，见
-[`CHARACTER_ART_PLAN.md`](CHARACTER_ART_PLAN.md)。当前只完成方案，未生成角色资源，
+[`CHARACTER_ART_PLAN.md`](archive/CHARACTER_ART_PLAN.md)。当前只完成方案，未生成角色资源，
 也未修改或提交工作区中的 `stickman.js` 原型。
 
 ### 音乐：场景之后单独立项
