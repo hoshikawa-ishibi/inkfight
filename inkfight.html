@@ -11,13 +11,13 @@ body {
   overflow-x:hidden; min-height:100vh; position:relative;
   -webkit-font-smoothing:antialiased;
 }
-#scene-bg { position:fixed; inset:0; z-index:-3; transition:background 1s; background:#05050d; }
-#scene-bg-canvas { position:fixed; inset:0; z-index:-2; pointer-events:none; }
-#scene-fx { position:fixed; inset:0; z-index:-1; pointer-events:none; }
+#scene-bg { position:fixed; inset:0; z-index:0; transition:background 1s, opacity .65s; background:#05050d; background-size:cover; background-repeat:no-repeat; }
+#scene-bg-canvas { position:fixed; inset:0; z-index:1; pointer-events:none; }
+#scene-fx { position:fixed; inset:0; z-index:2; pointer-events:none; }
 #fx-canvas { position:fixed; inset:0; z-index:50; pointer-events:none; }
 
 /* 屏幕震动包装 */
-#shake-wrap { width:100%; min-height:100vh; transition:transform .05s linear; }
+#shake-wrap { position:relative; z-index:3; width:100%; min-height:100vh; transition:transform .05s linear; }
 
 .btn {
   padding:10px 22px; border:2px solid #e94560; background:transparent;

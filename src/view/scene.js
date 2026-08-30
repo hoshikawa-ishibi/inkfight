@@ -1,39 +1,35 @@
-import { Audio } from './audio.js';
-
 let sceneBgAnim = null;
 let sceneFxAnim = null;
 let sceneParticles = [];
-
 let menuBgAnim = null;
 let menuParticles = [];
+const previewImages = new Map();
 
 export function startMenuBackground() {
   const cv = document.getElementById('scene-bg-canvas');
-  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  resizeCanvas(cv);
   const ctx = cv.getContext('2d');
-  document.getElementById('scene-bg').style.background =
-    'radial-gradient(ellipse at 50% 40%, #0d0d2b 0%, #05050d 70%)';
-
-  menuParticles = Array.from({length: 60}, () => makeMenuParticle(cv));
+  const bg = document.getElementById('scene-bg');
+  bg.style.background = 'radial-gradient(ellipse at 50% 40%, #0d0d2b 0%, #05050d 70%)';
+  bg.style.backgroundImage = '';
+  menuParticles = Array.from({length:60}, () => makeMenuParticle(cv));
+  stopSceneAnimations();
   if (menuBgAnim) cancelAnimationFrame(menuBgAnim);
   let t = 0;
   function loop() {
-    t += 0.004;
+    t += .004;
     ctx.clearRect(0, 0, cv.width, cv.height);
-    // flowing ink waves
     ctx.strokeStyle = 'rgba(233,69,96,.07)'; ctx.lineWidth = 1.5;
     for (let i = 0; i < 5; i++) {
       ctx.beginPath();
       for (let x = 0; x <= cv.width; x += 10)
-        ctx.lineTo(x, cv.height * (0.3 + i * 0.12) + Math.sin(x * 0.008 + t + i) * 18);
+        ctx.lineTo(x, cv.height * (.3 + i * .12) + Math.sin(x * .008 + t + i) * 18);
       ctx.stroke();
     }
-    // ink particles
     menuParticles.forEach(p => {
-      p.x += p.vx; p.y += p.vy; p.a -= 0.0015;
+      p.x += p.vx; p.y += p.vy; p.a -= .0015;
       if (p.a <= 0) Object.assign(p, makeMenuParticle(cv));
-      ctx.globalAlpha = p.a;
-      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.a; ctx.fillStyle = p.color;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     });
     ctx.globalAlpha = 1;
@@ -44,24 +40,25 @@ export function startMenuBackground() {
 
 export function stopMenuBackground() {
   if (menuBgAnim) { cancelAnimationFrame(menuBgAnim); menuBgAnim = null; }
-  const cv = document.getElementById('scene-bg-canvas');
-  cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+  clearCanvas('scene-bg-canvas');
 }
 
 function makeMenuParticle(cv) {
   const colors = ['rgba(233,69,96,', 'rgba(22,199,154,', 'rgba(79,195,247,', 'rgba(200,200,255,'];
   const c = colors[Math.floor(Math.random() * colors.length)];
-  return {
-    x: Math.random() * cv.width, y: Math.random() * cv.height,
-    vx: (Math.random() - 0.5) * 0.4, vy: -0.2 - Math.random() * 0.4,
-    r: 0.8 + Math.random() * 2.5,
-    a: 0.2 + Math.random() * 0.5,
-    color: c + (0.6 + Math.random() * 0.4) + ')'
-  };
+  return { x:Math.random()*cv.width, y:Math.random()*cv.height,
+    vx:(Math.random()-.5)*.4, vy:-.2-Math.random()*.4,
+    r:.8+Math.random()*2.5, a:.2+Math.random()*.5,
+    color:c+(.6+Math.random()*.4)+')' };
 }
 
 export function applySceneBackground(scene) {
-  document.getElementById('scene-bg').style.background = scene.bg;
+  const bg = document.getElementById('scene-bg');
+  const art = scene.art || {};
+  bg.style.background = scene.bg;
+  bg.style.backgroundImage = [art.overlay, art.image && `url("${art.image}")`].filter(Boolean).join(', ');
+  bg.style.backgroundSize = 'cover';
+  bg.style.backgroundPosition = art.position || 'center';
   startSceneBgLayers(scene);
   startSceneFx(scene);
 }
@@ -69,88 +66,83 @@ export function applySceneBackground(scene) {
 export function drawScenePreview(cv, scene) {
   if (!cv) return;
   const ctx = cv.getContext('2d');
-  const w = cv.width, h = cv.height;
-  if (scene.id === 'void') {
-    for (let i = 0; i < 25; i++) {
-      ctx.fillStyle = `rgba(155,155,207,${0.3 + Math.random() * 0.7})`;
-      ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
-    }
-  } else if (scene.id === 'lava') {
-    ctx.fillStyle = '#3a0a0a'; ctx.fillRect(0, h * 0.6, w, h * 0.4);
-    ctx.fillStyle = '#ff5722';
-    for (let i = 0; i < 5; i++) ctx.fillRect(i * 40, h * 0.6 + Math.sin(i) * 4, 30, 4);
-    for (let i = 0; i < 15; i++) {
-      ctx.fillStyle = `rgba(255,112,67,${Math.random()})`;
-      ctx.beginPath(); ctx.arc(Math.random() * w, Math.random() * h * 0.6, 1 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
-    }
-  } else {
-    ctx.strokeStyle = 'rgba(79,195,247,.6)'; ctx.lineWidth = 1;
-    for (let y = 10; y < h; y += 12) {
+  drawPreviewFallback(ctx, cv, scene);
+  const src = scene.art?.image;
+  if (!src) return;
+  let image = previewImages.get(src);
+  if (!image) {
+    image = new Image();
+    previewImages.set(src, image);
+    image.src = src;
+  }
+  const paint = () => {
+    drawCover(ctx, image, cv.width, cv.height, scene.art?.previewFocus ?? .5);
+    const shade = ctx.createLinearGradient(0, 0, 0, cv.height);
+    shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.38)');
+    ctx.fillStyle = shade; ctx.fillRect(0, 0, cv.width, cv.height);
+  };
+  if (image.complete && image.naturalWidth) paint();
+  else image.addEventListener('load', paint, {once:true});
+}
+
+function drawPreviewFallback(ctx, cv, scene) {
+  const colors = scene.art?.preview || ['#24243d', '#080812'];
+  const grad = ctx.createLinearGradient(0, 0, 0, cv.height);
+  grad.addColorStop(0, colors[0]); grad.addColorStop(1, colors[1]);
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, cv.width, cv.height);
+}
+
+function drawCover(ctx, image, width, height, focusY=.5) {
+  const scale = Math.max(width/image.naturalWidth, height/image.naturalHeight);
+  const sw = width/scale, sh = height/scale;
+  const sx = (image.naturalWidth-sw)/2;
+  const sy = Math.max(0, Math.min(image.naturalHeight-sh, (image.naturalHeight-sh)*focusY));
+  ctx.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+}
+
+const motionRenderers = {
+  voidDrift(ctx, cv, t) {
+    ctx.strokeStyle = 'rgba(184,181,214,.055)'; ctx.lineWidth = 1.2;
+    for (let i = 0; i < 3; i++) {
       ctx.beginPath();
-      for (let x = 0; x < w; x += 4) ctx.lineTo(x, y + Math.sin((x + y) * 0.2) * 3);
+      const y = cv.height*(.28+i*.16);
+      for (let x = 0; x <= cv.width; x += 18)
+        ctx.lineTo(x, y+Math.sin(x*.004+t+i*1.7)*12);
+      ctx.stroke();
+    }
+  },
+  heatVeil(ctx, cv, t) {
+    const y = cv.height*.49;
+    const glow = ctx.createLinearGradient(0, y-30, 0, y+55);
+    glow.addColorStop(0, 'rgba(255,80,35,0)');
+    glow.addColorStop(.5, 'rgba(255,80,35,.055)');
+    glow.addColorStop(1, 'rgba(255,80,35,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, y-30+Math.sin(t)*3, cv.width, 85);
+  },
+  waterFlow(ctx, cv, t) {
+    ctx.strokeStyle = 'rgba(103,217,229,.12)'; ctx.lineWidth = 1.2;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      const y = cv.height*(.43+i*.07);
+      for (let x = 0; x <= cv.width; x += 12)
+        ctx.lineTo(x, y+Math.sin(x*.009+t*1.4+i)*5);
       ctx.stroke();
     }
   }
-}
+};
 
 function startSceneBgLayers(scene) {
   const cv = document.getElementById('scene-bg-canvas');
-  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  resizeCanvas(cv);
   const ctx = cv.getContext('2d');
   if (sceneBgAnim) cancelAnimationFrame(sceneBgAnim);
+  const render = motionRenderers[scene.art?.motion];
   let t = 0;
   function loop() {
-    t += 0.005;
+    t += .008;
     ctx.clearRect(0, 0, cv.width, cv.height);
-    if (scene.id === 'void') {
-      const grad = ctx.createRadialGradient(cv.width/2, cv.height/2, 50, cv.width/2, cv.height/2, Math.max(cv.width, cv.height) * 0.7);
-      grad.addColorStop(0, 'rgba(80,80,140,.25)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.fillStyle = 'rgba(15,15,40,.7)';
-      ctx.beginPath(); ctx.moveTo(0, cv.height);
-      for (let x = 0; x <= cv.width; x += 20) ctx.lineTo(x, cv.height - 80 - Math.sin(x * 0.01) * 20 - Math.cos(x * 0.005 + t) * 10);
-      ctx.lineTo(cv.width, cv.height); ctx.fill();
-      ctx.fillStyle = 'rgba(25,25,55,.85)';
-      ctx.beginPath(); ctx.moveTo(0, cv.height);
-      for (let x = 0; x <= cv.width; x += 15) ctx.lineTo(x, cv.height - 40 - Math.sin(x * 0.015 + 1) * 12);
-      ctx.lineTo(cv.width, cv.height); ctx.fill();
-    } else if (scene.id === 'lava') {
-      ctx.fillStyle = 'rgba(60,15,15,.7)';
-      ctx.beginPath(); ctx.moveTo(0, cv.height);
-      ctx.lineTo(cv.width*0.2, cv.height-120); ctx.lineTo(cv.width*0.35, cv.height-90);
-      ctx.lineTo(cv.width*0.55, cv.height-150); ctx.lineTo(cv.width*0.75, cv.height-100);
-      ctx.lineTo(cv.width, cv.height-130); ctx.lineTo(cv.width, cv.height); ctx.fill();
-      const lavaY = cv.height - 50;
-      const lavaGrad = ctx.createLinearGradient(0, lavaY, 0, cv.height);
-      lavaGrad.addColorStop(0, '#ff5722'); lavaGrad.addColorStop(.5, '#d32f2f'); lavaGrad.addColorStop(1, '#3a0a0a');
-      ctx.fillStyle = lavaGrad;
-      ctx.beginPath(); ctx.moveTo(0, lavaY);
-      for (let x = 0; x <= cv.width; x += 10) ctx.lineTo(x, lavaY + Math.sin(x * 0.02 + t * 5) * 4);
-      ctx.lineTo(cv.width, cv.height); ctx.lineTo(0, cv.height); ctx.fill();
-      ctx.fillStyle = 'rgba(255,193,100,.4)';
-      for (let x = 0; x < cv.width; x += 30)
-        ctx.fillRect(x + Math.sin(t*3+x)*5, lavaY + Math.sin(x*0.02+t*5)*4 - 2, 15, 2);
-    } else {
-      const grad = ctx.createLinearGradient(0, 0, 0, cv.height);
-      grad.addColorStop(0, 'rgba(15,74,106,0)'); grad.addColorStop(1, 'rgba(15,74,106,.6)');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.strokeStyle = 'rgba(79,195,247,.25)'; ctx.lineWidth = 1.5;
-      for (let i = 0; i < 6; i++) {
-        ctx.beginPath();
-        const yBase = cv.height * (0.4 + i * 0.1);
-        for (let x = 0; x <= cv.width; x += 8) ctx.lineTo(x, yBase + Math.sin(x*0.012+t*2+i)*8);
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(10,40,60,.7)';
-      [0.15, 0.5, 0.85].forEach((p, i) => {
-        const x = cv.width*p, baseY = cv.height-60, hh = 80+i*20;
-        ctx.fillRect(x-12, baseY-hh, 24, hh);
-        ctx.beginPath(); ctx.moveTo(x-18, baseY-hh); ctx.lineTo(x, baseY-hh-20); ctx.lineTo(x+18, baseY-hh); ctx.fill();
-      });
-    }
-    const floorGrad = ctx.createLinearGradient(0, cv.height-80, 0, cv.height);
-    floorGrad.addColorStop(0, 'rgba(0,0,0,0)'); floorGrad.addColorStop(1, 'rgba(0,0,0,.6)');
-    ctx.fillStyle = floorGrad; ctx.fillRect(0, cv.height-80, cv.width, 80);
+    if (render) render(ctx, cv, t);
     sceneBgAnim = requestAnimationFrame(loop);
   }
   loop();
@@ -158,34 +150,18 @@ function startSceneBgLayers(scene) {
 
 function startSceneFx(scene) {
   const cv = document.getElementById('scene-fx');
-  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  resizeCanvas(cv);
   const ctx = cv.getContext('2d');
-  sceneParticles = [];
-  for (let i = 0; i < 80; i++) sceneParticles.push(makeParticle(scene, cv));
+  const recipe = scene.art?.particles;
+  sceneParticles = recipe ? Array.from({length:recipe.count||40}, () => makeParticle(recipe, cv)) : [];
   if (sceneFxAnim) cancelAnimationFrame(sceneFxAnim);
   function loop() {
     ctx.clearRect(0, 0, cv.width, cv.height);
     sceneParticles.forEach(p => {
-      p.life = (p.life || 0) + 1;
       p.x += p.vx; p.y += p.vy;
       if (p.y < -10 || p.y > cv.height+10 || p.x < -10 || p.x > cv.width+10)
-        Object.assign(p, makeParticle(scene, cv, true));
-      ctx.globalAlpha = p.a;
-      ctx.fillStyle = p.hue;
-      if (scene.fxKind === 'rune') {
-        ctx.fillRect(p.x, p.y, p.r, p.r);
-        ctx.globalAlpha = p.a * 0.4;
-        ctx.fillRect(p.x-1, p.y-1, p.r+2, p.r+2);
-      } else if (scene.fxKind === 'ember') {
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*3);
-        g.addColorStop(0, 'rgba(255,200,100,'+p.a+')'); g.addColorStop(1, 'rgba(255,87,34,0)');
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r*3, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = p.hue; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
-      } else {
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = p.a * 0.3;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r*2.5, 0, Math.PI*2); ctx.fill();
-      }
+        Object.assign(p, makeParticle(recipe, cv, true));
+      drawParticle(ctx, p);
     });
     ctx.globalAlpha = 1;
     sceneFxAnim = requestAnimationFrame(loop);
@@ -193,21 +169,54 @@ function startSceneFx(scene) {
   loop();
 }
 
-function makeParticle(scene, cv, recycle) {
-  return {
-    x: Math.random() * cv.width,
-    y: recycle ? (scene.fxKind === 'ember' ? cv.height+10 : Math.random()*cv.height) : Math.random()*cv.height,
-    vx: (Math.random()-0.5)*0.5,
-    vy: scene.fxKind === 'ember' ? -(0.4+Math.random()*0.9) : (Math.random()-0.5)*0.7,
-    r: 1+Math.random()*2.5,
-    a: 0.3+Math.random()*0.6,
-    hue: scene.fxColor
-  };
+function makeParticle(recipe, cv, recycle=false) {
+  const [minA,maxA] = recipe.alpha || [.2,.5];
+  const [minR,maxR] = recipe.radius || [1,2.5];
+  const [minS,maxS] = recipe.speed || [.1,.5];
+  const speed = minS+Math.random()*(maxS-minS);
+  const upward = recipe.kind === 'ember' || recipe.kind === 'wisp';
+  return { kind:recipe.kind, color:recipe.color,
+    x:Math.random()*cv.width,
+    y:recycle&&upward ? cv.height+8 : Math.random()*cv.height,
+    vx:(Math.random()-.5)*speed*.45,
+    vy:upward ? -speed : (Math.random()-.5)*speed,
+    r:minR+Math.random()*(maxR-minR), a:minA+Math.random()*(maxA-minA) };
+}
+
+function drawParticle(ctx, p) {
+  ctx.globalAlpha = p.a; ctx.fillStyle = p.color;
+  if (p.kind === 'rune') {
+    ctx.fillRect(p.x, p.y, p.r, p.r);
+    ctx.globalAlpha = p.a*.3;
+    ctx.fillRect(p.x-1, p.y-1, p.r+2, p.r+2);
+    return;
+  }
+  const radius = p.kind === 'ember' ? p.r*3 : p.r*2.2;
+  const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+  glow.addColorStop(0, p.color); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI*2); ctx.fill();
+}
+
+function stopSceneAnimations() {
+  if (sceneBgAnim) cancelAnimationFrame(sceneBgAnim);
+  if (sceneFxAnim) cancelAnimationFrame(sceneFxAnim);
+  sceneBgAnim = null; sceneFxAnim = null;
+  clearCanvas('scene-fx');
+}
+
+function resizeCanvas(cv) {
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+}
+
+function clearCanvas(id) {
+  const cv = document.getElementById(id);
+  if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
 }
 
 window.addEventListener('resize', () => {
   ['scene-fx','fx-canvas','scene-bg-canvas'].forEach(id => {
     const c = document.getElementById(id);
-    c.width = window.innerWidth; c.height = window.innerHeight;
+    if (c) resizeCanvas(c);
   });
 });

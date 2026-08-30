@@ -2,15 +2,24 @@ export const SCENES = [
   { id:'void', name:'墨色虚空', desc:'纯净的墨色之境，无任何加成，考验真实战力。',
     buff:null, buffText:'无场景效果',
     bg:'radial-gradient(ellipse at center, #2a2a4a 0%, #0d0d1a 85%)',
-    fxColor:'#9b9bcf', fxKind:'rune' },
+    art:{ image:'assets/scenes/void.webp', position:'50% 44%',
+      overlay:'linear-gradient(180deg, rgba(6,6,14,.08) 0%, rgba(5,5,13,.18) 58%, rgba(5,5,13,.72) 100%)',
+      preview:['#494858','#090910'], motion:'voidDrift',
+      particles:{ kind:'rune', color:'#b8b5d6', count:42, alpha:[.16,.46], radius:[.7,1.9], speed:[.08,.28] } } },
   { id:'lava', name:'赤焰熔岩', desc:'炽热的火山战场，所有人攻击欲望被点燃。',
     buff:'damageUp', buffText:'场景效果：所有伤害技能 +15%',
     bg:'radial-gradient(ellipse at bottom, #7a1f1a 0%, #2a0808 70%, #100404 100%)',
-    fxColor:'#ff7043', fxKind:'ember' },
+    art:{ image:'assets/scenes/lava.webp', position:'50% 45%',
+      overlay:'linear-gradient(180deg, rgba(22,5,3,.03) 0%, rgba(16,4,3,.12) 55%, rgba(6,3,3,.72) 100%)',
+      preview:['#8c3c26','#120706'], motion:'heatVeil',
+      particles:{ kind:'ember', color:'#ff7043', count:55, alpha:[.2,.65], radius:[.8,2.1], speed:[.35,.9] } } },
   { id:'spring', name:'碧蓝灵泉', desc:'充满灵能的清泉之地，灵能持续涌动。',
     buff:'spRegen', buffText:'场景效果：每回合开始所有单位额外 +5 SP',
     bg:'radial-gradient(ellipse at center, #0f4a6a 0%, #06121e 80%)',
-    fxColor:'#4fc3f7', fxKind:'flow' }
+    art:{ image:'assets/scenes/spring.webp', position:'50% 45%',
+      overlay:'linear-gradient(180deg, rgba(2,18,24,.02) 0%, rgba(2,14,20,.1) 55%, rgba(3,9,15,.7) 100%)',
+      preview:['#75aaa4','#071820'], motion:'waterFlow',
+      particles:{ kind:'wisp', color:'#67d9e5', count:38, alpha:[.12,.4], radius:[.8,2.2], speed:[.08,.3] } } }
 ];
 
 export const CHARACTERS = [

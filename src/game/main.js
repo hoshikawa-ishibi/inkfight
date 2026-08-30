@@ -18,7 +18,11 @@ export function showScreen(id) {
   const el = document.getElementById(id);
   el.classList.add('active');
   el.style.animation='none'; void el.offsetWidth; el.style.animation='';
-  if (id==='screen-battle') { stopMenuBackground(); _inBattle=true; }
+  if (id==='screen-battle') {
+    stopMenuBackground();
+    if (gameState.scene) applySceneBackground(gameState.scene);
+    _inBattle=true;
+  }
   else { startMenuBackground(); if(_inBattle){ Audio.startMenuBgm(); } _inBattle=false; }
   if (id==='screen-mode') initModeScreen();
   if (id==='screen-difficulty') initDifficultyScreen();
