@@ -121,9 +121,16 @@ describe('每种技能都真的被 executeSkill 接住了', () => {
 // 上面那组是循环生成的。万一哪天遍历写坏了（比如 skills 改名），
 // 它会安静地变成 0 条测试、照样全绿。所以要有一条盯着「到底跑了多少」。
 describe('哨兵：别让上面那组悄悄变成空跑', () => {
-  test('8 个角色 32 个技能，一个都不少', () => {
-    assert.equal(CHARACTERS.length, 8);
-    assert.equal(CHARACTERS.reduce((n, c) => n + c.skills.length, 0), 32);
+  test('每个角色都是 4 个技能，且循环真的跑过了每一个', () => {
+    // **不写死总数**——角色数量是会变的（8 → 16，见 ROSTER_PLAN.md），
+    // 写死会在每次扩阵容时假报错，而它本该盯的是「遍历有没有空跑」。
+    assert.ok(CHARACTERS.length >= 8, `角色数看起来不对：${CHARACTERS.length}`);
+    CHARACTERS.forEach(c => {
+      assert.equal(c.skills.length, 4, `${c.name} 应当有 4 个技能`);
+    });
+    assert.equal(
+      CHARACTERS.reduce((n, c) => n + c.skills.length, 0),
+      CHARACTERS.length * 4);
   });
 
   test('data.js 用到的每一种技能类型，sim.js 的 switch 里都有对应的 case', () => {

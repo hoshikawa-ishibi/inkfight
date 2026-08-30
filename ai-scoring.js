@@ -228,6 +228,16 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   // 24 点无视防御的毒伤 AI 根本看不见。剑士的破甲突刺同理（减防不计分）。
   //
   // 目标已经被这一击打死的话，附带效果全部落空，所以要先判存活。
+  // 主动充能（刀娘「蓄刃」）：只有真的能把下一刀顶成必暴才值钱。
+  // 不这么判的话 AI 会在满能时继续瞎充，白扔回合。
+  const chargeWorth = (sk) => {
+    if(!sk.critCharge) return 0;
+    const meter = (u.critMeter || 0) + sk.critCharge;
+    if(meter < 100) return sk.critCharge * 0.15;      // 还没满，只值一点点
+    const best = Math.max(1, ...u.skills.filter(k=>k.power).map(k=>k.power));
+    return atk * best * avgDefMul * 0.5;              // 顶满了 = 下一刀白赚半倍
+  };
+
   const riders = (sk, foe, d) => {
     if(!foe) return 0;
     const survives = d < foe.hp + (foe.shield || 0);
@@ -262,7 +272,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
   switch(s.type){
     case 'damage': {
       const d = dmgOf(s.power, s);
-      return damageWorth(d, mainFoe, s) + riders(s, mainFoe, d) + preempt(mainFoe, d);
+      return damageWorth(d, mainFoe, s) + riders(s, mainFoe, d) + chargeWorth(s) + preempt(mainFoe, d);
     }
 
     case 'damageAll':
@@ -305,6 +315,32 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       // 没有腐化层时是纯浪费回合
       const stacks = foes.reduce((n,f)=> n + countCorrupt(f), 0);
       return stacks * (s.dmgPerStack||0);
+    }
+
+    // ── 新 8 人的群体支援三件套（ROSTER_PLAN.md） ──────────
+    case 'healAll': {
+      // 只有真正吃得下的治疗才算数，溢出全是浪费
+      const usable = friends.reduce((n2,f)=> n2 + Math.min(s.healAmt||0, f.maxHp - f.hp), 0);
+      const hurt = friends.filter(f => f.hp/f.maxHp < 0.5).length;
+      return usable * (1 + 0.25 * hurt) - tempo * 0.6;
+    }
+
+    case 'shieldAll': {
+      // 已经有盾的人身上再叠收益递减，和单体 shield 同一个口径
+      const worth = friends.reduce((n2,f)=> n2 + (s.shieldAmt||0) * (f.shield > 0 ? 0.4 : 0.85), 0);
+      // 已知有一击要落下时，护盾是确定收益（同 case 'shield' 的道理）
+      const blocks = Math.min(s.shieldAmt||0, threatDmg);
+      return worth + blocks * 0.9 - tempo;
+    }
+
+    case 'buffAll': {
+      const val = s.buffValue ?? BUFF_DEFAULTS.allyBuff;
+      // 已经带着同类 buff 的人再上一次只是刷新时长，几乎白给
+      const gain = friends.reduce((n2,f)=>{
+        const dup = f.buffs.some(b => b.type === s.buffType);
+        return n2 + getEffectiveAtk(f) * val * (s.dur||1) * 0.85 * (dup ? 1 - 0.85*tw : 1);
+      }, 0);
+      return gain - tempo;
     }
 
     case 'heal': {
@@ -421,7 +457,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const hpRisk = (s.hpCost||0) * (hpFrac < 0.35 ? 6 : hpFrac < 0.6 ? 1.8 : 0.6);
       // 机会成本按**全额**算：花一回合回蓝，这回合的输出就是全没了，
       // 不是少了一半。原来写的 `tempo * 0.5` 是这一族技能被高估的主因。
-      return (unlockWorth + spWorth) * starved - hpRisk - tempo;
+      return (unlockWorth + spWorth) * starved + chargeWorth(s) - hpRisk - tempo;
     }
 
     default:

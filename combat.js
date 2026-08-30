@@ -152,6 +152,29 @@ export function triggerPassive(trigger, unit, ctx={}){
       return null;
     }
 
+    // 新 8 人用到的三个被动（ROSTER_PLAN.md）
+    case 'critCharge':        // 刀娘「残心」：暴击后继续充能，可以连着暴
+      unit.critMeter = (unit.critMeter || 0) + p.value;
+      return { name:p.name, effect:'critCharge', value:p.value };
+
+    case 'selfShield': {      // 机关师「自动机括」：挨打就自动结甲
+      unit.shield += p.value;
+      return { name:p.name, effect:'selfShield', value:p.value };
+    }
+
+    case 'selfHeal': {        // 医仙「回春」
+      const before = unit.hp;
+      unit.hp = clamp(unit.hp + p.value, 0, unit.maxHp);
+      const healed = unit.hp - before;
+      return healed > 0 ? { name:p.name, effect:'selfHeal', value:healed } : null;
+    }
+
+    case 'allySp': {          // 鼓姬「战鼓不歇」：全队回蓝
+      const team = (ctx.allies||[]).filter(a => a.alive);
+      team.forEach(a => { a.sp = clamp(a.sp + p.value, 0, a.maxSp); });
+      return team.length ? { name:p.name, effect:'allySp', value:p.value, targets:team } : null;
+    }
+
     case 'corruptBonus': {
       const target = ctx.target;
       if(!target) return null;
@@ -379,6 +402,59 @@ export function canInterrupt(target, skill){
 
 export const INTERRUPT_IMMUNE_TURNS = 2;
 
+// 多段连击：`hits: N` 的伤害技能打 N 段，**每段各自走一遍 calcDamage**。
+// 这一点很重要：每段各自给暴击蓄能条充能，所以多段技能天然和暴击流联动
+// （拳师「连环崩拳」打 3 段 = 一口气充 3 次）。
+// 每段的倍率是 power/hits，总量和单段技能可比，差别在于蓄能和溢杀。
+export function resolveHits(actor, target, skill, scene){
+  const n = Math.max(1, skill.hits || 1);
+  if(n === 1) return { hits:[calcDamage(actor, target, skill, scene)], total:0 };
+  const per = { ...skill, power: (skill.power || 1) / n, hits: 1 };
+  const out = [];
+  for(let i = 0; i < n; i++){
+    if(!target.alive) break;
+    out.push(calcDamage(actor, target, per, scene));
+  }
+  return { hits: out, total: out.reduce((a, r) => a + r.dmg, 0) };
+}
+
+// 直接给自己的暴击蓄能条充值。刀娘「蓄刃」靠它把下一刀顶成必暴。
+export function chargeCrit(actor, amount){
+  actor.critMeter = (actor.critMeter || 0) + (amount || 0);
+  return actor.critMeter;
+}
+
+// ── 群体版的治疗 / 护盾 / 增益 ────────────────────────────
+// 对称于已有的 damageAll。这三个是新 8 人里「群体支援」那一族的核心，
+// 老 8 人里治疗/护盾/增益全是单体。
+export function applyHealAll(allies, skill){
+  const hits = [];
+  allies.filter(a => a.alive).forEach(a => {
+    const healed = Math.min(skill.healAmt || 0, a.maxHp - a.hp);
+    if(healed > 0) a.hp = clamp(a.hp + healed, 0, a.maxHp);
+    hits.push({ target:a, healed });
+  });
+  return hits;
+}
+
+export function applyShieldAll(allies, skill){
+  const hits = [];
+  allies.filter(a => a.alive).forEach(a => {
+    a.shield += skill.shieldAmt || 0;
+    hits.push({ target:a, amount:skill.shieldAmt || 0 });
+  });
+  return hits;
+}
+
+export function applyBuffAll(allies, skill){
+  const hits = [];
+  allies.filter(a => a.alive).forEach(a => {
+    a.buffs.push(makeAllyBuff(skill));
+    hits.push({ target:a });
+  });
+  return hits;
+}
+
 export function calcStun(actor, target, skill){
   const need = interruptNeed(target, skill);
   if(target.interruptImmune) return { success:false, reason:'immune', need };
@@ -432,10 +508,10 @@ export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSe
 // 布防、抢杀、打断——这是一个**结构性**的劣势，不是决策水平能补的。
 // 用属性把这份劣势补回来是诚实的做法，藏起意图才是走回头路。
 export const DIFFICULTY_MODS = {
-  easy:      { atk: 0.99 },
-  normal:    { atk: 0.94 },
-  hard:      { atk: 1.07 },
-  nightmare: { atk: 1.08, spRegen: 1.1 },
+  easy:      { atk: 0.94 },
+  normal:    { atk: 0.96 },
+  hard:      { atk: 1.06 },
+  nightmare: { atk: 1.12, spRegen: 1.1 },
 };
 
 export function applyDifficulty(unit, level){
@@ -592,7 +668,7 @@ export function needsEnemyTarget(skill){
 }
 
 // AoE / 自身类技能：由执行逻辑自行遍历敌人，不需要单体目标
-export const AOE_TYPES = ['damageAll','plague','corruptBurst'];
+export const AOE_TYPES = ['damageAll','plague','corruptBurst','healAll','shieldAll','buffAll'];
 
 // 自我增益技能：带 power 的会先打出一次伤害再上 buff。
 // 纯 buff 技能要占掉一整个回合，在这个节奏下几乎永远不划算

@@ -170,6 +170,71 @@ export function drawWeapon(ctx,x,y,type,color,facing,isAttack){
       ctx.lineTo(8,isAttack?-12:6); ctx.moveTo(12,isAttack?-8:10); ctx.lineTo(16,isAttack?-4:14);
       ctx.stroke();
       break;
+    // ── 扩充阵容的武器（ROSTER_PLAN.md） ──────────────────
+    case 'katana':            // 刀娘：细长弧刃
+      ctx.beginPath(); ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(isAttack?14:9, isAttack?-8:6, isAttack?26:16, isAttack?-9:11);
+      ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(3,1);
+      ctx.quadraticCurveTo(isAttack?14:9, isAttack?-6:7, isAttack?23:14, isAttack?-7:10);
+      ctx.stroke();
+      break;
+    case 'ofuda': {           // 阴阳师：飘着的符纸
+      ctx.save(); ctx.translate(isAttack?14:10, isAttack?-10:10);
+      ctx.rotate(isAttack?-0.5:0.3);
+      ctx.fillStyle='#f5f5f5'; ctx.fillRect(-3,-7,6,14);
+      ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.strokeRect(-3,-7,6,14);
+      ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(0,4); ctx.stroke();
+      ctx.restore(); break;
+    }
+    case 'gear': {            // 机关师：齿轮
+      const gx=isAttack?15:11, gy=isAttack?-7:11;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy); ctx.stroke();
+      ctx.beginPath(); ctx.arc(gx,gy,5,0,Math.PI*2); ctx.stroke();
+      for(let i=0;i<6;i++){
+        const a=i*Math.PI/3;
+        ctx.beginPath();
+        ctx.moveTo(gx+Math.cos(a)*5, gy+Math.sin(a)*5);
+        ctx.lineTo(gx+Math.cos(a)*7.5, gy+Math.sin(a)*7.5);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'drum': {            // 鼓姬：鼓 + 鼓槌
+      const dx=isAttack?13:10, dy=isAttack?-4:12;
+      ctx.beginPath(); ctx.ellipse(dx,dy,7,5,0,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle=color+'55'; ctx.fill();
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(dx-4,dy-7); ctx.stroke();
+      break;
+    }
+    case 'gourd': {           // 医仙：药葫芦
+      const hx=isAttack?13:10, hy=isAttack?-6:11;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(hx-3,hy-4); ctx.stroke();
+      ctx.beginPath(); ctx.arc(hx,hy+3,4.5,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hx,hy-3,3,0,Math.PI*2); ctx.fill();
+      break;
+    }
+    case 'kunai':             // 影武者：苦无（短、带环）
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(isAttack?11:7,isAttack?-3:6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(isAttack?-2:-1, isAttack?1:-1, 2.2, 0, Math.PI*2); ctx.stroke();
+      break;
+    case 'fist': {            // 拳师：护手（没有武器，画一圈拳套）
+      const fx=isAttack?10:6, fy=isAttack?-2:8;
+      ctx.beginPath(); ctx.arc(fx,fy,4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.arc(fx,fy,5.5,0,Math.PI*2); ctx.stroke();
+      break;
+    }
+    case 'scythe': {          // 墨鸦：镰
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(isAttack?18:12, isAttack?-14:16); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(isAttack?18:12, isAttack?-14:16);
+      ctx.quadraticCurveTo(isAttack?26:20, isAttack?-16:14, isAttack?27:21, isAttack?-8:20);
+      ctx.stroke();
+      break;
+    }
     case 'orb': {
       const og=ctx.createRadialGradient(10,isAttack?-6:10,0,10,isAttack?-6:10,6);
       og.addColorStop(0,'#fff'); og.addColorStop(1,color);

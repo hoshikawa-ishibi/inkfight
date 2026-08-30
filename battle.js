@@ -11,7 +11,8 @@ import {
   applyCorrupt as applyCorruptCore, applyCorruptBurst,
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
   applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
-  actionsFor, bossPhase, processBenchedTurn
+  actionsFor, bossPhase, processBenchedTurn, resolveHits, chargeCrit,
+  applyHealAll, applyShieldAll, applyBuffAll
 } from './combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -628,7 +629,17 @@ function executeSkill(actor,skill,target){
   setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },d(500));
   switch(skill.type){
     case 'damage': playSkillVfx(actor,target,skill,()=>{
-      doDamage(actor,target,skill);
+      // 多段技能每段各自结算（各自给暴击蓄能条充能），见 combat.js 的 resolveHits
+      if(skill.hits>1){
+        resolveHits(actor,target,skill,gameState.scene).hits
+          .forEach(r=>presentDamage(actor,target,r));
+      } else {
+        doDamage(actor,target,skill);
+      }
+      if(skill.critCharge){
+        chargeCrit(actor,skill.critCharge);
+        spawnFloatText(actor,`★+${skill.critCharge}`,'#ffd54f',14);
+      }
       if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt,actor);
     }); break;
     case 'damageAll': {
@@ -647,6 +658,7 @@ function executeSkill(actor,skill,target){
     }
     case 'healSp':
       actor.sp=clamp(actor.sp+skill.spGain,0,actor.maxSp);
+      if(skill.critCharge){ chargeCrit(actor,skill.critCharge); spawnFloatText(actor,`★+${skill.critCharge}`,'#ffd54f',14); }
       addLog(`${actor.name} 恢复 ${skill.spGain} SP`,'sp');
       spawnFloatText(actor,`+${skill.spGain} SP`,'#4fc3f7',16); spawnAura(actor,'#4fc3f7');
       if(skill.buffType) actor.buffs.push(makeSpBuff(skill));
@@ -725,6 +737,32 @@ function executeSkill(actor,skill,target){
         presentDeath(t, actor, died, undying);
       });
       if(totalDmg===0){ addLog(`腐化爆发：无腐化层，无效果`,'miss'); spawnFloatText(actor,'无腐化','#888',14); }
+      break;
+    }
+    case 'healAll': {
+      const hits = applyHealAll(getAllies(actor.player), skill);
+      hits.forEach(({target:t,healed})=>{
+        if(healed>0){
+          gameState.stats['p'+actor.player].heal += healed;
+          if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal += healed;
+          addLog(`${actor.name} 治疗 ${t.name} ${healed} HP`,'heal');
+          spawnFloatText(t,`+${healed}`,'#66bb6a',16); spawnHealColumn(t);
+        }
+      });
+      break;
+    }
+    case 'shieldAll': {
+      applyShieldAll(getAllies(actor.player), skill).forEach(({target:t,amount})=>{
+        addLog(`${t.name} 获得 ${amount} 点护盾`,'buff');
+        spawnFloatText(t,`🛡+${amount}`,'#90caf9',15); spawnHexShield(t);
+      });
+      break;
+    }
+    case 'buffAll': {
+      applyBuffAll(getAllies(actor.player), skill).forEach(({target:t})=>{
+        spawnFloatText(t,'攻↑','#ffd54f',15); spawnAura(t,'#ffd54f');
+      });
+      addLog(`${actor.name} 鼓舞全队，攻击提升`,'buff');
       break;
     }
     case 'revive':

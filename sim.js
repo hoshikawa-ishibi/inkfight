@@ -11,7 +11,8 @@ import {
   createUnit as makeUnit, unitSpec, calcDamage, processStartOfTurn, applyTurnRegen, applyRestRegen,
   applyCorrupt, applyPlague, applyCorruptBurst,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse,
-  actionsFor, processBenchedTurn
+  actionsFor, processBenchedTurn, resolveHits, chargeCrit,
+  applyHealAll, applyShieldAll, applyBuffAll
 } from './combat.js';
 import { makeTeamContext, pickActor } from './ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from './intent.js';
@@ -37,10 +38,28 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
   const enemies = actor.player===1?p2:p1;
   const allies = actor.player===1?p1:p2;
   switch(skill.type){
-    case 'damage':
-      doDamage(actor,target,skill,scene,stats);
+    case 'damage': {
+      // 多段技能走 resolveHits（每段各自结算，各自给暴击蓄能条充能）
+      if(skill.hits > 1){
+        const r = resolveHits(actor, target, skill, scene);
+        r.hits.forEach(h => {
+          if(stats && h.dmg > 0) stats[actor.charId].dmg += h.dmg;
+          noteKill(h.killed, actor, stats);
+        });
+      } else {
+        doDamage(actor,target,skill,scene,stats);
+      }
+      if(skill.critCharge) chargeCrit(actor, skill.critCharge);
       if(skill.corrupt&&target.alive) applyCorrupt(target,skill.corrupt);
       break;
+    }
+    case 'healAll': {
+      const hits = applyHealAll(allies, skill);
+      if(stats) hits.forEach(h => { stats[actor.charId].heals += h.healed; });
+      break;
+    }
+    case 'shieldAll': applyShieldAll(allies, skill); break;
+    case 'buffAll': applyBuffAll(allies, skill); break;
     case 'damageAll': enemies.filter(e=>e.alive).forEach(t=>doDamage(actor,t,skill,scene,stats)); break;
     case 'stun': {
       const r = resolveStun(actor, target, skill, scene);
@@ -56,6 +75,7 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
     }
     case 'healSp':
       actor.sp=clamp(actor.sp+skill.spGain,0,actor.maxSp);
+      if(skill.critCharge) chargeCrit(actor, skill.critCharge);
       if(skill.buffType) actor.buffs.push(makeSpBuff(skill)); break;
     case 'shield': actor.shield+=skill.shieldAmt; break;
     case 'taunt': {

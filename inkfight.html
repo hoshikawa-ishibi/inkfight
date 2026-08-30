@@ -128,12 +128,15 @@ body {
 .battle-field { display:flex; width:100%; flex:1; min-height:380px; min-height:0; }
 /* 每方 3 人（见 state.js 的 teamSizeFor）。三张卡竖排在 900px 高的窗口里会溢出，
    所以这一列必须能滚，而且卡片本身要收紧。 */
+/* 每方最多 4 人（见 state.js 的 teamSizeFor）。竖排 4 张卡在任何屏幕上都会溢出，
+   所以改成**会换行的网格**：2 人一列、3~4 人自动排成两列。
+   仍然保留 overflow-y:auto 兜底。 */
 .team-side {
-  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:10px; padding:12px; overflow-y:auto; min-height:0;
+  flex:1; display:flex; flex-flow:row wrap; align-content:center; justify-content:center;
+  gap:8px; padding:10px; overflow-y:auto; min-height:0;
 }
 .battle-unit {
-  width:240px; border:2px solid #0f3460; border-radius:10px; padding:8px 12px;
+  width:225px; border:2px solid #0f3460; border-radius:10px; padding:8px 12px;
   background:linear-gradient(180deg,rgba(15,52,96,.55),rgba(15,52,96,.25));
   transition:all .3s; position:relative; backdrop-filter:blur(2px);
   flex-shrink:0;
@@ -492,7 +495,7 @@ body {
   <h2 id="select-title">玩家 1（黑墨团）选择角色</h2>
   <div class="char-grid" id="char-grid"></div>
   <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
-    <span id="select-count">已选: 0/3</span>
+    <span id="select-count">已选: 0/4</span>
     <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-scene')">返回</button>
     <button class="btn btn-confirm" id="btn-confirm-select" disabled onclick="playSfx('confirm'); confirmSelection()">确认选择</button>
   </div>

@@ -52,7 +52,9 @@ describe('集火：整队盯住同一个目标，不为一两点血差反复横�
     const b = createUnit('mage', 2, 1);
     assert.equal(focusFoe([a, b], ctx, 1), a);
     ctx.focusTarget = a;
-    b.hp = 85;                           // 只低 7 点血，不值得换人
+    // **不写死血量**——角色数值是会变的（法师 92→108 那次就让这条假报错了）。
+    // 按 maxHp 的比例造一个「小到不值得换人」的差距。
+    b.hp = Math.round(b.maxHp * 0.93);   // 只低约 7%，不值得换人
     assert.equal(focusFoe([a, b], ctx, 1), a, '差距不大时应当继续打原目标');
     assert.equal(focusFoe([a, b], null, 1), b, '不带上下文时才会见谁血少打谁');
   });
