@@ -519,6 +519,31 @@ export function previewDmg(u,s){
 export function renderSkillPanel(u){
   const p=document.getElementById('skill-panel');
   p.innerHTML='';
+  // 打断会取消这个角色的下一次行动。以前这里仍把所有技能画成可点击，
+  // 玩家只有点下去之后才知道技能根本放不出来——信息虽然藏在角色卡的状态徽章里，
+  // 却没有出现在真正做决定的技能面板上。
+  //
+  // 这里把「放技能」和「主动消耗打断」明确分开：玩家可以继续换人查看，
+  // 也可以知情地交掉这一回合，但不会再被一个看似正常的技能按钮欺骗。
+  if(u.stunned){
+    const warning=document.createElement('div');
+    warning.style.cssText='max-width:280px;padding:8px 10px;border:1px solid #f5a623;border-radius:8px;background:rgba(245,166,35,.12);color:#ffd180;font-size:12px;line-height:1.5;';
+    warning.innerHTML='<b>💫 已被打断</b><br>这个角色下一次行动会被取消，当前不能施放技能。你可以改选其他角色，或主动消耗这个状态。';
+    p.appendChild(warning);
+
+    const skip=document.createElement('button');
+    skip.className='skill-btn';
+    skip.innerHTML='<span class="skill-icon" style="background:#f5a62333;color:#f5a623;border:1px solid #f5a623">💫</span>消耗打断，跳过本次行动';
+    skip.onclick=()=>{
+      playSfx('click'); _hideTooltip();
+      if(gameState.pickingActor){
+        beginTurnFor(u);
+        renderBattle();
+      }
+    };
+    p.appendChild(skip);
+    return;
+  }
   u.skills.forEach((s,i)=>{
     const btn=document.createElement('button');
     btn.className='skill-btn';

@@ -293,13 +293,22 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
       const works = canInterrupt(cand, s);
       // 收益 = 它少打的那一下。已知它下一步要干什么时就用真实数字，
       // 取两者较大：预告是治疗/增益类时 threatDmg 为 0，那就退回 threatOf。
-      const lost = works
+      const fullLost = works
         ? ((threat && threat.unitId === cand.id)
             ? Math.max(threatDmg, threatOf(cand)) : threatOf(cand))
         : 0;
+      // interrupt-check.mjs 会在技能深拷贝上临时切换三种候选规则。
+      // 正式数据没有 interruptMode，仍按完整取消行动估值。
+      let controlWorth = fullLost;
+      if(s.interruptMode === 'weaken')
+        controlWorth = fullLost * (1 - (s.interruptWeaken ?? 0.6));
+      else if(s.interruptMode === 'drain')
+        controlWorth = works ? cand.maxSp * (s.interruptDrain ?? 0.3) * 0.55 : 0;
+      else if(s.interruptMode === 'none')
+        controlWorth = 0;
       // 带 power 的打断技能自带一次伤害，打不断时它就退化成一个普通伤害技能
       const d = dmgOf(s.power || 0, s);
-      return damageWorth(d, cand, s) + riders(s, cand, d) + lost + preempt(cand, d);
+      return damageWorth(d, cand, s) + riders(s, cand, d) + controlWorth + preempt(cand, d);
     }
 
     case 'plague': {

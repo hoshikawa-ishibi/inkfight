@@ -63,6 +63,18 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
     case 'damageAll': enemies.filter(e=>e.alive).forEach(t=>doDamage(actor,t,skill,scene,stats)); break;
     case 'stun': {
       const r = resolveStun(actor, target, skill, scene);
+      // 打断改版的诊断开关。正式角色数据不带 interruptMode，仍走当前的
+      // 「跳过一次行动」；interrupt-check.mjs 在单位深拷贝上临时写字段，
+      // 因而可以复用整条真实战斗循环做 A/B，而不改正式规则。
+      if(r.success && skill.interruptMode === 'weaken'){
+        target.stunned = false;
+        target.interruptWeaken = skill.interruptWeaken ?? 0.6;
+      } else if(r.success && skill.interruptMode === 'drain'){
+        target.stunned = false;
+        target.sp = clamp(target.sp - target.maxSp * (skill.interruptDrain ?? 0.3), 0, target.maxSp);
+      } else if(r.success && skill.interruptMode === 'none'){
+        target.stunned = false;
+      }
       if(r.damage && stats && r.damage.dmg > 0){
         stats[actor.charId].dmg += r.damage.dmg;
         noteKill(r.damage.killed, actor, stats);
@@ -163,6 +175,15 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
   const useIntent = opts.intent !== false;
   let intent = null;
   const clearIfMine = u => { if(intent && intent.unitId === u.id) intent = null; };
+  // 当前完整跳过方案下，一个知情玩家不会主动派已被打断的人白给，除非全队
+  // 都被打断。这个开关只给 interrupt-check 用，避免拿 AI 的既有盲区冒充机制强度。
+  const pickFor = (team, foes, scene, side) => {
+    const alive = team.filter(x=>x.alive);
+    const pool = opts.avoidStunned
+      ? (alive.filter(x=>!x.stunned).length ? alive.filter(x=>!x.stunned) : alive)
+      : alive;
+    return pickActor(pool, foes, scene, { tempo:1, teamwork:1, ctx:ctx[side] });
+  };
 
   for(let round=0; round<MAX_ROUNDS; round++){
     // **一个回合 = 双方各行动一个单位**，和 battle.js 完全一致。
@@ -183,7 +204,7 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
         // **必须和上面实际出手的挑法完全一致**，否则预告的和真动的不是同一个
         const foe = opts.p2Pick ? opts.p2Pick(p2.filter(x=>x.alive), p1, scene)
           : opts.strictOrder ? nextActor(p2, lastActed[2])
-          : pickActor(p2, p1, scene, { tempo:1, teamwork:1, ctx:ctx[2] });
+          : pickFor(p2, p1, scene, 2);
         const foeEnemies = p1.filter(e => e.alive);
         if(foe && foeEnemies.length){
           const foeAllies = p2.filter(a => a.alive);
@@ -199,7 +220,7 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
       const chooser = side===1 ? opts.p1Pick : opts.p2Pick;
       const u = chooser ? chooser(team.filter(x=>x.alive), side===1?p2:p1, scene)
         : opts.strictOrder ? nextActor(team, lastActed[side])
-        : pickActor(team, side===1?p2:p1, scene, { tempo:1, teamwork:1, ctx:ctx[side] });
+        : pickFor(team, side===1?p2:p1, scene, side);
       if(!u) continue;
       lastActed[side] = u.id;
 
@@ -236,7 +257,17 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
         chosen = aiOf[side](u, enemies, allies, scene, ctx[side], side===1 ? intent : null);
       }
       if(!chosen||!chosen.skill) continue;
-      executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
+      // 「一次行动削弱」只压低这次行动的伤害 / 治疗；护盾、净化等功能性
+      // 选择仍可正常使用，正好保留一个可利用的应对空间。执行后自动消失。
+      let skillToExecute = chosen.skill;
+      if(u.interruptWeaken){
+        const mul = u.interruptWeaken;
+        skillToExecute = { ...chosen.skill };
+        if(skillToExecute.power) skillToExecute.power *= mul;
+        if(skillToExecute.healAmt) skillToExecute.healAmt *= mul;
+        delete u.interruptWeaken;
+      }
+      executeSkill(u,skillToExecute,chosen.target,scene,p1,p2,stats);
 
       // BOSS 阶段二「涂改」：这一侧回合里再行动 (actionsFor-1) 次。
       // 承诺制只覆盖第一次（预告的就是它），后续几次现算——
