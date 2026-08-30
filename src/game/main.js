@@ -53,7 +53,8 @@ export function showHelp(){
     • <b>HP</b> = 生命值，<b>SP</b> = 灵能值（释放技能消耗）。<br>
     • 每回合自动恢复 SP，<b>SP 超过 ${Math.round(DEFAULT_INTERRUPT_SP*100)}% 就一定会被「灵能扰乱」</b>
       （下一次行动的伤害和治疗降到 ${Math.round(INTERRUPT_OUTPUT_MULTIPLIER*100)}%，护盾和净化不受影响）。<br>
-    • <b>暴击</b>×1.5 伤害；<b>护盾</b>优先承伤；<b>嘲讽</b>强制集火。<br>
+    • <b>锋芒</b>攒满 100 触发<b>重击</b>（伤害 ×1.5）然后清零重攒——<b>这是确定的，不是概率</b>，每击攒多少写在角色的锋芒条上。多段技能每一段都单独攒，所以充得特别快。<br>
+    • <b>护盾</b>优先承伤；<b>嘲讽</b>强制集火。<br>
     • <b>键盘1-4</b> 释放技能，<b>ESC</b> 取消选目标/退出。<br>
     • 战场效果会影响伤害或SP回复。
     </p>`);
@@ -324,7 +325,7 @@ function startSelection(){
 function buildCharTooltip(c){
   return `<b style="color:${c.color}">${c.name}</b> · ${c.role}<br>
     HP:${c.hp} | SP:${c.sp} | ATK:${c.atk} | DEF:${c.def}<br>
-    暴击:${c.crit}% | 闪避:${c.dodge}% | SP/回合:${c.spRegen}<br><br>
+    锋芒:+${c.crit}/击 | 闪避:${c.dodge}% | SP/回合:${c.spRegen}<br><br>
     ${c.skills.map(s=>`<span style="color:${s.iconColor}">${s.icon}</span> <b>${s.name}</b>(${s.cost}SP): ${s.desc}`).join('<br>')}`;
 }
 // 战役模式下每个角色的状态：主角锁定出战、未解锁的锁着、本关敌方不能选。
@@ -797,7 +798,7 @@ startMenuBackground();
 
 // ── 雷达图 ────────────────────────────────────────────────
 function getTeamRadar(picks){
-  // 5维：攻击、防御、灵能、机动（闪避+暴击）、支撑（治疗技能数）
+  // 5维：攻击、防御、灵能、机动（闪避+锋芒）、支撑（治疗技能数）
   const chars = picks.map(id => CHARACTERS.find(c=>c.id===id));
   const sum = (fn) => chars.reduce((a,c)=>a+fn(c),0)/chars.length;
   return [

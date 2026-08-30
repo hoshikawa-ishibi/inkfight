@@ -7,7 +7,7 @@ let animHandle=0;
 
 const statRows=c=>[
   ['生命',c.hp],['灵能',c.sp],['攻击',c.atk],['防御',c.def],
-  ['暴击',`${c.crit}%`],['减伤',`${c.dodge}%`],['回灵',c.spRegen]
+  ['锋芒',`+${c.crit}/击`],['减伤',`${c.dodge}%`],['回灵',c.spRegen]
 ];
 
 function rosterHtml(){

@@ -110,7 +110,7 @@ function renderPassiveEvent(unit, event){
       });
       break;
     case 'critStack':
-      addLog(`【${event.name}】${unit.name} 暴击率+${event.value}%（${event.stacks}层）`, 'buff');
+      addLog(`【${event.name}】${unit.name} 锋芒充能 +${event.value}/击（${event.stacks}层）`, 'buff');
       spawnFloatText(unit, `鹰眼${event.stacks}层`, '#ffd54f', 13);
       break;
     case 'reflect':
@@ -538,7 +538,7 @@ export function renderSkillPanel(u){
       <span class="key-hint">[${i+1}]</span>
       ${s.name}
       <span class="sp-cost">${cdLeft>0?`⏳${cdLeft}回合`:(s.cost>0?s.cost+'SP':'免费')}${s.hpCost?` -${s.hpCost}HP`:''}</span>
-      ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?'💥':'≈'}${dmg}伤害</span>`:''}`;
+      ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?`💥${dmg} 必定重击`:`≈${dmg}伤害`}</span>`:''}`;
     btn.onmouseenter=(e)=>{ if(!btn.disabled) playSfx('hover');
       _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`
         +(s.cd?`<br><span style="color:#f5a623">冷却 ${s.cd} 回合${cdLeft>0?`（还剩 ${cdLeft}）`:''}</span>`:''),e.clientX,e.clientY);
@@ -643,7 +643,7 @@ function executeSkill(actor,skill,target){
   setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },d(500));
   switch(skill.type){
     case 'damage': playSkillVfx(actor,target,skill,()=>{
-      // 多段技能每段各自结算（各自给暴击蓄能条充能），见 combat.js 的 resolveHits
+      // 多段技能每段各自结算（各自给锋芒蓄能条充能），见 combat.js 的 resolveHits
       if(skill.hits>1){
         resolveHits(actor,target,skill,gameState.scene).hits
           .forEach(r=>presentDamage(actor,target,r));
@@ -823,7 +823,7 @@ function presentDamage(actor,target,r){
     return 0;
   }
   if(r.isCrit){
-    addLog(`💥 暴击！`,'crit'); playSfx('crit'); spawnCritBurst(target);
+    addLog(`💥 重击！`,'crit'); playSfx('crit'); spawnCritBurst(target);
   }
   if(r.shieldAbsorbed > 0){
     addLog(`${target.name} 护盾吸收 ${r.shieldAbsorbed}`,'info');
@@ -832,7 +832,7 @@ function presentDamage(actor,target,r){
   gameState.stats['p'+actor.player].dmg+=r.dmg;
   if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].dmg+=r.dmg;
   if(r.dmg>gameState.stats.maxHit.dmg) gameState.stats.maxHit={dmg:r.dmg,name:actor.name};
-  addLog(`${actor.name}(ATK ${r.baseAtk.toFixed(0)}) → ${target.name}: ${r.dmg} 伤害${r.isCrit?' [暴击]':''}`,r.isCrit?'crit':'dmg');
+  addLog(`${actor.name}(ATK ${r.baseAtk.toFixed(0)}) → ${target.name}: ${r.dmg} 伤害${r.isCrit?' [重击]':''}`,r.isCrit?'crit':'dmg');
   animateUnit(target.id,'anim-hit'); spawnHitBurst(target);
   spawnFloatText(target,`-${r.dmg}`,r.isCrit?'#ffd54f':'#ff5252',r.isCrit?28:18+Math.min(12,r.dmg/8));
   playSfx('hit'); _screenShake(r.isCrit?14:6,r.isCrit?400:200);

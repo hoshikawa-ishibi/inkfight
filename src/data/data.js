@@ -24,7 +24,7 @@ export const SCENES = [
 
 export const CHARACTERS = [
   { id:'swordsman', name:'剑士', role:'均衡输出', hp:135, sp:80, atk:20, def:6, crit:10, dodge:5, spRegen:10, color:'#e94560', weapon:'sword',
-    passive:{ name:'剑意', desc:'暴击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
+    passive:{ name:'剑意', desc:'重击后回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'斩击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'⚔️', iconColor:'#e94560', sfx:'slash', vfx:'slash' },
       { name:'旋风斩', type:'damage', cost:22, power:1.8, desc:'消耗22SP，180%伤害', icon:'🌀', iconColor:'#ff7043', sfx:'slash', vfx:'whirl' },
@@ -48,10 +48,10 @@ export const CHARACTERS = [
       { name:'盾墙反击', type:'damage', cost:30, power:2.2, selfHeal:15, desc:'220%伤害+回15HP', icon:'⚒️', iconColor:'#ffd54f', sfx:'hit', vfx:'bash' }
     ]},
   { id:'assassin', name:'刺客', role:'高伤/脆皮', hp:110, sp:100, atk:20, def:3, crit:18, dodge:10, spRegen:9, color:'#ab47bc', weapon:'dagger',
-    passive:{ name:'暴击蓄能', desc:'暴击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
+    passive:{ name:'锋芒蓄能', desc:'重击后额外回复 8 SP', trigger:'onCrit', effect:'spGain', value:8 },
     skills:[
       { name:'匕首', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🗡️', iconColor:'#ab47bc', sfx:'slash', vfx:'slash' },
-      { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'210%伤害，40%暴击', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
+      { name:'暗影突袭', type:'damage', cost:26, power:2.1, crit:40, desc:'210%伤害，锋芒 +40', icon:'💀', iconColor:'#7e57c2', sfx:'shadow', vfx:'shadowstrike' },
       { name:'毒刃', type:'damage', cost:20, power:1.2, dot:8, dotDur:3, desc:'120%伤害+中毒3回合', icon:'☠️', iconColor:'#9ccc65', sfx:'slash', vfx:'poison' },
       { name:'消失', type:'dodge', cost:25, dur:1, desc:'下回合闪避所有攻击', icon:'💨', iconColor:'#fff', sfx:'buff', vfx:'smoke' }
     ]},
@@ -72,7 +72,7 @@ export const CHARACTERS = [
       { name:'不屈', type:'revive', cost:30, hpRestore:50, desc:'下次致死保留50HP(一次)', icon:'💀', iconColor:'#ffd54f', sfx:'buff', vfx:'aura' }
     ]},
   { id:'archer', name:'弓手', role:'远程/灵活', hp:105, sp:90, atk:19, def:4, crit:15, dodge:9, spRegen:9, color:'#ffd54f', weapon:'bow',
-    passive:{ name:'鹰眼', desc:'每回合开始暴击率+3%（最多叠加 4 层）', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:4 },
+    passive:{ name:'鹰眼', desc:'每回合开始锋芒充能 +3/击（最多叠加 4 层）', trigger:'onTurnStart', effect:'critStack', value:3, maxStacks:4 },
     skills:[
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
       { name:'穿透箭', type:'damageAll', cost:32, power:1.1, desc:'对所有敌人110%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
@@ -94,14 +94,14 @@ export const CHARACTERS = [
   // 不做换皮——深度来自「选项多且互相有差异」，光加数量等于没加。
   // ══════════════════════════════════════════════════════════
 
-  // 机制空位：**暴击蓄能操控**。蓄能条是新机制，之前没人主动玩它。
-  { id:'bladedancer', name:'刀娘', role:'暴击流/爆发', hp:108, sp:95, atk:18, def:4, crit:20, dodge:8, spRegen:10, color:'#ff6f91', weapon:'katana',
-    passive:{ name:'残心', desc:'暴击后暴击蓄能 +15（可以连着暴）', trigger:'onCrit', effect:'critCharge', value:15 },
+  // 机制空位：**锋芒蓄能操控**。蓄能条是新机制，之前没人主动玩它。
+  { id:'bladedancer', name:'刀娘', role:'锋芒流/爆发', hp:108, sp:95, atk:18, def:4, crit:20, dodge:8, spRegen:10, color:'#ff6f91', weapon:'katana',
+    passive:{ name:'残心', desc:'重击后锋芒 +15（可以连着重击）', trigger:'onCrit', effect:'critCharge', value:15 },
     skills:[
-      { name:'拔刀', type:'damage', cost:0, power:1.0, critCharge:8, desc:'基础攻击，额外充能8', icon:'🗡️', iconColor:'#ff6f91', sfx:'slash', vfx:'slash' },
-      { name:'樱花乱', type:'damage', cost:24, power:1.9, hits:3, desc:'三段共190%伤害，每段各自充能', icon:'🌸', iconColor:'#ff8fab', sfx:'slash', vfx:'whirl' },
-      { name:'蓄刃', type:'healSp', cost:0, spGain:14, critCharge:45, desc:'回14SP并大幅充能，为下一刀铺路', icon:'💠', iconColor:'#ffd54f', sfx:'buff', vfx:'aura' },
-      { name:'一闪', type:'damage', cost:30, power:2.4, crit:30, desc:'240%伤害，自带30%暴击加成', icon:'⚡', iconColor:'#fff', sfx:'crit', vfx:'pierce' }
+      { name:'拔刀', type:'damage', cost:0, power:1.0, critCharge:8, desc:'基础攻击，额外锋芒 +8', icon:'🗡️', iconColor:'#ff6f91', sfx:'slash', vfx:'slash' },
+      { name:'樱花乱', type:'damage', cost:24, power:1.9, hits:3, desc:'三段共190%伤害；多段技能每段各自攒锋芒', icon:'🌸', iconColor:'#ff8fab', sfx:'slash', vfx:'whirl' },
+      { name:'蓄刃', type:'healSp', cost:0, spGain:14, critCharge:45, desc:'回14SP，锋芒 +45（把下一刀顶成必定重击）', icon:'💠', iconColor:'#ffd54f', sfx:'buff', vfx:'aura' },
+      { name:'一闪', type:'damage', cost:30, power:2.4, crit:30, desc:'240%伤害，自带锋芒 +30', icon:'⚡', iconColor:'#fff', sfx:'crit', vfx:'pierce' }
     ]},
 
   // 机制空位：**群体减防**。减防以前只有剑士单体带一手。
@@ -151,17 +151,17 @@ export const CHARACTERS = [
     skills:[
       { name:'苦无', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'🔪', iconColor:'#78909c', sfx:'slash', vfx:'slash' },
       { name:'残影', type:'dodge', cost:20, dur:1, desc:'下回合闪避所有攻击', icon:'👤', iconColor:'#b0bec5', sfx:'buff', vfx:'smoke' },
-      { name:'逆袭', type:'damage', cost:26, power:2.0, crit:20, desc:'200%伤害，20%暴击加成', icon:'🌑', iconColor:'#546e7a', sfx:'shadow', vfx:'shadowstrike' },
+      { name:'逆袭', type:'damage', cost:26, power:2.0, crit:20, desc:'200%伤害，锋芒 +20', icon:'🌑', iconColor:'#546e7a', sfx:'shadow', vfx:'shadowstrike' },
       { name:'烟遁', type:'healSp', cost:0, spGain:20, hpCost:0, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'💨', iconColor:'#4fc3f7', sfx:'buff', vfx:'smoke' }
     ]},
 
   // 机制空位：**多段连击**。全场以前没有一个多段技能，
-  // 而多段和暴击蓄能条天然联动（每段各充一次）。
+  // 而多段和锋芒蓄能条天然联动（每段各充一次）。
   { id:'monk', name:'拳师', role:'多段连击', hp:128, sp:85, atk:17, def:6, crit:12, dodge:7, spRegen:9, color:'#a1887f', weapon:'fist',
-    passive:{ name:'寸劲', desc:'暴击后回复 10 SP', trigger:'onCrit', effect:'spGain', value:10 },
+    passive:{ name:'寸劲', desc:'重击后回复 10 SP', trigger:'onCrit', effect:'spGain', value:10 },
     skills:[
-      { name:'直拳', type:'damage', cost:0, power:1.2, hits:2, desc:'两段共120%伤害', icon:'👊', iconColor:'#a1887f', sfx:'hit', vfx:'bash' },
-      { name:'连环崩拳', type:'damage', cost:24, power:2.5, hits:4, desc:'四段共250%伤害，充能极快', icon:'💢', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
+      { name:'直拳', type:'damage', cost:0, power:1.2, hits:2, desc:'两段共120%伤害；每段各自攒锋芒', icon:'👊', iconColor:'#a1887f', sfx:'hit', vfx:'bash' },
+      { name:'连环崩拳', type:'damage', cost:24, power:2.5, hits:4, desc:'四段共250%伤害；四段各自攒锋芒，所以极快', icon:'💢', iconColor:'#ff7043', sfx:'hit', vfx:'smash' },
       { name:'铁山靠', type:'damage', cost:22, power:1.5, debuff:'defDown', debuffDur:2, desc:'150%伤害，减防2回合', icon:'🪨', iconColor:'#8d6e63', sfx:'hit', vfx:'bash' },
       { name:'调息', type:'healSp', cost:0, spGain:26, desc:'回复26SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
@@ -169,7 +169,7 @@ export const CHARACTERS = [
   // 机制空位：**极端玻璃大炮**。刺客是中毒流（105血/19攻），
   // 这个是纯爆发：全场最高攻击、最低血，抢在对面之前把人带走。
   { id:'raven', name:'墨鸦', role:'极限爆发/易碎', hp:92, sp:95, atk:24, def:2, crit:16, dodge:12, spRegen:10, color:'#5c6bc0', weapon:'scythe',
-    passive:{ name:'不祥', desc:'暴击后回复 12 SP', trigger:'onCrit', effect:'spGain', value:12 },
+    passive:{ name:'不祥', desc:'重击后回复 12 SP', trigger:'onCrit', effect:'spGain', value:12 },
     skills:[
       { name:'啄', type:'damage', cost:0, power:1.2, desc:'基础攻击', icon:'🪶', iconColor:'#5c6bc0', sfx:'slash', vfx:'slash' },
       { name:'断魂爪', type:'damage', cost:28, power:2.6, desc:'全场最高倍率：260%伤害', icon:'🦅', iconColor:'#3f51b5', sfx:'crit', vfx:'shadowstrike' },

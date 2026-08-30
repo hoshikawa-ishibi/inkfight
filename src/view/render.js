@@ -83,8 +83,8 @@ function statusChips(u){
 
 // 敌人下一击的预告条。这是整个战斗深度重做的地基（见 COMBAT_PLAN.md 任务 1）：
 // 玩家看得见下一击，才谈得上布防 / 抢杀 / 改道 / 打断。
-// 任务 2b 之后暴击也是确定的（蓄能条），所以这个数字是**准的**，不是估的：
-// estimateDamage 把减防、暴击、闪避减伤全折算进去了。
+// 任务 2b 之后重击也是确定的（锋芒蓄能条），所以这个数字是**准的**，不是估的：
+// estimateDamage 把减防、重击、闪避减伤全折算进去了。
 function intentBar(u){
   const it=gameState.enemyIntent;
   if(!it||it.unitId!==u.id||!u.alive) return '';
@@ -132,7 +132,7 @@ function renderUnit(u){
     <div class="unit-meta">
       <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${u.atk}</s>→${eff.toFixed(0)}`:u.atk}</span>
       <span class="meta-def">🛡 ${u.def}</span>
-      <span class="meta-crit${u.critMeter>=100-u.crit?' crit-ready':''}" title="暴击蓄能：攒满 100 必定暴击">★ ${u.critMeter||0}/100</span>
+      <span class="meta-crit${u.critMeter>=100-u.crit?' crit-ready':''}" title="锋芒：每击攒 ${u.crit} 点（技能自带的加成另算，多段技能每段各攒一次），攒满 100 下一击必定重击（伤害 x1.5）然后清零重攒。这是确定的，不是概率">锋芒 ${u.critMeter||0}/100</span>
     </div>
     <div class="bar-wrap bar-hp">
       <div class="bar-fill" style="width:${pct(u.hp,u.maxHp)}%"></div>
