@@ -2,7 +2,7 @@ import { CHARACTERS } from '../data/data.js';
 import { playSfx } from './audio.js';
 import { gameState, pct, getAllUnits, getUnit } from '../core/state.js';
 import { drawStickman } from './stickman.js';
-import { bossPhase } from '../core/combat.js';
+import { bossPhase, DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER } from '../core/combat.js';
 
 let _getEffectiveAtk, _onTargetClick, _onPreviewUnit;
 export function initRender(getEffectiveAtk, onTargetClick, onPreviewUnit){
@@ -20,17 +20,24 @@ export function renderBattle(){
   });
 }
 
-// 状态条。三条规矩：
+// 状态条。四条规矩：
 //   1. **有层数 / 剩余回合的，数字必须外显**——「中毒」不说还剩几回合等于没说。
 //   2. **每个都能悬浮看说明**（原生 title），玩家不该去猜图标什么意思。
 //   3. **别漏机制**。腐化层以前完全没显示，而它是术士和墨皇整套打法的核心，
 //      玩家看不见就没法判断「腐化爆发」什么时候会来。
+//   4. **标签要说得出自己是什么**，而且**增益和减益必须分开排**（UX_PLAN 阶段 2）。
+//      玩家实测里有人把 `💫扰乱` 和 `🚫免疫2` 读成了一个叫「扰乱免疫」的复合状态——
+//      这两个是因果关系（被打断的那一刻必然同时挂上），挨着显示就长得像一个东西。
+//      现在：好的排前面、坏的排后面，中间一条分隔线，颜色也不同（绿 / 红）。
+//      光写「免疫」也说不出免疫的是什么，所以标签是「打断免疫N」。
 function statusChips(u){
   const list = [];
-  const add = (icon, text, tip) => list.push({ icon, text, tip });
+  // kind: 'good' = 对自己有利（绿），'bad' = 不利（红）。默认 bad——
+  // 状态条上大多数东西是坏事，忘了标也不会把好事误标成坏事的反面。
+  const add = (icon, text, tip, kind) => list.push({ icon, text, tip, kind: kind || 'bad' });
 
   if(u.shield > 0)
-    add('🛡', String(u.shield), `护盾 ${u.shield}：优先承受伤害，不受防御影响`);
+    add('🛡', String(u.shield), `护盾 ${u.shield}：优先承受伤害，不受防御影响`, 'good');
 
   const corrupt = u.debuffs.filter(d => d.type === 'corrupt').reduce((n,d) => n + d.value, 0);
   if(corrupt > 0)
@@ -47,38 +54,57 @@ function statusChips(u){
   const defDown = u.debuffs.find(d => d.type === 'defDown');
   if(defDown) add('🛡', `↓${defDown.dur}回`, `破防：受到的伤害 +20%，还剩 ${defDown.dur} 回合`);
 
-  if(u.disrupted) add('💫', '扰乱', '灵能扰乱：下一次行动的伤害和治疗降低40%，行动后解除；护盾、净化和增益不受影响');
-  if(u.stunned) add('💫', '打断', '旧版对照状态：下一次行动会被跳过');
+  // 「扰乱」的完整因果写在这条 tooltip 里：**前提**（SP 过半才可能被打断）→
+  // **命中**（这次行动只有 N% 威力，不是跳过回合）→ **副作用**（见下面的打断免疫）。
+  // 百分比读 combat.js 的常量，别手抄——改了数值文案要跟着走。
+  if(u.disrupted) add('💫', '扰乱',
+    `灵能扰乱：被抓是因为 SP 超过了上限的 ${Math.round(DEFAULT_INTERRUPT_SP*100)}%（SP 越满越危险）。`
+    + `下一次行动只有 ${Math.round(INTERRUPT_OUTPUT_MULTIPLIER*100)}% 威力（不是跳过回合），行动后自动解除；`
+    + `护盾、净化和增益不受影响`);
+  // 图标从 💫 换成 😵：💫 本来给「扰乱」和这个旧版对照状态两边用，
+  // 同一个图标两种含义，玩家分不出来。
+  if(u.stunned) add('😵', '跳过回合', '旧版对照状态：下一次行动会被完全跳过');
+  // 「免疫」说不出免疫的是什么，所以叫「打断免疫」。它是**被打断的副作用**，
+  // 存在理由是防连锁——没有它，两个打断角色能把对方锁死。
   if(u.interruptImmune > 0)
-    add('🚫', `免疫${u.interruptImmune}`, `打断免疫：还有 ${u.interruptImmune} 个自己的回合内不会再被打断`);
-  if(u.dodging) add('💨', '闪避', '闪避姿态：完全免疫下一次攻击');
-  if(u.undying) add('💀', `不屈${u.undying}`, `不屈：下次致死时保留 ${u.undying} HP（一次性）`);
+    add('🚫', `打断免疫${u.interruptImmune}`,
+      `打断免疫：刚被打断过的附送。接下来 ${u.interruptImmune} 个自己的回合内不会再被打断（防连锁）`, 'good');
+  if(u.dodging) add('💨', '闪避', '闪避姿态：完全免疫下一次攻击', 'good');
+  if(u.undying) add('💀', `不屈${u.undying}`, `不屈：下次致死时保留 ${u.undying} HP（一次性）`, 'good');
 
   const berserk = u.buffs.find(b => b.type === 'berserk');
   if(berserk) add('🔥', `狂暴${berserk.dur}回`,
-    `狂暴：攻击 +${Math.round(berserk.value*100)}%，每回合自损 HP，还剩 ${berserk.dur} 回合`);
+    `狂暴：攻击 +${Math.round(berserk.value*100)}%，每回合自损 HP，还剩 ${berserk.dur} 回合`, 'good');
 
   const taunt = u.buffs.find(b => b.type === 'taunt');
-  if(taunt) add('🎯', `嘲讽${taunt.dur}回`, `嘲讽：敌方被迫攻击它，还剩 ${taunt.dur} 回合`);
+  if(taunt) add('🎯', `嘲讽${taunt.dur}回`,
+    `嘲讽：敌人之后的决策会优先打它，还剩 ${taunt.dur} 回合——`
+    + `但敌人「已经预告出来」的那一击不会改道`, 'good');
 
   const atkUp = u.buffs.filter(b => b.type === 'atkUp');
   if(atkUp.length){
     const pctSum = Math.round(atkUp.reduce((n,b) => n + b.value, 0) * 100);
     const turns = Math.max(...atkUp.map(b => b.dur));
     add('⚔️', `+${pctSum}%·${turns}回`, `攻击强化 +${pctSum}%，还剩 ${turns} 回合`
-      + (atkUp.length > 1 ? `（${atkUp.length} 层叠加）` : ''));
+      + (atkUp.length > 1 ? `（${atkUp.length} 层叠加）` : ''), 'good');
   }
 
   const focus = u.buffs.find(b => b.type === 'atkUp1');
   if(focus) add('👁', `+${Math.round(focus.value*100)}%`,
-    `专注：**下一次**攻击 +${Math.round(focus.value*100)}%，打完就消失`);
+    `专注：「下一次」攻击 +${Math.round(focus.value*100)}%，打完就消失`, 'good');
 
   const cds = u.cooldowns ? Object.entries(u.cooldowns).filter(([,v]) => v > 0) : [];
   if(cds.length) add('⏳', `${cds.length}项`,
     '技能被封 / 冷却中：' + cds.map(([k,v]) => `${k}（还剩 ${v} 回合）`).join('、'));
 
-  return list.map(c =>
-    `<span class="stat-chip" title="${c.tip.replace(/"/g,'&quot;')}">${c.icon}${c.text}</span>`).join('');
+  // 增益排前、减益排后，两组之间插一条分隔线。这是「扰乱」和「打断免疫」
+  // 不再挨着的唯一保证——它们的添加顺序本来就是紧邻的，靠调 add 的先后
+  // 治标不治本（以后再加一个状态又会挤到一起）。
+  const chip = c =>
+    `<span class="stat-chip chip-${c.kind}" title="${c.tip.replace(/"/g,'&quot;')}">${c.icon}${c.text}</span>`;
+  const good = list.filter(c => c.kind === 'good').map(chip).join('');
+  const bad  = list.filter(c => c.kind === 'bad').map(chip).join('');
+  return good && bad ? `${good}<span class="chip-sep"></span>${bad}` : good + bad;
 }
 
 // 敌人下一击的预告条。这是整个战斗深度重做的地基（见 COMBAT_PLAN.md 任务 1）：

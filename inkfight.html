@@ -198,6 +198,15 @@ body {
 .bar-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 1px 2px #000; font-weight:bold;}
 .unit-status { font-size:11px; color:#f5a623; margin-top:4px; min-height:14px; }
 .unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
+/* 增益 / 减益分色（UX_PLAN 阶段 2）。以前全是一个琥珀色，`💫扰乱` 和
+   `🚫免疫2` 挨着显示被玩家读成了一个叫「扰乱免疫」的复合状态。
+   现在颜色 + 分隔线两道保险，一眼能看出哪个是好事。 */
+.unit-status .chip-good { color:#6ee7a8; background:rgba(22,199,154,.14); }
+.unit-status .chip-bad  { color:#ff8a80; background:rgba(233,69,96,.16); }
+.unit-status .chip-sep {
+  display:inline-block; width:1px; height:9px; margin:0 4px -1px;
+  background:rgba(255,255,255,.25);
+}
 .unit-canvas { display:block; margin:0 auto 2px; transition:transform .25s; }
 
 /* 锋芒蓄能条（COMBAT_PLAN.md 任务 2b）。重击不掷骰，锋芒攒满 100 必中——
