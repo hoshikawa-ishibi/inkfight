@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **这里是本仓库全部工作约定的唯一出处。** Codex 读的 `AGENTS.md` 只是一行指针，
+> 不放内容——它曾经是本文件的整份副本，两小时内就漂掉了一条约束。
+> 新增或修改约定**只改本文件**，不要往 `AGENTS.md` 里抄。
+
 ## Commands
 
 ```bash
