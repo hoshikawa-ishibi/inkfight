@@ -8,7 +8,7 @@
 // 才能横向比较。难度差异由 ai.js 在此之上做包装（噪声 + 战术加成），
 // 而不是各写一套评分。
 
-import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill, CORRUPT_BONUS_PER_STACK } from '../core/combat.js';
+import { getEffectiveAtk, countCorrupt, BUFF_DEFAULTS, needsEnemyTarget, canInterrupt, willCrit, canUseSkill, CORRUPT_BONUS_PER_STACK, previewInterruptedSkill } from '../core/combat.js';
 
 // 技能评分：把每种技能的收益统一折算成「等效伤害」，好让 17 种技能类型
 // 能够横向比较。旧版本只给 damage/heal/stun/drain 四种打分，其余 13 种
@@ -179,6 +179,9 @@ export function pickActor(team, foes, scene, opts = {}){
 // 队友濒危时顶上去、优先救输出高的。低难度的 AI 各打各的。
 // opts.ctx 是队伍战术上下文（见 makeTeamContext），缺省则退化为单打独斗。
 export function scoreSkill(u, s, foes, friends, scene, opts = {}){
+  // 被扰乱时仍然可以自由选技能，但这一次伤害 / 治疗只有 60%。AI 必须按
+  // 玩家实际会得到的结果算分；护盾、净化等功能技能不受影响，因而自然成为应对。
+  s = previewInterruptedSkill(u, s);
   const atk = getEffectiveAtk(u);
   const sceneMul = scene?.buff === 'damageUp' ? 1.15 : 1;   // scene 可缺省
   // 粗估：无视防御的伤害（中毒等）按原值算，普通伤害按目标平均减伤折算
@@ -297,11 +300,13 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
         ? ((threat && threat.unitId === cand.id)
             ? Math.max(threatDmg, threatOf(cand)) : threatOf(cand))
         : 0;
-      // interrupt-check.mjs 会在技能深拷贝上临时切换三种候选规则。
-      // 正式数据没有 interruptMode，仍按完整取消行动估值。
-      let controlWorth = fullLost;
+      // interrupt-check.mjs 会在技能深拷贝上临时切换历史候选规则。
+      // 正式数据不写 interruptMode，默认是下一次行动伤害 / 治疗降低 40%。
+      let controlWorth = fullLost * 0.4;
       if(s.interruptMode === 'weaken')
         controlWorth = fullLost * (1 - (s.interruptWeaken ?? 0.6));
+      else if(s.interruptMode === 'skip')
+        controlWorth = fullLost;
       else if(s.interruptMode === 'drain')
         controlWorth = works ? cand.maxSp * (s.interruptDrain ?? 0.3) * 0.55 : 0;
       else if(s.interruptMode === 'none')
@@ -368,7 +373,7 @@ export function scoreSkill(u, s, foes, friends, scene, opts = {}){
     case 'cleanse': {
       // 没有负面可清时，它退化成一个小治疗——所以不再是「毫无价值」。
       // 这个即时收益是 2026-08-26 加的：skill-audit 实测纯净化禁掉反而 +2.8。
-      const bad = friends.reduce((n,f)=> n + f.debuffs.length + (f.stunned?1:0), 0);
+      const bad = friends.reduce((n,f)=> n + f.debuffs.length + ((f.disrupted||f.stunned)?1:0), 0);
       const t = healTarget(friends, s, tw, threat);
       const heal = t ? Math.min(s.healAmt || 0, t.maxHp - t.hp) : 0;
       return bad * 22 + heal - tempo;
@@ -504,10 +509,11 @@ export function pickTarget(actor, skill, enemies, allies, opts = {}){
       // 只对真正带负面状态的队友净化，否则这一回合就白费了。
       // 没人中负面时仍要给个合法目标（理由同 healTarget：低难度照样可能选中它，
       // 返回 null 会让 battle.js 的 `target.debuffs=[]` 抛异常）。
-      const afflicted = friends.filter(f => f.debuffs.length > 0 || f.stunned);
+      const afflicted = friends.filter(f => f.debuffs.length > 0 || f.disrupted || f.stunned);
       const pool = afflicted.length ? afflicted : friends;
       return pool.slice().sort((a,b)=>
-        (b.debuffs.length + (b.stunned?1:0)) - (a.debuffs.length + (a.stunned?1:0)))[0] || null;
+        (b.debuffs.length + ((b.disrupted||b.stunned)?1:0)) -
+        (a.debuffs.length + ((a.disrupted||a.stunned)?1:0)))[0] || null;
     }
     case 'buff':
       return buffTarget(friends, skill, tw);

@@ -5,7 +5,8 @@ import {
   triggerPassive, processStartOfTurn, calcDamage, calcStun, canInterrupt, interruptNeed, willCrit,
   CORRUPT_BONUS_PER_STACK,
   applyCorrupt, applyPlague, applyCorruptBurst, countCorrupt, MAX_CORRUPT_STACKS,
-  needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec
+  needsEnemyTarget, AOE_TYPES, resolveSelfBuff, applyStageMod, unitSpec,
+  consumeInterruptedSkill, INTERRUPT_OUTPUT_MULTIPLIER
 } from '../src/core/combat.js';
 import { CHARACTERS } from '../src/data/data.js';
 
@@ -14,7 +15,7 @@ function makeUnit(overrides={}){
     id:'u1', charId:'test', name:'测试单位', player:1, color:'#fff', weapon:'sword',
     maxHp:100, hp:100, maxSp:100, sp:100, atk:20, def:0, crit:0, dodge:0, spRegen:10,
     skills:[], passive:null, passiveStacks:0,
-    alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
+    alive:true, shield:0, buffs:[], debuffs:[], disrupted:false, stunned:false, dodging:false, undying:0,
     interruptImmune:0, critMeter:0,
     pose:'idle', blink:0
   }, overrides);
@@ -218,7 +219,8 @@ describe('calcStun：确定性打断', () => {
       const target = makeUnit({sp:50, maxSp:100});
       const r = calcStun(makeUnit(), target, SKILL);
       assert.equal(r.success, true);
-      assert.equal(target.stunned, true);
+      assert.equal(target.disrupted, true);
+      assert.equal(target.stunned, false, '正式规则不再跳过行动');
     }
   });
 
@@ -228,7 +230,7 @@ describe('calcStun：确定性打断', () => {
       const r = calcStun(makeUnit(), target, SKILL);
       assert.equal(r.success, false);
       assert.equal(r.reason, 'lowSp');
-      assert.equal(target.stunned, false);
+      assert.equal(target.disrupted, false);
     }
   });
 
@@ -236,7 +238,7 @@ describe('calcStun：确定性打断', () => {
     const hi = makeUnit({sp:80, maxSp:100});
     const lo = makeUnit({sp:10, maxSp:100});
     assert.equal(withRandom(0,    () => calcStun(makeUnit(), hi, SKILL)).success, true);
-    hi.stunned = false; hi.interruptImmune = 0;
+    hi.disrupted = false; hi.interruptImmune = 0;
     assert.equal(withRandom(0.99, () => calcStun(makeUnit(), hi, SKILL)).success, true);
     assert.equal(withRandom(0,    () => calcStun(makeUnit(), lo, SKILL)).success, false);
     assert.equal(withRandom(0.99, () => calcStun(makeUnit(), lo, SKILL)).success, false);
@@ -253,7 +255,7 @@ describe('calcStun：确定性打断', () => {
     const t = makeUnit({sp:100, maxSp:100});
     assert.equal(calcStun(makeUnit(), t, SKILL).success, true);
     assert.ok(t.interruptImmune > 0, '成功打断后应进入免疫期');
-    t.stunned = false;
+    t.disrupted = false;
     const again = calcStun(makeUnit(), t, SKILL);
     assert.equal(again.success, false);
     assert.equal(again.reason, 'immune');
@@ -274,6 +276,28 @@ describe('calcStun：确定性打断', () => {
     assert.equal(canInterrupt(lo, SKILL), false);
     assert.equal(calcStun(makeUnit(), hi, SKILL).success, true);
     assert.equal(calcStun(makeUnit(), lo, SKILL).success, false);
+  });
+
+  test('扰乱只降低下一次行动的伤害和治疗，功能效果不变', () => {
+    const u = makeUnit({disrupted:true});
+    const original = {power:2, healAmt:50, shieldAmt:40, buffValue:0.5, cost:20};
+    const r = consumeInterruptedSkill(u, original);
+    assert.equal(r.consumed, true);
+    assert.equal(r.skill.power, 2 * INTERRUPT_OUTPUT_MULTIPLIER);
+    assert.equal(r.skill.healAmt, 50 * INTERRUPT_OUTPUT_MULTIPLIER);
+    assert.equal(r.skill.shieldAmt, 40);
+    assert.equal(r.skill.buffValue, 0.5);
+    assert.equal(r.skill.cost, 20);
+    assert.equal(u.disrupted, false, '行动后自动解除');
+    assert.equal(original.power, 2, '预览/执行不能污染技能原始配置');
+  });
+
+  test('未被扰乱时技能原样返回，也不会误报已消耗', () => {
+    const u = makeUnit();
+    const skill = {power:2, healAmt:50};
+    const r = consumeInterruptedSkill(u, skill);
+    assert.equal(r.consumed, false);
+    assert.equal(r.skill, skill);
   });
 });
 

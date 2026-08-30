@@ -47,7 +47,8 @@ function statusChips(u){
   const defDown = u.debuffs.find(d => d.type === 'defDown');
   if(defDown) add('🛡', `↓${defDown.dur}回`, `破防：受到的伤害 +20%，还剩 ${defDown.dur} 回合`);
 
-  if(u.stunned) add('💫', '打断', '已被打断：下一次行动会被跳过');
+  if(u.disrupted) add('💫', '扰乱', '灵能扰乱：下一次行动的伤害和治疗降低40%，行动后解除；护盾、净化和增益不受影响');
+  if(u.stunned) add('💫', '打断', '旧版对照状态：下一次行动会被跳过');
   if(u.interruptImmune > 0)
     add('🚫', `免疫${u.interruptImmune}`, `打断免疫：还有 ${u.interruptImmune} 个自己的回合内不会再被打断`);
   if(u.dodging) add('💨', '闪避', '闪避姿态：完全免疫下一次攻击');
@@ -117,7 +118,7 @@ function renderUnit(u){
     +(isActive?' active-turn':'')
     +(isTargetable?' target-select':'')
     +(!u.alive?' dead':'')
-    +(u.stunned?' stunned':'')
+    +((u.disrupted||u.stunned)?' stunned':'')
     +(lowHp?' low-hp':'')
     +(isIntentTarget?' intent-target':'')
     +(isPickable?' pickable':'')
@@ -144,13 +145,13 @@ function renderUnit(u){
     ${intentBar(u)}`;
   if(isTargetable) div.onclick=()=>{ playSfx('select'); _onTargetClick(u); };
   else if(isPickable) div.onclick=()=>{ playSfx('select'); _onPreviewUnit(u); };
-  setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?(u.stunned?'stun':u.pose):'dead'),10);
+  setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?((u.disrupted||u.stunned)?'stun':u.pose):'dead'),10);
   return div;
 }
 
 export function redrawUnit(u){
   const cv=document.getElementById('cv-'+u.id);
-  if(cv) drawStickman(cv,u,u.alive?(u.stunned?'stun':u.pose):'dead');
+  if(cv) drawStickman(cv,u,u.alive?((u.disrupted||u.stunned)?'stun':u.pose):'dead');
 }
 
 export function animateUnit(id,cls){

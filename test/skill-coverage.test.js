@@ -37,7 +37,7 @@ function withFixedRandom(fn){
 function snap(u){
   return {
     hp:u.hp, sp:u.sp, shield:u.shield, alive:u.alive,
-    stunned:u.stunned, dodging:u.dodging, undying:u.undying,
+    disrupted:u.disrupted, stunned:u.stunned, dodging:u.dodging, undying:u.undying,
     atk:u.atk, crit:u.crit, passiveStacks:u.passiveStacks,
     buffs:u.buffs, debuffs:u.debuffs
   };
@@ -76,7 +76,7 @@ function seed(charId, skill){
 
   ally.hp = ally.maxHp - 60;         // 治疗 48 点要看得出来
   ally.debuffs.push({ type:'poison', dur:3, value:8 });   // 给净化一点活干
-  ally.stunned = true;
+  ally.disrupted = true;
 
   [foe, foe2].forEach(f => applyCorrupt(f, 3));           // 给腐化爆发一点活干
 
@@ -166,7 +166,7 @@ describe('哨兵：别让上面那组悄悄变成空跑', () => {
     assert.ok(s.actor.hp < s.actor.maxHp, '施法者该是残血的，否则看不出治疗/吸血');
     assert.ok(s.actor.sp < s.actor.maxSp, '施法者该是缺蓝的，否则看不出回蓝');
     assert.ok(s.ally.hp < s.ally.maxHp - 40, '队友血要缺得够多，否则治疗量被 clamp 掉');
-    assert.ok(s.ally.debuffs.length > 0 && s.ally.stunned, '队友身上要有东西可净化');
+    assert.ok(s.ally.debuffs.length > 0 && s.ally.disrupted, '队友身上要有东西可净化');
     assert.ok(s.foe.debuffs.some(d => d.type === 'corrupt'), '敌人要有腐化层可引爆');
     assert.equal(s.foe.dodge, 0, '闪避必须清零，否则钉死的随机数会让敌人躲光一切');
   });

@@ -11,7 +11,7 @@
 // 玩家回合开始时，敌方下一个行动单位的打算被算出来、**公开**、并**锁定**。
 // 轮到它时它照做，即使玩家的操作已经让这步棋变臭。
 // 玩家于是可以：抢在它之前打死它、按预告的伤害量开盾、用嘲讽把它引开、
-// 打断它、或者干脆换个人去接这一下。
+// 扰乱它降低下一次输出、或者干脆换个人去接这一下。
 //
 // **只重解目标，绝不重选技能。** 否则「承诺」就是假的——玩家针对预告
 // 做的所有布置都会落空，而这正是 Into the Breach 那套设计要避免的东西。
@@ -74,7 +74,7 @@ export function makeIntent(unit, chosen, scene){
 //   目标已阵亡 → 按同类规则重选一个合法目标（技能不变）
 //   HP 不够付 hpCost → 退化为普攻（只有 hpCost 会出现这种情况：
 //                      SP 在承诺之后只增不减，玩家没有任何手段抽对方的蓝）
-//   单位被打断 → 不走这里，调用方在行动开始前就把意图清掉了
+//   单位被扰乱 → 技能承诺不变，但 combat.js 的预览和执行都会把伤害 / 治疗降到 60%
 export function resolveIntent(unit, intent, foes, friends, opts = {}){
   if(!intent || intent.unitId !== unit.id) return null;
   const skill = intent.skill;

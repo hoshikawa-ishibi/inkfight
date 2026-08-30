@@ -24,7 +24,7 @@ export function createUnit(charId, player, slot, override){
     passive:(o.passive !== undefined ? o.passive : (b.passive||null)), passiveStacks:0,
     // BOSS 阶段表（可选，来自 campaign.js 的关卡 override）。见 bossPhase()
     bossPhases:o.bossPhases || null,
-    alive:true, shield:0, buffs:[], debuffs:[], stunned:false, dodging:false, undying:0,
+    alive:true, shield:0, buffs:[], debuffs:[], disrupted:false, stunned:false, dodging:false, undying:0,
     // 打断免疫的剩余回合数（见 calcStun）。在 processStartOfTurn 里递减。
     interruptImmune:0,
     // 暴击蓄能条（见 calcDamage）。攒满 100 必暴击，玩家看得见。
@@ -51,6 +51,7 @@ export function getEffectiveAtk(u){
 }
 
 export function previewDmg(u, s, scene){
+  s = previewInterruptedSkill(u, s);
   if(!s.power) return null;
   let d = getEffectiveAtk(u)*s.power;
   if(scene && scene.buff==='damageUp') d*=1.15;
@@ -401,6 +402,24 @@ export function canInterrupt(target, skill){
 }
 
 export const INTERRUPT_IMMUNE_TURNS = 2;
+export const INTERRUPT_OUTPUT_MULTIPLIER = 0.6;
+
+// 正式打断不再没收行动：只把目标下一次行动的伤害 / 治疗压到 60%。
+// 两个调用方都必须经这两个函数取技能，避免 battle.js 和 sim.js 再各算一份。
+export function previewInterruptedSkill(actor, skill){
+  if(!actor.disrupted) return skill;
+  const out = { ...skill };
+  if(out.power) out.power *= INTERRUPT_OUTPUT_MULTIPLIER;
+  if(out.healAmt) out.healAmt *= INTERRUPT_OUTPUT_MULTIPLIER;
+  return out;
+}
+
+export function consumeInterruptedSkill(actor, skill){
+  const consumed = !!actor.disrupted;
+  const out = previewInterruptedSkill(actor, skill);
+  if(consumed) actor.disrupted = false;
+  return { skill:out, consumed };
+}
 
 // 多段连击：`hits: N` 的伤害技能打 N 段，**每段各自走一遍 calcDamage**。
 // 这一点很重要：每段各自给暴击蓄能条充能，所以多段技能天然和暴击流联动
@@ -459,9 +478,15 @@ export function calcStun(actor, target, skill){
   const need = interruptNeed(target, skill);
   if(target.interruptImmune) return { success:false, reason:'immune', need };
   if(target.sp < need)       return { success:false, reason:'lowSp', need };
-  target.stunned = true;
+  // interruptMode 只给 interrupt-check.mjs 保留历史候选对照；正式数据不写该字段，
+  // 默认就是 weaken。skip 是被淘汰的旧规则，none / drain 是另外两组对照。
+  const mode = skill.interruptMode ?? 'weaken';
+  if(mode === 'skip') target.stunned = true;
+  else if(mode === 'weaken') target.disrupted = true;
+  else if(mode === 'drain')
+    target.sp = clamp(target.sp - target.maxSp * (skill.interruptDrain ?? 0.3), 0, target.maxSp);
   target.interruptImmune = INTERRUPT_IMMUNE_TURNS;
-  return { success:true, reason:'ok', need };
+  return { success:true, reason:'ok', need, mode };
 }
 
 // 打断技能：带 power 的先结算伤害，再判定打断。
@@ -509,9 +534,11 @@ export const BUFF_DEFAULTS = { selfBuff:0.4, allyBuff:0.3, spBuff:0.2, berserkSe
 // 用属性把这份劣势补回来是诚实的做法，藏起意图才是走回头路。
 export const DIFFICULTY_MODS = {
   easy:      { atk: 0.94 },
-  normal:    { atk: 0.96 },
-  hard:      { atk: 1.06 },
-  nightmare: { atk: 1.12, spRegen: 1.1 },
+  normal:    { atk: 0.86 },
+  // 灵能扰乱替代「完整跳过行动」后，中高档对一般玩家整体变难。
+  // 这里只回调属性层，不碰 AI 决策水平，也不动角色本体数值。
+  hard:      { atk: 1.00 },
+  nightmare: { atk: 1.08, spRegen: 1.05 },
 };
 
 export function applyDifficulty(unit, level){
@@ -605,8 +632,9 @@ export function resolveTaunt(actor, target, skill, scene){
 }
 
 export function applyCleanse(target, skill){
-  const removed = target.debuffs.length + (target.stunned ? 1 : 0);
+  const removed = target.debuffs.length + (target.disrupted ? 1 : 0) + (target.stunned ? 1 : 0);
   target.debuffs = [];
+  target.disrupted = false;
   target.stunned = false;
   const healed = Math.min(skill.healAmt || 0, target.maxHp - target.hp);
   if(healed > 0) target.hp = clamp(target.hp + healed, 0, target.maxHp);

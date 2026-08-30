@@ -12,7 +12,7 @@ import {
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
   applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
   actionsFor, bossPhase, processBenchedTurn, resolveHits, chargeCrit,
-  applyHealAll, applyShieldAll, applyBuffAll
+  applyHealAll, applyShieldAll, applyBuffAll, consumeInterruptedSkill
 } from '../core/combat.js';
 
 export { createUnit, getEffectiveAtk };
@@ -266,15 +266,15 @@ export function onPreviewUnit(u){
   renderSkillPanel(u);
 }
 
-// 真正提交出手的单位。返回它还能不能行动（中毒倒下 / 被打断都算不能）。
+// 真正提交出手的单位。返回它还能不能行动（中毒倒下 / 旧版跳过打断算不能）。
 // 从 activateUnit 里拆出来，是为了让「玩家点了技能才提交」这条路复用同一份逻辑——
 // 两份实现是这个项目的头号病因。
 function beginTurnFor(u){
   gameState.activeUnitId = u.id;
   gameState.pickingActor = false;
   gameState.previewUnitId = null;
-  // 回合开始流程必须先跑，再判打断：中毒照样掉血、buff 照样递减、
-  // 打断免疫照样倒计时。以前被眩晕的单位直接 return，这三件事一件都不发生。
+  // 回合开始流程必须先跑。stunned 只为 interrupt-check 的旧版「完整跳过」对照保留；
+  // 正式规则用 disrupted，行动照常，在 executeSkill 里把伤害 / 治疗降到 60%。
   processStartOfTurn(u);
   if(!u.alive){
     cancelIntentOf(u,'已阵亡');
@@ -519,30 +519,13 @@ export function previewDmg(u,s){
 export function renderSkillPanel(u){
   const p=document.getElementById('skill-panel');
   p.innerHTML='';
-  // 打断会取消这个角色的下一次行动。以前这里仍把所有技能画成可点击，
-  // 玩家只有点下去之后才知道技能根本放不出来——信息虽然藏在角色卡的状态徽章里，
-  // 却没有出现在真正做决定的技能面板上。
-  //
-  // 这里把「放技能」和「主动消耗打断」明确分开：玩家可以继续换人查看，
-  // 也可以知情地交掉这一回合，但不会再被一个看似正常的技能按钮欺骗。
-  if(u.stunned){
+  // 打断不再没收行动，但做决定时必须明确告诉玩家这次输出会打折。
+  // 功能性技能（护盾 / 净化 / 增益）不受影响，这正是玩家可利用的应对空间。
+  if(u.disrupted){
     const warning=document.createElement('div');
     warning.style.cssText='max-width:280px;padding:8px 10px;border:1px solid #f5a623;border-radius:8px;background:rgba(245,166,35,.12);color:#ffd180;font-size:12px;line-height:1.5;';
-    warning.innerHTML='<b>💫 已被打断</b><br>这个角色下一次行动会被取消，当前不能施放技能。你可以改选其他角色，或主动消耗这个状态。';
+    warning.innerHTML='<b>💫 灵能扰乱</b><br>本次行动的伤害和治疗降低40%；护盾、净化、增益等效果不受影响。行动后自动解除。';
     p.appendChild(warning);
-
-    const skip=document.createElement('button');
-    skip.className='skill-btn';
-    skip.innerHTML='<span class="skill-icon" style="background:#f5a62333;color:#f5a623;border:1px solid #f5a623">💫</span>消耗打断，跳过本次行动';
-    skip.onclick=()=>{
-      playSfx('click'); _hideTooltip();
-      if(gameState.pickingActor){
-        beginTurnFor(u);
-        renderBattle();
-      }
-    };
-    p.appendChild(skip);
-    return;
   }
   u.skills.forEach((s,i)=>{
     const btn=document.createElement('button');
@@ -648,6 +631,12 @@ function aiAct(u){
 }
 
 function executeSkill(actor,skill,target){
+  const interrupted = consumeInterruptedSkill(actor, skill);
+  skill = interrupted.skill;
+  if(interrupted.consumed){
+    addLog(`${actor.name} 受到灵能扰乱，本次伤害与治疗降低40%`,'stun');
+    spawnFloatText(actor,'效力-40%','#f5a623',15);
+  }
   payCosts(actor, skill);
   if(skill.sfx) playSfx(skill.sfx);
   lungeActor(actor); actor.pose='attack';
@@ -865,8 +854,8 @@ function doStun(actor,target,skill){
   if(r.damage) presentDamage(actor, target, r.damage);
   if(r.skipped) return;
   if(r.success){
-    addLog(`${target.name} 被打断了！下一次行动取消`,'stun');
-    spawnFloatText(target,'打断!','#f5a623',18); spawnHitBurst(target,'#f5a623');
+    addLog(`${target.name} 被扰乱！下一次行动的伤害与治疗降低40%`,'stun');
+    spawnFloatText(target,'扰乱!','#f5a623',18); spawnHitBurst(target,'#f5a623');
     playSfx('stun'); _screenShake(8,250);
   } else if(r.reason === 'immune'){
     // 失败的原因必须说清楚，否则玩家学不会这个机制该怎么用

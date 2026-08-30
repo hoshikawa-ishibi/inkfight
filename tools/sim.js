@@ -12,7 +12,7 @@ import {
   applyCorrupt, applyPlague, applyCorruptBurst,
   resolveStun, resolveSelfBuff, makeAllyBuff, makeSpBuff, payCosts, resolveTaunt, applyCleanse,
   actionsFor, processBenchedTurn, resolveHits, chargeCrit,
-  applyHealAll, applyShieldAll, applyBuffAll
+  applyHealAll, applyShieldAll, applyBuffAll, consumeInterruptedSkill
 } from '../src/core/combat.js';
 import { makeTeamContext, pickActor } from '../src/ai/ai-scoring.js';
 import { nextActor, makeIntent, resolveIntent } from '../src/core/intent.js';
@@ -34,6 +34,7 @@ function doDamage(actor, target, skill, scene, stats){
 // 32 个技能，断言「这个 case 确实被接住了」。switch 漏掉一个 case 不会报错，
 // 只会一路穿过去什么都不做——术士的 plague/corruptBurst 就这么静默失效过。
 export function executeSkill(actor, skill, target, scene, p1, p2, stats){
+  skill = consumeInterruptedSkill(actor, skill).skill;
   payCosts(actor, skill);
   const enemies = actor.player===1?p2:p1;
   const allies = actor.player===1?p1:p2;
@@ -63,18 +64,6 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
     case 'damageAll': enemies.filter(e=>e.alive).forEach(t=>doDamage(actor,t,skill,scene,stats)); break;
     case 'stun': {
       const r = resolveStun(actor, target, skill, scene);
-      // 打断改版的诊断开关。正式角色数据不带 interruptMode，仍走当前的
-      // 「跳过一次行动」；interrupt-check.mjs 在单位深拷贝上临时写字段，
-      // 因而可以复用整条真实战斗循环做 A/B，而不改正式规则。
-      if(r.success && skill.interruptMode === 'weaken'){
-        target.stunned = false;
-        target.interruptWeaken = skill.interruptWeaken ?? 0.6;
-      } else if(r.success && skill.interruptMode === 'drain'){
-        target.stunned = false;
-        target.sp = clamp(target.sp - target.maxSp * (skill.interruptDrain ?? 0.3), 0, target.maxSp);
-      } else if(r.success && skill.interruptMode === 'none'){
-        target.stunned = false;
-      }
       if(r.damage && stats && r.damage.dmg > 0){
         stats[actor.charId].dmg += r.damage.dmg;
         noteKill(r.damage.killed, actor, stats);
@@ -257,17 +246,7 @@ export function simOneBattle(p1ids, p2ids, scene, opts = {}){
         chosen = aiOf[side](u, enemies, allies, scene, ctx[side], side===1 ? intent : null);
       }
       if(!chosen||!chosen.skill) continue;
-      // 「一次行动削弱」只压低这次行动的伤害 / 治疗；护盾、净化等功能性
-      // 选择仍可正常使用，正好保留一个可利用的应对空间。执行后自动消失。
-      let skillToExecute = chosen.skill;
-      if(u.interruptWeaken){
-        const mul = u.interruptWeaken;
-        skillToExecute = { ...chosen.skill };
-        if(skillToExecute.power) skillToExecute.power *= mul;
-        if(skillToExecute.healAmt) skillToExecute.healAmt *= mul;
-        delete u.interruptWeaken;
-      }
-      executeSkill(u,skillToExecute,chosen.target,scene,p1,p2,stats);
+      executeSkill(u,chosen.skill,chosen.target,scene,p1,p2,stats);
 
       // BOSS 阶段二「涂改」：这一侧回合里再行动 (actionsFor-1) 次。
       // 承诺制只覆盖第一次（预告的就是它），后续几次现算——

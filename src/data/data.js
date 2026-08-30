@@ -27,7 +27,7 @@ export const CHARACTERS = [
     skills:[
       { name:'墨弹', type:'damage', cost:0, power:1.5, desc:'基础攻击', icon:'🔵', iconColor:'#4fc3f7', sfx:'arrow', vfx:'orb' },
       { name:'墨之洪流', type:'damage', cost:32, power:3.2, desc:'消耗35SP，310%伤害', icon:'🌊', iconColor:'#0288d1', sfx:'fire', vfx:'flood' },
-      { name:'灵能过载', type:'stun', cost:20, power:1.4, spThreshold:0.5, desc:'140%伤害；目标SP过半则必定打断', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
+      { name:'灵能过载', type:'stun', cost:20, power:1.4, spThreshold:0.5, desc:'140%伤害；目标SP过半则扰乱其下一次行动（伤害/治疗-40%）', icon:'⚡', iconColor:'#ffd54f', sfx:'thunder', vfx:'lightning' },
       { name:'冥想', type:'healSp', cost:0, hpCost:0, spGain:30, desc:'恢复30SP', icon:'🧘', iconColor:'#16c79a', sfx:'buff', vfx:'aura' }
     ]},
   { id:'guardian', name:'守卫', role:'坦克/反制', hp:160, sp:65, atk:16, def:9, crit:5, dodge:2, spRegen:8, color:'#8d6e63', weapon:'shield',
@@ -68,7 +68,7 @@ export const CHARACTERS = [
       { name:'射击', type:'damage', cost:0, power:1.0, desc:'基础攻击', icon:'🏹', iconColor:'#ffd54f', sfx:'arrow', vfx:'arrow' },
       { name:'穿透箭', type:'damageAll', cost:32, power:1.1, desc:'对所有敌人140%伤害', icon:'🎯', iconColor:'#ff7043', sfx:'arrow', vfx:'pierceArrow' },
       { name:'集中', type:'healSp', cost:0, hpCost:0, spGain:20, buffType:'atkUp1', dur:1, desc:'回20SP+下次攻击+20%', icon:'👁️', iconColor:'#4fc3f7', sfx:'buff', vfx:'aura' },
-      { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则必定打断', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
+      { name:'束缚箭', type:'stun', cost:25, power:1.3, spThreshold:0.5, desc:'130%伤害；目标SP过半则扰乱其下一次行动（伤害/治疗-40%）', icon:'🪢', iconColor:'#a1887f', sfx:'arrow', vfx:'bindArrow' }
     ]},
   { id:'warlock', name:'术士', role:'腐化/爆发', hp:96, sp:110, atk:13, def:4, crit:12, dodge:5, spRegen:10, color:'#7e57c2', weapon:'orb',
     passive:{ name:'腐化侵蚀', desc:'对有腐化层的目标造成伤害时，额外造成 层数×5 伤害', trigger:'onDamageDealt', effect:'corruptBonus' },
@@ -101,7 +101,7 @@ export const CHARACTERS = [
     skills:[
       { name:'符射', type:'damage', cost:0, power:1.1, desc:'基础攻击', icon:'📜', iconColor:'#b39ddb', sfx:'arrow', vfx:'orb' },
       { name:'破魔符', type:'damageAll', cost:24, power:0.9, debuff:'defDown', debuffDur:3, desc:'全体85%伤害并减防3回合', icon:'🎴', iconColor:'#ce93d8', sfx:'debuff', vfx:'pierceArrow' },
-      { name:'缚灵', type:'stun', cost:22, power:1.2, spThreshold:0.45, desc:'120%伤害；目标SP过45%则打断', icon:'⛓️', iconColor:'#9575cd', sfx:'thunder', vfx:'bindArrow' },
+      { name:'缚灵', type:'stun', cost:22, power:1.2, spThreshold:0.45, desc:'120%伤害；目标SP过45%则扰乱其下一次行动（伤害/治疗-40%）', icon:'⛓️', iconColor:'#9575cd', sfx:'thunder', vfx:'bindArrow' },
       { name:'咒返', type:'damage', cost:28, power:1.5, dot:8, dotDur:3, desc:'150%伤害+中毒3回合', icon:'🌀', iconColor:'#7e57c2', sfx:'shadow', vfx:'curse' }
     ]},
 
