@@ -454,9 +454,8 @@ export function confirmSelection(){
 // 是因为这个游戏所有的解锁门槛——墨皇难度、战役可选关卡、队友——
 // 全都从 getCampaignProgress() 推出来（当初刻意不给它们各存一份进度）。
 // 在这一处撒谎，就等于全部解锁。
-// isDebug / setDebug 现在住在 save.js——character-gallery.js 也要问它
-// （机制解读的解锁门槛），而 main.js 反过来 import 那个文件，
-// 留在这里会绕成一个环。
+// isDebug / setDebug 在 save.js。character-gallery.js 也要读它，
+// 而 main.js 又 import 那个文件，定义留在这里会形成循环依赖。
 
 // ── 战役模式 ──────────────────────────────────────────────
 // rawCampaignProgress = 真实存档；getCampaignProgress = 各处判断解锁时看到的值。
@@ -480,10 +479,9 @@ function syncDebugBadge(){
   syncDebugOnlyCards();
 }
 
-// 未完工的东西（战役、平衡测试）在 HTML 里标 data-debug-only，默认 display:none。
-// **别在 JS 里手抄一份 id 列表**——以后再多一个实验功能，
-// 只要在 HTML 里加这个属性就行（写死 id 列表踩过坑，见 CLAUDE.md）。
-// 难度屏 / 观战屏 的墨皇档不走这里：它们是进屏时动态生成的。
+// 未完工的功能在 HTML 里标 data-debug-only，默认 display:none。
+// 用属性选择器统一切换，不要在 JS 里另抄一份 id 列表。
+// 难度屏 / 观战屏的墨皇档不走这里：它们是进屏时动态生成的。
 function syncDebugOnlyCards(){
   const dbg = isDebug();
   document.querySelectorAll('[data-debug-only]').forEach(c=>{
@@ -502,8 +500,8 @@ function initDebugTap(){
     const on = !isDebug();
     setDebug(on);
     syncDebugBadge();
-    // 关掉调试时如果手里正选着一个调试专属模式，卡藏了但
-    // chosenMode 还在，「下一步」会把人送进本不该进的屏。重置选择。
+    // 关掉调试后，卡片藏起来了但 chosenMode 仍指向它，
+    // 「下一步」会进入本不该进入的屏。重置选择。
     if(!on && (chosenMode==='campaign' || chosenMode==='test') && document.getElementById('screen-mode').classList.contains('active')) initModeScreen();
     playSfx(on ? 'confirm' : 'click');
     const real = rawCampaignProgress();
@@ -759,9 +757,8 @@ function showSimResults(charStats, rounds){
 
 
 document.addEventListener('keydown',e=>{
-  // 弹窗（教学提示 / 机制词典 / 各种确认框）开着时，游戏快捷键一律不响应。
-  // 遮罩挡得住鼠标但挡不住键盘——没有这一条，打开词典时按 1 会照样出招，
-  // 而「战斗中打开词典不能推进回合」正是阶段 3b 明确要求的。
+  // 有弹窗时游戏快捷键一律不响应：遮罩挡得住鼠标，挡不住键盘。
+  // 没有这一条，打开词典时按 1 仍会出招。
   if(isModalOpen()){
     if(e.key==='Escape'){ e.preventDefault(); closeTop(); }
     return;

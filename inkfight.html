@@ -94,9 +94,8 @@ body {
 .archive-combat-preview canvas { width:180px; height:166px; flex:none; filter:drop-shadow(0 8px 7px #000); }.archive-combat-preview b { color:#e8edf2; }.archive-combat-preview p { color:#16c79a; margin:7px 0; font-size:13px; }.archive-combat-preview small { color:#728096; font-size:10px; }
 .archive-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:12px 0; }.archive-stats div { background:rgba(255,255,255,.04); padding:8px 10px; border-bottom:2px solid #26374e; }.archive-stats span,.archive-stats b { display:block; }.archive-stats span { color:#77859a; font-size:10px; }.archive-stats b { margin-top:3px; color:#dce4ec; }
 .archive-passive { display:flex; gap:12px; padding:11px 13px; border-left:3px solid #ffd54f; background:rgba(255,213,79,.07); }.archive-passive>span { color:#ffd54f; font-size:11px; }.archive-passive b { font-size:13px; }.archive-passive p { color:#aeb7c2; font-size:11px; line-height:1.55; margin-top:3px; }
-/* 机制解读（UX_PLAN 阶段 4）。用这个角色出战满 3 局才解锁——
-   16 段一次性摊开玩家一段都不会看，而挂在角色自己身上，解锁的那一刻
-   他刚好打过、正想知道「我刚才那几下到底是怎么回事」。 */
+/* 机制解读。解锁门槛挂在角色自己身上（出战满若干局），
+   门槛值见 save.js 的 INSIGHT_UNLOCK_PLAYS。 */
 .archive-heading-insight { margin-top:18px; border-left-color:#16c79a; }
 .archive-heading-insight span { color:#16c79a; }
 .archive-insight { padding:12px 14px; border-left:3px solid #16c79a; background:rgba(22,199,154,.07); }
@@ -209,9 +208,8 @@ body {
 .bar-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 1px 2px #000; font-weight:bold;}
 .unit-status { font-size:11px; color:#f5a623; margin-top:4px; min-height:14px; }
 .unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
-/* 增益 / 减益分色（UX_PLAN 阶段 2）。以前全是一个琥珀色，`💫扰乱` 和
-   `🚫免疫2` 挨着显示被玩家读成了一个叫「扰乱免疫」的复合状态。
-   现在颜色 + 分隔线两道保险，一眼能看出哪个是好事。 */
+/* 增益绿、减益红，两组之间还有一条分隔线。颜色和分隔线是两道独立的保险：
+   任何一道单独存在时，相邻的一好一坏两个状态都可能被读成一个复合状态。 */
 .unit-status .chip-good { color:#6ee7a8; background:rgba(22,199,154,.14); }
 .unit-status .chip-bad  { color:#ff8a80; background:rgba(233,69,96,.16); }
 .unit-status .chip-sep {
@@ -351,7 +349,11 @@ body {
   display:inline-block; font-size:11px; letter-spacing:1px; color:#16c79a;
   border:1px solid rgba(22,199,154,.5); border-radius:10px; padding:1px 8px; margin-bottom:8px;
 }
-.modal-box .codex-tip-foot { font-size:11px; color:#777; margin-bottom:14px; }
+/* 提示正文一行一句。行距放宽，让三行读起来是三件事而不是一段话。 */
+.modal-box .codex-tip-line { color:#d5dae2; font-size:13px; line-height:1.85; margin-bottom:7px; text-align:left; }
+.modal-box .codex-tip-line:last-of-type { margin-bottom:14px; }
+.modal-box .codex-tip-line b { color:#ffd54f; }
+.modal-box .codex-tip-foot { font-size:11px; color:#777; margin-bottom:14px; text-align:center; }
 .codex-nav { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
 .codex-nav-item {
   font-family:inherit; font-size:12px; cursor:pointer; color:#ccc;
@@ -609,8 +611,8 @@ body {
   <div class="log-controls">
     <button class="btn btn-sm" onclick="clearLog()">清空</button>
     <button class="btn btn-sm" id="btn-log-pause" onclick="toggleLogPause()">暂停滚动</button>
-    <!-- 战斗内的词典入口。用户明确要的是「打到一半忘记了可以看」，
-         所以这个入口是必须的，不能只留在标题界面的玩法说明里。 -->
+    <!-- 战斗内的词典入口。词典必须在战斗中也能打开，
+         只放在标题界面的玩法说明里不够。 -->
     <button class="btn btn-sm" id="btn-codex" onclick="openCodex()" title="机制词典：锋芒、扰乱、墨蚀、轮空回蓝…">❓ 机制</button>
   </div>
   <div class="battle-log" id="battle-log"></div>

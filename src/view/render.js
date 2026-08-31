@@ -26,15 +26,13 @@ export function renderBattle(){
 //   2. **每个都能悬浮看说明**（原生 title），玩家不该去猜图标什么意思。
 //   3. **别漏机制**。腐化层以前完全没显示，而它是术士和墨皇整套打法的核心，
 //      玩家看不见就没法判断「腐化爆发」什么时候会来。
-//   4. **标签要说得出自己是什么**，而且**增益和减益必须分开排**（UX_PLAN 阶段 2）。
-//      玩家实测里有人把 `💫扰乱` 和 `🚫免疫2` 读成了一个叫「扰乱免疫」的复合状态——
-//      这两个是因果关系（被打断的那一刻必然同时挂上），挨着显示就长得像一个东西。
-//      现在：好的排前面、坏的排后面，中间一条分隔线，颜色也不同（绿 / 红）。
-//      光写「免疫」也说不出免疫的是什么，所以标签是「打断免疫N」。
+//   4. **标签必须说得出自己是什么**。「免疫」说不出免疫的是什么，所以写「打断免疫N」。
+//   5. **增益和减益分开排**。「扰乱」和「打断免疫」是同一次打断的两端，
+//      必然同时挂上；紧邻显示时会被读成一个复合状态。
+//      现在增益在前、减益在后，两组之间有分隔线，颜色也不同。
 function statusChips(u){
   const list = [];
-  // kind: 'good' = 对自己有利（绿），'bad' = 不利（红）。默认 bad——
-  // 状态条上大多数东西是坏事，忘了标也不会把好事误标成坏事的反面。
+  // kind: 'good' = 对自己有利（绿），'bad' = 不利（红）。默认 bad。
   const add = (icon, text, tip, kind) => list.push({ icon, text, tip, kind: kind || 'bad' });
 
   if(u.shield > 0)
@@ -55,18 +53,17 @@ function statusChips(u){
   const defDown = u.debuffs.find(d => d.type === 'defDown');
   if(defDown) add('🛡', `↓${defDown.dur}回`, `破防：受到的伤害 +20%，还剩 ${defDown.dur} 回合`);
 
-  // 「扰乱」的完整因果写在这条 tooltip 里：**前提**（SP 过半才可能被打断）→
-  // **命中**（这次行动只有 N% 威力，不是跳过回合）→ **副作用**（见下面的打断免疫）。
-  // 百分比读 combat.js 的常量，别手抄——改了数值文案要跟着走。
+  // tooltip 要讲全因果：前提（SP 过半才可能被打断）、
+  // 效果（本次行动降到 N% 威力，而不是跳过回合）、副作用（下面的打断免疫）。
+  // 百分比读 combat.js 的常量。
   if(u.disrupted) add('💫', '扰乱',
     `灵能扰乱：被抓是因为 SP 超过了上限的 ${Math.round(DEFAULT_INTERRUPT_SP*100)}%（SP 越满越危险）。`
     + `下一次行动只有 ${Math.round(INTERRUPT_OUTPUT_MULTIPLIER*100)}% 威力（不是跳过回合），行动后自动解除；`
     + `护盾、净化和增益不受影响`);
-  // 图标从 💫 换成 😵：💫 本来给「扰乱」和这个旧版对照状态两边用，
-  // 同一个图标两种含义，玩家分不出来。
+  // 这个状态只有 interrupt-check.mjs 的「完整跳过」对照会用到，正式规则里不出现。
+  // 图标不能和「扰乱」共用 💫——一个图标两种含义分不出来。
   if(u.stunned) add('😵', '跳过回合', '旧版对照状态：下一次行动会被完全跳过');
-  // 「免疫」说不出免疫的是什么，所以叫「打断免疫」。它是**被打断的副作用**，
-  // 存在理由是防连锁——没有它，两个打断角色能把对方锁死。
+  // 打断的副作用，作用是防连锁：没有它，两个带打断的角色可以把对方锁住。
   if(u.interruptImmune > 0)
     add('🚫', `打断免疫${u.interruptImmune}`,
       `打断免疫：刚被打断过的附送。接下来 ${u.interruptImmune} 个自己的回合内不会再被打断（防连锁）`, 'good');
@@ -98,9 +95,8 @@ function statusChips(u){
   if(cds.length) add('⏳', `${cds.length}项`,
     '技能被封 / 冷却中：' + cds.map(([k,v]) => `${k}（还剩 ${v} 回合）`).join('、'));
 
-  // 增益排前、减益排后，两组之间插一条分隔线。这是「扰乱」和「打断免疫」
-  // 不再挨着的唯一保证——它们的添加顺序本来就是紧邻的，靠调 add 的先后
-  // 治标不治本（以后再加一个状态又会挤到一起）。
+  // 按 kind 分组渲染，而不是靠调整上面 add 的先后顺序：
+  // 顺序只能保证当下这一组状态不相邻，再加一个状态就又会挤到一起。
   const chip = c =>
     `<span class="stat-chip chip-${c.kind}" title="${c.tip.replace(/"/g,'&quot;')}">${c.icon}${c.text}</span>`;
   const good = list.filter(c => c.kind === 'good').map(chip).join('');
@@ -153,13 +149,11 @@ function renderUnit(u){
   div.id='unit-'+u.id;
   const eff=_getEffectiveAtk(u);
   const atkChanged=Math.abs(eff-u.atk)>0.5;
-  // 锋芒条。两件事以前是手写的，现在都收敛到 combat.js：
-  //   1. 「快满了吗」原来写成 `critMeter >= 100 - u.crit`——那是 willCrit 的
-  //      第四份实现，而 combat.js 里 willCrit 的注释明说「三处必须一致所以
-  //      收敛成一个函数」。传 {} 表示「拿普通攻击算」，技能自带的加成不在这层。
-  //   2. 蓄能可以超过 100（刀娘「蓄刃」直接充 45，不打人也能攒）。
-  //      原来直接显示成「锋芒 150/100」，读起来像坏了。超出的部分单独写在后面——
-  //      它是真的会留到下一击的（calcDamage 是 -= 100，不是清零）。
+  // 锋芒条。
+  //   1. 「是否快满」必须调 combat.js 的 willCrit，不要在这里另写判据。
+  //      传 {} 表示按普通攻击估算，技能自带的锋芒加成不在这一层。
+  //   2. 锋芒可以超过上限（「蓄刃」这类技能不攻击也能充能）。
+  //      超出部分单独显示，因为它会留到下一击：calcDamage 是减去上限，不是清零。
   const meter = u.critMeter || 0;
   const meterText = meter > CRIT_METER_FULL
     ? `${CRIT_METER_FULL}/${CRIT_METER_FULL} +${meter - CRIT_METER_FULL}`
