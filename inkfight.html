@@ -329,6 +329,25 @@ body {
 #screen-result .result-stats { background:rgba(0,0,0,.5); padding:16px 24px; border-radius:8px; border:1px solid #0f3460; margin-bottom:20px; min-width:400px;}
 #screen-result .result-stats h3 { color:#e94560; margin-bottom:8px; }
 #screen-result .result-stats .row { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; border-bottom:1px dashed #333;}
+.balance-lab-section { width:min(760px,92vw); background:rgba(8,12,28,.72); border:1px solid #23365d; border-radius:12px; padding:18px; margin:10px 0; }
+.balance-lab-section>h3 { color:#ffd54f; margin:0 0 5px; }
+.balance-lab-note { color:#9299aa; font-size:12px; line-height:1.7; margin:0 0 14px; }
+.team-study-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:#ccc; }
+.team-study-controls select { background:#1a1a2e; color:#eee; border:1px solid #0f3460; padding:7px 10px; border-radius:5px; font-family:inherit; }
+.team-study-empty { padding:18px; color:#788196; border:1px dashed #33405c; border-radius:8px; margin-top:12px; text-align:center; }
+.team-study-summary { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:15px 0 8px; color:#aeb7cb; font-size:12px; }
+.team-study-summary strong { color:#dce4f5; }
+.team-study-card { display:grid; grid-template-columns:42px 1fr 130px; gap:12px; align-items:center; padding:13px 8px; border-top:1px solid #27334d; }
+.team-study-rank { color:#ffd54f; font-size:18px; font-weight:bold; text-align:center; }
+.team-study-main h3 { margin:0 0 4px; color:#f2f5fb; font-size:15px; }
+.team-study-roles,.team-study-scenes,.team-study-matchups { color:#8d98ae; font-size:11px; line-height:1.6; }
+.team-study-scenes { color:#66c7c0; margin-top:4px; }
+.team-study-matchups { margin-top:4px; }
+.team-study-rate { text-align:right; display:flex; flex-direction:column; gap:3px; }
+.team-study-rate b { color:#e94560; font-size:20px; }
+.team-study-rate span { color:#aab4c8; font-size:11px; }
+.team-study-rate small { color:#69758c; font-size:10px; }
+@media(max-width:600px){ .team-study-card{grid-template-columns:34px 1fr}.team-study-rate{grid-column:2;text-align:left}.team-study-summary{flex-direction:column} }
 
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
 @keyframes flash { 0%,100%{opacity:1} 50%{opacity:.4} }
@@ -664,10 +683,13 @@ body {
   <button class="btn btn-confirm" onclick="playSfx('confirm'); onRadarNext()">开始战斗！</button>
 </div>
 
-<!-- 平衡测试 -->
+<!-- 隐藏的平衡实验室 -->
 <div id="screen-test">
-  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">平 衡 测 试</h2>
-  <p style="color:#888;font-size:12px;margin-bottom:20px;">随机阵容 · 双方最高AI · 统计各角色胜率</p>
+  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">平 衡 实 验 室</h2>
+  <p style="color:#888;font-size:12px;margin-bottom:20px;">只在调试模式出现 · 所有分析均需手动开始</p>
+  <section class="balance-lab-section">
+  <h3>角色平衡</h3>
+  <p class="balance-lab-note">随机阵容 · 双方最高AI · 统计各角色胜率</p>
   <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
     <label style="font-size:13px;color:#ccc;">测试轮数：</label>
     <select id="test-rounds" style="background:#1a1a2e;color:#eee;border:1px solid #0f3460;padding:6px 12px;border-radius:4px;font-family:inherit;font-size:14px;">
@@ -681,9 +703,27 @@ body {
   <div id="test-progress" style="display:none;color:#ffd54f;font-size:13px;margin-bottom:12px;"></div>
   <div id="test-results" class="result-stats" style="display:none;min-width:420px;max-width:560px;"></div>
   <div style="display:flex;gap:10px;margin-top:16px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
     <button class="btn btn-confirm" id="btn-test-start" onclick="playSfx('confirm'); startTestRun()">开始测试</button>
   </div>
+  </section>
+
+  <section class="balance-lab-section team-study-section">
+    <h3>4v4 配队推荐</h3>
+    <p class="balance-lab-note">先普查 1820 种队伍，再让候选队互换先后手并跨三个场景复赛。报告完成后留在本机，除非你手动重新分析。高局数可能持续数分钟；中途离开不会覆盖旧报告。</p>
+    <div class="team-study-controls">
+      <label for="team-study-rounds">实际战斗局数：</label>
+      <select id="team-study-rounds">
+        <option value="10000">10,000 局（快速）</option>
+        <option value="50000" selected>50,000 局（推荐）</option>
+        <option value="100000">100,000 局（精细）</option>
+        <option value="200000">200,000 局（高精度）</option>
+      </select>
+      <button class="btn btn-confirm" id="btn-team-study-start">开始 / 重新分析</button>
+    </div>
+    <div id="team-study-progress" style="display:none;color:#ffd54f;font-size:13px;margin:12px 0;"></div>
+    <div id="team-study-results"></div>
+  </section>
+  <button class="btn btn-sm" style="margin-top:18px" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
 </div>
 
 </div>

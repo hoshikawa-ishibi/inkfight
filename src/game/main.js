@@ -13,6 +13,7 @@ import { openCodex, isModalOpen, closeTop } from '../view/codex.js';
 import { isDebug, setDebug } from './save.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
+import { initTeamStudy } from '../view/team-study.js';
 
 let _inBattle = false;
 export function showScreen(id) {
@@ -707,6 +708,7 @@ export function initTestScreen(){
   document.getElementById('btn-test-start').disabled = false;
   document.getElementById('test-progress').style.display = 'none';
   document.getElementById('test-results').style.display = 'none';
+  initTeamStudy();
 }
 
 export function startTestRun(){

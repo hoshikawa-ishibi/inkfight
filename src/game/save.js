@@ -1,9 +1,10 @@
 // 本地存档（localStorage）。进度类数据只在这里读写，别处不要另写 getItem。
 //
-// 现有三个 key，各自是一份独立的知识，互相推不出来：
+// 各 key 是互相推不出来的独立知识：
 //   inkfight_campaign   战役进度（墨皇难度 / 关卡 / 队友全部由它推出）
 //   inkfight_taught     已提示过的机制（由 codex.js 管理）
 //   inkfight_charplays  每个角色的出战局数（机制解读的解锁门槛）
+//   inkfight_teamstudy  用户手动跑出的最近一份配队研究报告
 //
 // CLAUDE.md 的「解锁门槛不要各存一份进度」禁止的是同一份知识存两份，
 // 不是禁止新增 key。新增前先确认它确实推不出来。
@@ -38,4 +39,15 @@ export function recordCharPlays(ids){
 
 export function insightUnlocked(id){
   return isDebug() || playsOf(id) >= INSIGHT_UNLOCK_PLAYS;
+}
+
+// ── 配队研究报告 ──────────────────────────────────────────
+// 只存压缩后的最终报告，不存数万局原始记录；重新分析成功前旧报告一直保留。
+const TEAM_STUDY_KEY = 'inkfight_teamstudy_v1';
+export function loadTeamStudy(){
+  try { return JSON.parse(localStorage.getItem(TEAM_STUDY_KEY)); }
+  catch { return null; }
+}
+export function saveTeamStudy(report){
+  localStorage.setItem(TEAM_STUDY_KEY, JSON.stringify(report));
 }
