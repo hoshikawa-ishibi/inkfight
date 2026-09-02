@@ -7,6 +7,8 @@ import { makeTeamContext, pickActor } from '../ai/ai-scoring.js';
 import { makeIntent, resolveIntent } from '../core/intent.js';
 import { teachOnce } from '../view/codex.js';
 import { recordCharPlays } from './save.js';
+import { makeRecord, mvpOf } from '../core/record.js';
+import { commitRecord, openShareDialog } from '../view/records.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -14,13 +16,12 @@ import {
   resolveSelfBuff, makeAllyBuff, makeSpBuff, needsEnemyTarget,
   applyDifficulty, applyStageMod, unitSpec, willCrit, canUseSkill, payCosts, resolveTaunt, applyCleanse,
   actionsFor, bossPhase, processBenchedTurn, resolveHits, chargeCrit,
+  DIFF_LABEL,
   applyHealAll, applyShieldAll, applyBuffAll, consumeInterruptedSkill,
   INTERRUPT_OUTPUT_MULTIPLIER
 } from '../core/combat.js';
 
 export { createUnit, getEffectiveAtk };
-
-const DIFF_LABEL = { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' };
 
 // 一次性教学提示的闸门。
 // 教学提示只在玩家自己控制的单位身上触发：每条提示只显示一次，
@@ -428,11 +429,9 @@ function checkVictory(){
 function renderStatsPanel(extraRows, actionsHtml){
   const s=gameState.stats;
   const allUnits=Object.values(s.units);
-  // MVP：综合评分 = 伤害 + 治疗×1.5 + 击杀×80
-  const mvp=allUnits.reduce((best,u)=>{
-    const score=u.dmg+u.heal*1.5+u.kills*80;
-    return score>(best.score||0)?{...u,score}:best;
-  },{score:0});
+  // MVP 的算法在 core/record.js —— 战绩室要显示同一个人，
+  // 两边各写一份就会出现「结算说是弓手、战绩里说是刺客」。
+  const mvp=mvpOf(allUnits)||{name:'—',dmg:0,heal:0,kills:0};
   const rows=[
     ['最高单次伤害', `${s.maxHit.dmg}（${s.maxHit.name}）`],
     ['MVP', `${mvp.name} ⭐（伤害${mvp.dmg} 治疗${mvp.heal} 击杀${mvp.kills}）`],
@@ -457,6 +456,51 @@ function renderStatsPanel(extraRows, actionsHtml){
   });
 }
 
+// ── 战绩 ──────────────────────────────────────────────────
+// 打完一局把结果记进本机战绩。**战绩不是核心玩法**：这里任何一步出问题
+// 都只在控制台留一行，绝不能把结算界面带崩。
+function commitBattleRecord(w){
+  try{
+    // 「我」坐在哪一边由模式决定，不是自由填的（规则见 core/record.js 的审计）：
+    // 人机 / 战役是 1 方；观战两边都是 AI；双人是同一台电脑上的两个人，
+    // 说不清哪边算「我」，所以都不认领，只记谁赢了。
+    const side = (gameState.mode==='ai'||gameState.mode==='campaign') ? 1 : null;
+    return commitRecord(makeRecord({
+      mode: gameState.mode,
+      difficulty: gameState.mode==='pvp' ? null : aiLevelOf(2),
+      scene: gameState.scene,
+      rounds: gameState.round,
+      winner: w,
+      side,
+      stage: gameState.mode==='campaign' ? gameState.campaignStage : null,
+      stats: gameState.stats,
+      units: [...gameState.p1Units, ...gameState.p2Units],
+    }));
+  }catch(err){
+    console.warn('这一局没能记进战绩：', err);
+    return null;
+  }
+}
+
+function recordNoteHtml(rec){
+  return rec
+    ? `<div class="result-record-note">
+         <span>📜 已记入战绩</span>
+         <button class="btn btn-sm btn-confirm" id="btn-result-share">📤 分享这一局</button>
+         <button class="btn btn-sm" id="btn-result-records">查看战绩室</button>
+       </div>`
+    : `<div class="result-record-note is-fail">⚠ 这一局没能记进战绩（浏览器的本地存储写不进去）</div>`;
+}
+
+// renderStatsPanel 把 html 塞进 DOM 之后才能绑事件，所以拆成两步。
+function bindRecordNote(rec){
+  if(!rec) return;
+  const share=document.getElementById('btn-result-share');
+  if(share) share.onclick=()=>{ playSfx('click'); openShareDialog([rec], '这一局'); };
+  const go=document.getElementById('btn-result-records');
+  if(go) go.onclick=()=>{ playSfx('click'); _showScreen('screen-records'); };
+}
+
 function showResult(w){
   // 一局只结算一次。checkVictory() 有两个调用点（nextTurn 和「行动单位已阵亡」
   // 那条分支），胜负已定时**两边都会各排一个 setTimeout(showResult, 700)**。
@@ -464,6 +508,8 @@ function showResult(w){
   // 点掉「继续剧情」，延迟的第二次就会把他从过场/通关界面拽回战斗结算界面。
   if(gameState.resultShown) return;
   gameState.resultShown=true;
+  // 记账放在最前面：中途关掉页面不该丢掉这一局。
+  const rec=commitBattleRecord(w);
   Audio.stopBgm();
   _showScreen('screen-result');
   const actions=document.getElementById('result-actions');
@@ -481,15 +527,16 @@ function showResult(w){
     if(won&&_onCampaignWin) _onCampaignWin('record');
     renderStatsPanel(
       [['敌方总伤害', gameState.stats.p2.dmg]],
-      won
+      recordNoteHtml(rec) + (won
         ? `<div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
              <button class="btn btn-confirm" id="btn-stage-continue">继续剧情 →</button>
            </div>`
         : `<div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
              <button class="btn btn-confirm" id="btn-stage-retry">🔄 再打一次</button>
              <button class="btn" onclick="playSfx('click'); showScreen('screen-campaign')">返回地图</button>
-           </div>`
+           </div>`)
     );
+    bindRecordNote(rec);
     const cont=document.getElementById('btn-stage-continue');
     if(cont) cont.onclick=()=>{ playSfx('click'); if(_onCampaignWin) _onCampaignWin('continue'); };
     const retry=document.getElementById('btn-stage-retry');
@@ -520,7 +567,8 @@ function showResult(w){
   renderStatsPanel([
     ['玩家1 总伤害', gameState.stats.p1.dmg],
     ['玩家2 总伤害', gameState.stats.p2.dmg],
-  ]);
+  ], recordNoteHtml(rec));
+  bindRecordNote(rec);
 }
 
 export function confirmExit(){

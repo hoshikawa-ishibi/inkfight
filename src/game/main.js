@@ -10,6 +10,7 @@ import { applySceneBackground, drawScenePreview, startMenuBackground, stopMenuBa
 import { initRender, renderBattle } from '../view/render.js';
 import { initCharacterGallery } from '../view/character-gallery.js';
 import { openCodex, isModalOpen, closeTop } from '../view/codex.js';
+import { initRecordsScreen } from '../view/records.js';
 import { isDebug, setDebug } from './save.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
@@ -38,6 +39,7 @@ export function showScreen(id) {
   if (id==='screen-campaign') initCampaignScreen();
   if (id==='screen-spectate') initSpectateScreen();
   if (id==='screen-archive') initCharacterGallery();
+  if (id==='screen-records') initRecordsScreen();
 }
 
 function showModal(inner){

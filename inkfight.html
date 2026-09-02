@@ -107,6 +107,121 @@ body {
 .archive-heading-skills { margin-top:18px; }.archive-skills { display:grid; grid-template-columns:1fr 1fr; gap:8px; }.archive-skill { display:flex; gap:9px; padding:10px; min-height:74px; background:rgba(255,255,255,.035); border:1px solid #26364b; }.archive-skill-icon { width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid var(--skill); color:var(--skill); background:color-mix(in srgb,var(--skill) 12%,transparent); }.archive-skill header { display:flex; justify-content:space-between; gap:10px; }.archive-skill header span { color:#16c79a; font-size:9px; white-space:nowrap; }.archive-skill p { margin-top:5px; color:#929eae; font-size:10px; line-height:1.45; }
 @media(max-width:850px){#screen-archive{padding:48px 10px 12px}.archive-shell{grid-template-columns:150px 1fr}.archive-detail{display:block;overflow-y:auto}.archive-portrait{height:360px}.archive-profile{overflow:visible}.archive-stats{grid-template-columns:repeat(2,1fr)}.archive-skills{grid-template-columns:1fr}.archive-roster-item small{display:none}}
 
+
+/* 战绩室：和角色档案同一套骨架（外壳 + 左列表右详情），只是多了顶部页签。 */
+#screen-records { padding:52px 28px 24px; justify-content:flex-start; }
+.records-shell { width:min(1240px,100%); height:calc(100vh - 96px); min-height:560px; display:flex; flex-direction:column; background:rgba(6,9,18,.9); border:1px solid #27364d; box-shadow:0 24px 70px rgba(0,0,0,.55); overflow:hidden; }
+.records-head { display:flex; align-items:flex-end; gap:22px; flex-wrap:wrap; padding:18px 20px 12px; border-bottom:1px solid #304059; background:linear-gradient(180deg,#101929,#090d16); }
+.records-title span { color:#61718b; font-size:10px; letter-spacing:3px; }
+.records-title h2 { margin-top:4px; color:#f2f5f8; letter-spacing:4px; font-size:22px; }
+.records-who { display:flex; flex-direction:column; gap:3px; }
+.records-who label { color:#77859a; font-size:10px; letter-spacing:2px; }
+.records-who input { background:#0d1420; border:1px solid #2b3b52; color:#dce4ec; font-family:inherit; font-size:13px; padding:5px 9px; border-radius:3px; width:180px; }
+.records-who input:focus { outline:none; border-color:#16c79a; }
+.records-who small { color:#5d6a7d; font-size:10px; }
+.records-tabs { margin-left:auto; display:flex; gap:6px; }
+.records-tab { border:1px solid #2b3b52; background:rgba(255,255,255,.03); color:#9dabbd; font-family:inherit; font-size:13px; padding:7px 14px; cursor:pointer; border-radius:3px; transition:.18s; }
+.records-tab:hover { background:rgba(255,255,255,.08); color:#dce4ec; }
+.records-tab.selected { border-color:#e94560; color:#e94560; background:rgba(233,69,96,.12); }
+.records-body { flex:1; min-height:0; overflow:hidden; }
+.records-foot { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:1px solid #304059; background:rgba(9,13,22,.92); }
+.records-foot-right { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.records-split { display:grid; grid-template-columns:300px 1fr; height:100%; min-height:0; }
+.records-list { overflow-y:auto; border-right:1px solid #26354a; padding:8px; display:flex; flex-direction:column; gap:5px; }
+.records-detail { overflow-y:auto; padding:18px 22px 26px; min-width:0; }
+.records-career { overflow-y:auto; height:100%; padding:20px 26px 30px; }
+.records-empty { padding:56px 30px; text-align:center; color:#9dabbd; }
+.records-empty b { color:#dce4ec; font-size:16px; }
+.records-empty p { margin-top:10px; font-size:12px; line-height:1.9; }
+.records-note { color:#7b8798; font-size:11px; line-height:1.85; margin-top:8px; }
+.records-note b { color:#aeb7c2; }
+
+/* 一条战绩 */
+.rec-row { display:block; width:100%; text-align:left; border:0; border-left:3px solid transparent; background:rgba(255,255,255,.025); color:#dce3eb; font-family:inherit; padding:8px 10px; cursor:pointer; transition:.18s; }
+.rec-row:hover { background:rgba(255,255,255,.07); }
+.rec-row.selected { border-left-color:#e94560; background:linear-gradient(90deg,rgba(233,69,96,.18),rgba(255,255,255,.04)); }
+.rec-row-top { display:flex; align-items:center; gap:7px; }
+.rec-row-top b { font-size:12px; color:#e8edf2; }
+.rec-when { margin-left:auto; color:#6d7a8c; font-size:10px; }
+.rec-row-teams { margin-top:5px; color:#98a4b4; font-size:10px; line-height:1.5; }
+.rec-row-teams i { color:#5d6a7d; font-style:normal; margin:0 3px; }
+.rec-row-foot { margin-top:4px; color:#6d7a8c; font-size:10px; }
+.rec-row-flat { border-left-color:#26354a; margin-bottom:4px; }
+.rec-chip { font-size:10px; padding:1px 7px; border:1px solid currentColor; border-radius:2px; letter-spacing:1px; }
+.rec-win { color:#16c79a; }
+.rec-loss { color:#ff6b6b; }
+.rec-none { color:#8d97a8; }
+.rec-tag-backfill { color:#ffd54f; border:1px solid rgba(255,213,79,.5); padding:0 4px; font-size:9px; border-radius:2px; }
+
+/* 一局的详情 */
+.rec-detail-head { display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; border-bottom:1px solid #26354a; padding-bottom:12px; }
+.rec-detail-head h3 { color:#f2f5f8; font-size:17px; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
+.rec-detail-head p { color:#7b8798; font-size:11px; margin-top:5px; }
+.rec-detail-acts { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.rec-backfill-note { margin-top:12px; padding:9px 12px; border-left:3px solid #ffd54f; background:rgba(255,213,79,.07); color:#c3ccd8; font-size:11px; line-height:1.8; }
+.rec-backfill-note b { color:#ffd54f; }
+.rec-detail-kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:14px 0; }
+.rec-detail-kpi div { background:rgba(255,255,255,.04); padding:8px 10px; border-bottom:2px solid #26374e; }
+.rec-detail-kpi span { display:block; color:#77859a; font-size:10px; }
+.rec-detail-kpi b { display:block; margin-top:3px; color:#dce4ec; font-size:14px; }
+.rec-detail-teams { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.rec-detail-teams h4 { font-size:12px; letter-spacing:2px; margin-bottom:7px; padding-left:8px; border-left:3px solid currentColor; }
+.rec-side-1 { color:#e94560; }
+.rec-side-2 { color:#16c79a; }
+.rec-unit { display:flex; align-items:center; gap:10px; padding:6px 9px; margin-bottom:4px; background:rgba(255,255,255,.035); border:1px solid #22303f; font-size:11px; color:#98a4b4; }
+.rec-unit b { color:#dce4ec; min-width:56px; }
+.rec-unit.is-mvp { border-color:rgba(255,213,79,.55); background:rgba(255,213,79,.08); }
+.rec-unit.is-mvp b::after { content:" ⭐"; }
+.rec-friend-games { margin-top:14px; max-height:230px; overflow-y:auto; }
+
+/* 生涯 */
+.rec-kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+.rec-kpi-grid div { background:rgba(255,255,255,.04); padding:10px 12px; border-bottom:2px solid #26374e; }
+.rec-kpi-grid span { display:block; color:#77859a; font-size:10px; }
+.rec-kpi-grid b { display:block; margin-top:4px; color:#dce4ec; font-size:19px; }
+.rec-section { margin:20px 0 9px; color:#e94560; font-size:13px; letter-spacing:2px; border-left:3px solid #e94560; padding-left:9px; }
+.rec-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; font-size:11px; color:#c3ccd8; }
+.rec-bar-row span { min-width:44px; }
+.rec-bar-row b { min-width:96px; text-align:right; color:#9dabbd; font-weight:normal; }
+.rec-bar { flex:1; height:9px; background:rgba(255,255,255,.06); border:1px solid #26354a; }
+.rec-bar i { display:block; height:100%; background:linear-gradient(90deg,#16c79a,#4fc3f7); }
+.rec-chars { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:5px; }
+.rec-char-row { display:flex; align-items:center; gap:9px; padding:6px 9px; background:rgba(255,255,255,.035); border:1px solid #22303f; font-size:10px; color:#8f9cad; }
+.rec-char-row b { color:#dce4ec; font-size:12px; min-width:48px; }
+.rec-danger-zone { margin-top:26px; padding-top:14px; border-top:1px dashed #33445c; }
+
+/* 分享 / 导入的弹窗 */
+.rec-modal-sub { color:#9dabbd; font-size:12px; line-height:1.8; margin-bottom:10px; }
+.rec-modal-note { color:#7b8798; font-size:11px; line-height:1.8; margin:10px 0; }
+.rec-modal-actions { flex-wrap:wrap; justify-content:flex-start !important; margin-bottom:10px; }
+.rec-modal-close { margin-left:auto; }
+.rec-modal-status { color:#16c79a; font-size:11px; min-height:16px; margin-top:8px; }
+.rec-code { width:100%; background:#0b1018; border:1px solid #2b3b52; color:#8fd6c0; font-family:inherit; font-size:11px; line-height:1.6; padding:9px; border-radius:3px; resize:vertical; word-break:break-all; }
+.rec-code:focus { outline:none; border-color:#16c79a; }
+.rec-import-result { margin-top:12px; }
+.rec-verify-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.rec-verify { font-size:11px; padding:2px 9px; border:1px solid currentColor; border-radius:2px; }
+.rec-verify.ok { color:#16c79a; }
+.rec-verify.bad { color:#ff6b6b; }
+.rec-good { color:#16c79a; font-size:12px; line-height:1.8; }
+.rec-bad { color:#ff6b6b; font-size:12px; line-height:1.8; }
+.rec-problems { margin:8px 0 0 18px; color:#ffab91; font-size:11px; line-height:1.75; }
+
+/* 结算界面里的「已记入战绩」 */
+.result-record-note { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px dashed #333; color:#16c79a; font-size:12px; }
+.result-record-note.is-fail { color:#ffab91; }
+
+@media(max-width:900px){
+  #screen-records { padding:48px 8px 12px; }
+  .records-split { grid-template-columns:1fr; }
+  .records-list { max-height:200px; border-right:0; border-bottom:1px solid #26354a; }
+  .records-detail { padding:14px; }
+  .rec-detail-kpi { grid-template-columns:repeat(2,1fr); }
+  .rec-detail-teams { grid-template-columns:1fr; }
+  .rec-kpi-grid { grid-template-columns:repeat(3,1fr); }
+  .records-tabs { margin-left:0; }
+}
+
 .option-grid { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; max-width:1100px; margin:16px 0 24px; }
 .option-card {
   width:240px; border:2px solid #0f3460; border-radius:10px; padding:18px;
@@ -458,9 +573,10 @@ body {
   <div class="title-deco"></div>
   <p>在黑白交织的墨境世界中，火柴人战士们以灵能（SP）为力量源泉展开对决。<br>
   小心灵能过载——SP 蓄得太满，就会被对手扰乱！</p>
-  <div style="display:flex; gap:12px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
     <button class="btn" onclick="playSfx('click'); showScreen('screen-mode')">⚔ 开始对战</button>
     <button class="btn" onclick="playSfx('click'); showScreen('screen-archive')">◈ 角色档案</button>
+    <button class="btn" onclick="playSfx('click'); showScreen('screen-records')">📜 战绩室</button>
     <button class="btn btn-sm" onclick="playSfx('click'); showHelp()">❓ 玩法说明</button>
   </div>
 </div>
@@ -474,6 +590,33 @@ body {
       <button class="btn btn-sm archive-back" onclick="playSfx('click'); showScreen('screen-title')">返回首页</button>
     </aside>
     <main class="archive-detail" id="archive-detail"></main>
+  </div>
+</div>
+
+<!-- 战绩室 -->
+<div id="screen-records">
+  <div class="records-shell">
+    <header class="records-head">
+      <div class="records-title"><span>INKFIGHT RECORDS</span><h2>战 绩 室</h2></div>
+      <div class="records-who">
+        <label>我的名字</label>
+        <input id="records-name" maxlength="12" placeholder="无名墨客">
+        <small>分享战绩时，朋友看到的署名</small>
+      </div>
+      <nav class="records-tabs">
+        <button class="records-tab" data-tab="mine">📜 我的战绩</button>
+        <button class="records-tab" data-tab="career">📊 生涯</button>
+        <button class="records-tab" data-tab="friends">👥 好友战绩</button>
+      </nav>
+    </header>
+    <div class="records-body" id="records-body"></div>
+    <footer class="records-foot">
+      <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-title')">返回首页</button>
+      <div class="records-foot-right">
+        <button class="btn btn-sm" id="btn-records-import">📥 导入好友战绩</button>
+        <button class="btn btn-sm btn-confirm" id="btn-records-export">📤 分享我的战绩</button>
+      </div>
+    </footer>
   </div>
 </div>
 

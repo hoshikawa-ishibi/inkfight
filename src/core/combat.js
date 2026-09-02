@@ -558,6 +558,10 @@ export const DIFFICULTY_MODS = {
   nightmare: { atk: 1.08, spRegen: 1.05 },
 };
 
+// 难度的显示名。以前这份表写在 battle.js 里，战绩室需要同一份时
+// 差点又抄了一遍——难度的一切（加成、名字）都放这个文件。
+export const DIFF_LABEL = { easy:'简单', normal:'普通', hard:'困难', nightmare:'墨皇' };
+
 export function applyDifficulty(unit, level){
   return applyStageMod(unit, DIFFICULTY_MODS[level]);
 }

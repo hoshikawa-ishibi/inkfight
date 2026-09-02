@@ -184,7 +184,9 @@ function markTaught(id){
 //
 // 弹窗不推进回合：回合由 battle.js 的 setTimeout 驱动，
 // 遮罩挡住鼠标，键盘由 main.js 的 `isModalOpen()` 拦截。
-function openModal(inner, wide, onClose){
+// 战绩室的弹窗也走这里，不另造一套：`closeTop()`（ESC）对所有 .modal-mask
+// 一视同仁，各写一份 remove() 就会绕过 onClose。
+export function openModal(inner, wide, onClose){
   const mask = document.createElement('div');
   mask.className = 'modal-mask';
   mask.innerHTML = `<div class="modal-box${wide ? ' modal-wide' : ''}">${inner}</div>`;
@@ -193,7 +195,7 @@ function openModal(inner, wide, onClose){
   document.body.appendChild(mask);
   return mask;
 }
-function dismiss(mask){
+export function dismiss(mask){
   if(!mask || !mask.isConnected) return;
   const cb = mask._onClose;
   mask._onClose = null;          // 只回调一次

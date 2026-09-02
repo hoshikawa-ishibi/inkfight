@@ -70,6 +70,21 @@ src/data/data.js（技能配置）
   `battle.js` 里「降低40%」写死过两处、`render.js` 的 tooltip 写死过一处，
   和 `INTERRUPT_OUTPUT_MULTIPLIER` 是两份实现——改数值时它们不会跟着走，
   而且**不报错**，只是安静地对玩家说错话。
+- **战绩的防伪写不写得住，全在「别撒谎」三个字上。**
+  纯前端游戏没有服务器，签名密钥就在玩家自己的浏览器里，**做不到真的防伪**。
+  能做的是两层：HMAC 签名挡「拿记事本改数字」，`auditRecord` 的自洽检查挡
+  「读过源码、能重新签名」的人。界面上那段说明（`share-code.js` 的
+  `SHARE_TRUST_NOTE`）把这条边界原样写出来了——**别把它改成「已认证 ✓」**，
+  一个假的认证比不做校验更糟。要改措辞只改那一个常量。
+- **`auditRecord` 的规则宁可漏判，不可误判。** 一条会对真实对局报警的规则，
+  会让玩家学会无视警告，整套校验就废了。反例已经撞过一次：
+  「击杀数之和 = 阵亡单位数」看着天经地义，但腐化爆发 / 瘟疫 / 狂暴自伤 / 墨蚀
+  造成的死亡都不记击杀——用户 2026-09-02 那局正是 4 人全灭、只有 2 次记名击杀。
+  同理，编制**不能**写死成「每方 4 人」：战役是 2v2，最终关还是墨皇 1 打 2。
+- **分享码的编码表只能往末尾追加。** `share-code.js` 的 `CHAR_ORDER` /
+  `SCENE_ORDER` / `MODE_ORDER` / `DIFF_ORDER` 用下标代替字符串来压缩长度，
+  往中间插一项，会让**所有已经发出去的分享码**解成另一个角色 / 场景，
+  而且不报错。加角色只能加在 `data.js` 的 `CHARACTERS` 末尾。
 - **弹窗只有一个关闭出口。** 一个弹窗有三种关法（按钮 / 点背景 / ESC），
   只要有一条路绕过统一的 `dismiss()`，队列类逻辑就会静默卡死。
   教学提示踩过：ESC 关掉之后 `showing` 永远是 `true`，后面所有提示进队列再也不出来，
@@ -141,10 +156,15 @@ docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）
 | **`src/core/combat.js`** | **战斗规则引擎（纯函数，无 DOM/Audio/setTimeout）。`battle.js` 和 `sim.js` 唯一的规则真相来源：`createUnit`, `getEffectiveAtk`, `previewDmg`, `applyTurnRegen`, `handleDeath`, `triggerPassive`, `processStartOfTurn`, `calcDamage`, `calcStun`, `applyCorrupt`, `applyPlague`, `applyCorruptBurst`**。另含 `DIFFICULTY_MODS` / `applyDifficulty`（难度档位给 AI 的属性加成，改数值只改这一处） |
 | `src/game/battle.js` | 回合流程编排 + DOM 渲染 + 音效特效。规则计算全部委托 `combat.js`，本文件只负责呈现（`renderPassiveEvent`/`presentDeath` 把 combat 返回的事件对象翻译成日志和特效） |
 | `tools/sim.js` | 无头战斗模拟器（平衡测试用）。规则来自 `combat.js`，决策直接调 `ai.js` 的 `aiHard`——本文件不再有任何自己的评分代码。另含 `shuffle`（Fisher-Yates）、`runSimulation`（`onDone(charStats, meta)`，`meta` 带平均回合数与超时率） |
-| `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）。共 311 条，`npm test` |
+| `test/` | `combat.test.js`（公式对不对）、`shuffle.test.js`、`ai.test.js`、`ai-teamwork.test.js`、`syntax.test.js`（全仓库 `node --check` + import 目标核对）、`skill-coverage.test.js`（**每种技能类型都真的被 `sim.js` 的 switch 接住**）、`record.test.js`（**SHA-256 / HMAC 用的是 FIPS 与 RFC 4231 的标准向量**——自己写的哈希算错了但一直自洽，是这个功能唯一致命且最难自查的失败方式）。共 378 条，`npm test` |
 | `src/data/campaign.js` | `CAMPAIGN_STAGES`（8关数据：阵容含剧情身份、场景、AI档、`enemyMod` 属性加成、分段剧情数组）+ `CAMPAIGN_HERO`（固定主角墨白）+ `CAMPAIGN_ALLIES`（队友解锁表）+ `enemyIds` / `availableAllies` / `unlockedAfter` |
 | `src/view/codex.js` | **机制词典 + 一次性教学提示**（UX 阶段 3）。一份词条表 `CODEX` 同时供两者用：`short` 是提示弹窗那句、`body` 是词典常驻版。`teachOnce(id)` 每条只弹一次（存 `inkfight_taught`），`openCodex()` 打开词典。**所有关闭路径必须走 `dismiss()`** |
-| `src/game/save.js` | **本地存档的唯一入口**：`isDebug`/`setDebug`（实验功能总开关）、`recordCharPlays`/`insightUnlocked`（角色出战局数 → 机制解读解锁，key `inkfight_charplays`）。放在 `game/` 而不是 `core/` 是因为它碰 localStorage，Node 里跑不动 |
+| **`src/core/record.js`** | **战绩的数据模型 + `mvpOf` + `summarize` + `auditRecord`**（纯函数）。MVP 的算法只有这一份，结算面板和战绩室共用。`auditRecord` 是防伪的第二层，规则的写法有硬要求，见下文「工作约定」 |
+| `src/core/share-code.js` | 分享码的编解码 + HMAC-SHA256 签名。`encodeShare` / `decodeShare` / `SHARE_TRUST_NOTE`（界面上那段「能挡什么、挡不住什么」的说明，**只有这一份**） |
+| `src/core/sha256.js` | SHA-256 / HMAC-SHA256 / base64url / UTF-8。**浏览器和 Node 共用同一份**——`crypto.subtle` 是异步且依赖安全上下文，`node:crypto` 浏览器里没有，两边各挑一个就又是「同一份知识两份实现」 |
+| `src/data/backfill-records.js` | 手工补录的战绩（有结算截图为凭）。全部带 `backfilled: true`，界面上显示「补录」小标。**抄错一个数字会在 `npm test` 里当场报出来**（它们同样要过 `auditRecord`） |
+| `src/view/records.js` | **战绩室**：我的战绩 / 生涯 / 好友战绩 + 导出导入。弹窗一律用 `codex.js` 的 `openModal`/`dismiss`，不另造一套 |
+| `src/game/save.js` | **本地存档的唯一入口**：`isDebug`/`setDebug`（实验功能总开关）、`recordCharPlays`/`insightUnlocked`（角色出战局数 → 机制解读解锁，key `inkfight_charplays`）、战绩三件套（`inkfight_records_v1` / `inkfight_friends_v1` / `inkfight_profile_v1`）。放在 `game/` 而不是 `core/` 是因为它碰 localStorage，Node 里跑不动 |
 | `src/game/main.js` | 入口：UI 流程、事件监听（含**观战模式** `initSpectateScreen` / `confirmSpectate`）、`init*()` 调用、`window` 暴露。含**调试模式**：顶栏 🔊 连点 5 次开关（图标变 🛠），作用只是让 `getCampaignProgress()` 返回满进度——所有解锁门槛都从它推，所以一处撒谎即全解锁。写进度走 `rawCampaignProgress()`，真实存档不被污染 |
 | `tools/balance-report.mjs` | `npm run balance` 的入口（角色之间平不平衡） |
 | `tools/difficulty-check.mjs` | 难度公平性诊断（玩家打得过哪一档）。**玩家替身不是 aiHard**——那是完美玩家，会把每一档都校偏；现在用 `ai.js` 的 `makeAi` 造三档人类替身（熟手/一般/生手，靠 `noise` 分档），公平线是「该水平玩家自己打自己」。属性加成读 `combat.js` 的 `DIFFICULTY_MODS` |
@@ -230,6 +250,9 @@ docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）
   等于降低最优选项的被选中率。** 同一轮里加强鼓姬却成功（43.2 → 47），
   区别在于加强的是她唯一的支柱而不是死内容。
   动手前先问：加强之后它**该不该**赢过现有的主力选项？
+- **MVP 的算法和难度名现在各只有一份**：`core/record.js` 的 `mvpOf`、
+  `core/combat.js` 的 `DIFF_LABEL`。加战绩室时它们本来要被抄第二遍——
+  抄了的后果是「结算说 MVP 是弓手、战绩里说是刺客」，而两边都不会报错。
 - **测试里不要写死平衡数值。** `s.cost === 35`、`2*8` 这类断言会在每次调数值时假报错，
   而且报的还是无关的地方。改成读常量、或按「最贵的那个」这种相对方式找。
 - **慢环境是照妖镜**。`showResult` 被调用两次那个 bug，是浏览器把标签页降频之后才现形的。
