@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createUnit } from '../src/core/combat.js';
-import { newExpedition, restoreExpedition, relicOffers, routeOffers, takeRelic, chooseRoute, launchEncounter, resolveEncounter, chooseCamp, applyExpeditionBattle, JOURNEY_RULES } from '../src/core/expedition.js';
+import { newExpedition, restoreExpedition, relicOffers, routeOffers, takeRelic, chooseRoute, launchEncounter, resolveEncounter, chooseCamp, applyExpeditionBattle, expeditionProgress, JOURNEY_RULES } from '../src/core/expedition.js';
 
 function launched(){
   const r=newExpedition('edge','固定墨路');takeRelic(r,'flow');chooseRoute(r,routeOffers(r)[0].id);launchEncounter(r);return r;
@@ -27,6 +27,17 @@ test('three encounters complete once; rewards cannot be farmed through duplicate
   }
   assert.equal(r.phase,'complete');assert.equal(r.history.length,3);
   assert.ok(restoreExpedition(r));
+});
+test('journey progress distinguishes intermediate wins, the next checkpoint and final completion',()=>{
+  const r=launched();
+  resolveEncounter(r,{winner:1,rounds:4,finalUnits:units(r)});
+  assert.deepEqual(expeditionProgress(r),{total:3,completed:1,current:1,next:2,rewardsRemaining:1});
+  takeRelic(r,relicOffers(r)[0].id);chooseCamp(r,'rest');chooseRoute(r,routeOffers(r)[0].id);launchEncounter(r);
+  resolveEncounter(r,{winner:1,rounds:5,finalUnits:units(r)});
+  assert.deepEqual(expeditionProgress(r),{total:3,completed:2,current:2,next:3,rewardsRemaining:1});
+  takeRelic(r,relicOffers(r)[0].id);chooseCamp(r,'rest');chooseRoute(r,routeOffers(r)[0].id);launchEncounter(r);
+  resolveEncounter(r,{winner:1,rounds:6,finalUnits:units(r)});
+  assert.deepEqual(expeditionProgress(r),{total:3,completed:3,current:3,next:null,rewardsRemaining:0});
 });
 test('elite rewards require two different choices, then a single camp decision',()=>{
   const r=newExpedition('sigil','险路');takeRelic(r,'heavy');chooseRoute(r,routeOffers(r)[1].id);launchEncounter(r);

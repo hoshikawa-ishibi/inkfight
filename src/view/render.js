@@ -4,11 +4,16 @@ import { syncBattle3D, animateStageUnit } from "./battle3d.js";
 import { previewInkSkill } from "../core/ink-turn.js";
 import { previewSkillOutcome } from "../core/skill-executor.js";
 import { CRIT_METER_FULL } from "../core/combat.js";
-let _getEffectiveAtk, _onTargetClick, _onPreviewUnit;
-export function initRender(atk, target, preview) {
+import {
+  critGuidePresentation,
+  critMeterPresentation,
+} from "./tactical.js";
+let _getEffectiveAtk, _onTargetClick, _onPreviewUnit, _openInfo;
+export function initRender(atk, target, preview, openInfo) {
   _getEffectiveAtk = atk;
   _onTargetClick = target;
   _onPreviewUnit = preview;
+  _openInfo = openInfo;
 }
 const esc = (s) =>
   String(s ?? "").replace(
@@ -52,7 +57,7 @@ function actOnUnit(u) {
   if (targetable(u)) _onTargetClick(u);
   else if (pickable(u)) _onPreviewUnit(u);
   else {
-    document.getElementById("battle-info").hidden = false;
+    _openInfo?.("unit");
     renderInspector();
   }
 }
@@ -106,6 +111,7 @@ function brief(u) {
   return bits.join(" · ") || status(u);
 }
 function renderUnit(u) {
+  const crit = critMeterPresentation(u);
   const el = document.createElement("button");
   el.id = "unit-" + u.id;
   el.type = "button";
@@ -130,6 +136,8 @@ function renderUnit(u) {
       u.hp +
       "/" +
       u.maxHp +
+      "，锋芒 " +
+      crit.label +
       "，" +
       status(u),
   );
@@ -149,7 +157,13 @@ function renderUnit(u) {
     u.hp +
     "/" +
     u.maxHp +
-    '</div><div class="unit-brief">' +
+    '</div><div class="unit-crit' +
+    (crit.ready ? " is-ready" : "") +
+    '"><span>✦ 锋芒</span><b>' +
+    crit.label +
+    '</b><i aria-hidden="true"><em style="width:' +
+    crit.fillPercent +
+    '%"></em></i></div><div class="unit-brief">' +
     esc(brief(u)) +
     "</div></div>" +
     (tip ? '<span class="target-preview">' + tip + "</span>" : "");
@@ -182,6 +196,7 @@ export function renderBattle() {
   renderFallback();
   syncBattle3D();
   renderInspector();
+  renderBattleTactics();
   const units = getAllUnits();
   document
     .querySelectorAll("#battle-3d .arena-name")
@@ -199,6 +214,39 @@ export function renderBattle() {
         "模型：玩家" + u.player + " " + u.name + "，" + status(u),
       );
     });
+}
+
+export function renderBattleTactics() {
+  const root = document.getElementById("battle-tactics");
+  if (!root) return;
+  const u =
+    getUnit(gameState.pendingActor?.id) ||
+    getUnit(gameState.previewUnitId) ||
+    getUnit(gameState.activeUnitId) ||
+    getUnit(gameState.inspectedUnitId);
+  if (!u) {
+    root.className = "battle-tactics is-empty";
+    root.textContent = "选择队员，查看锋芒与下一次重击。";
+    return;
+  }
+  const enemies = u.player === 1 ? gameState.p2Units : gameState.p1Units;
+  const crit = critGuidePresentation(u, (skill) =>
+    skill.type === "damageAll"
+      ? enemies.filter((enemy) => enemy.alive).length
+      : undefined,
+  );
+  root.className =
+    "battle-tactics" + (crit.readySkills.length ? " is-ready" : "");
+  root.innerHTML =
+    '<span class="tactical-owner">' +
+    esc(u.name) +
+    '</span><span class="tactical-meter">✦ 锋芒 <b>' +
+    crit.label +
+    '</b></span><span class="tactical-state">' +
+    esc(crit.state) +
+    '</span><span class="tactical-rule">' +
+    esc(crit.rule) +
+    "</span>";
 }
 function renderFallback() {
   let root = document.querySelector(".fallback-stage");
@@ -235,8 +283,9 @@ export function renderInspector() {
     getUnit(gameState.activeUnitId) ||
     gameState.p1Units[0];
   if (!u) return;
+  const crit = critGuidePresentation(u);
   panel.innerHTML =
-    "<h4>" +
+    '<p class="inspector-kicker">角色详情</p><h4>' +
     esc(u.name) +
     " · " +
     status(u) +
@@ -248,12 +297,15 @@ export function renderInspector() {
     (u.critMeter || 0) +
     "/" +
     CRIT_METER_FULL +
+    (crit.overflow ? "（溢出 +" + crit.overflow + "）" : "") +
     "</span></div><p>生命 " +
     u.hp +
     "/" +
     u.maxHp +
     " · 每击锋芒 +" +
     u.crit +
+    " · " +
+    esc(crit.state) +
     '</p><div class="unit-status">' +
     statusChips(u) +
     "</div><p><b>" +

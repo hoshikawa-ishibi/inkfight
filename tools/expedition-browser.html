@@ -1,12 +1,114 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>墨路远征 · 浏览器验收台</title>
-<style>body{margin:0;background:#101b22;color:#cce6d9;font:13px system-ui}header{padding:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}button{padding:7px 12px;background:#a9c7ae;border:0;cursor:pointer}iframe{width:100%;height:calc(100vh - 58px);border:0;display:block}#status{color:#dec992}</style>
-<header><b>真实界面验收</b><button id="auto">开启玩家代理</button><button id="manual">交还手动</button><button id="mobile">390px 手机视口</button><span id="status">手动操作 · 测试保持静音</span></header>
-<iframe id="game" title="真实游戏界面" src="../inkfight.html"></iframe>
-<script type="module">
-const frame=document.querySelector('#game');
-frame.onload=()=>{const script=frame.contentDocument.createElement('script');script.type='module';script.src=new URL('./expedition-browser-driver.js',location.href).href;frame.contentDocument.body.append(script);};
-document.querySelector('#auto').onclick=()=>frame.contentWindow.postMessage({inkCheck:'auto'},location.origin);
-document.querySelector('#manual').onclick=()=>frame.contentWindow.postMessage({inkCheck:'manual'},location.origin);
-document.querySelector('#mobile').onclick=()=>{frame.style.width=frame.style.width==='390px'?'100%':'390px';frame.style.height='844px';};
-window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===frame.contentWindow&&e.data.inkCheckStatus)document.querySelector('#status').textContent=e.data.inkCheckStatus;});
-</script></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>墨路远征 · 浏览器验收台</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #101b22; color: #cce6d9; font: 13px system-ui; }
+      header { position: sticky; left: 0; top: 0; z-index: 2; width: 100vw; min-width: 390px; padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #101b22; border-bottom: 1px solid #29424b; }
+      button { padding: 7px 12px; color: #102026; background: #a9c7ae; border: 1px solid transparent; border-radius: 3px; cursor: pointer; }
+      button[aria-pressed="true"] { border-color: #f2d18c; box-shadow: inset 0 0 0 1px #101b22; }
+      #preview-note { color: #9fc7bc; }
+      #status { flex: 1 0 100%; margin: 0; color: #dec992; white-space: pre-wrap; line-height: 1.45; }
+      #stage { position: relative; width: 1920px; height: 1080px; margin: 0 auto; overflow: visible; }
+      #viewport { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: top left; background: #05090b; }
+      iframe { width: 100%; height: 100%; border: 0; display: block; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>真实界面验收</b>
+      <button id="auto">开启玩家代理</button>
+      <button id="manual">交还手动</button>
+      <button data-size="2817x1486">2817×1486</button>
+      <button data-size="1920x1080" aria-pressed="true">1920×1080</button>
+      <button data-size="1280x720">1280×720</button>
+      <button data-size="390x844">390×844</button>
+      <button id="fit" aria-pressed="true">适配预览：开</button>
+      <span id="preview-note">逻辑视口 1920×1080 · 缩放仅用于验收台预览</span>
+      <pre id="status">手动操作 · 测试保持静音 · 等待游戏载入</pre>
+    </header>
+    <main id="stage"><div id="viewport"><iframe id="game" title="真实游戏界面" src="../inkfight.html"></iframe></div></main>
+    <script type="module">
+      const frame = document.querySelector("#game");
+      const header = document.querySelector("header");
+      const stage = document.querySelector("#stage");
+      const viewport = document.querySelector("#viewport");
+      const status = document.querySelector("#status");
+      const fitButton = document.querySelector("#fit");
+      const previewNote = document.querySelector("#preview-note");
+      const sizeButtons = Array.from(document.querySelectorAll("[data-size]"));
+      let logicalWidth = 1920;
+      let logicalHeight = 1080;
+      let fitPreview = true;
+
+      function layoutViewport() {
+        const availableWidth = Math.max(160, document.documentElement.clientWidth - 24);
+        const availableHeight = Math.max(120, window.innerHeight - header.getBoundingClientRect().height - 16);
+        const scale = fitPreview
+          ? Math.min(1, availableWidth / logicalWidth, availableHeight / logicalHeight)
+          : 1;
+        viewport.style.width = `${logicalWidth}px`;
+        viewport.style.height = `${logicalHeight}px`;
+        viewport.style.transform = `scale(${scale})`;
+        stage.style.width = `${logicalWidth * scale}px`;
+        stage.style.height = `${logicalHeight * scale}px`;
+        previewNote.textContent = `逻辑视口 ${logicalWidth}×${logicalHeight} · ${fitPreview ? `适配缩放 ${Math.round(scale * 100)}%` : "原尺寸 100%"} · 缩放仅用于验收台预览`;
+        return { width: logicalWidth, height: logicalHeight, scale };
+      }
+
+      function setViewport(width, height) {
+        logicalWidth = Math.max(320, Math.round(Number(width) || 0));
+        logicalHeight = Math.max(320, Math.round(Number(height) || 0));
+        sizeButtons.forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset.size === `${logicalWidth}x${logicalHeight}` ? "true" : "false");
+        });
+        return layoutViewport();
+      }
+
+      function setFitPreview(enabled) {
+        fitPreview = Boolean(enabled);
+        fitButton.setAttribute("aria-pressed", String(fitPreview));
+        fitButton.textContent = `适配预览：${fitPreview ? "开" : "关"}`;
+        return layoutViewport();
+      }
+
+      function send(inkCheck) {
+        frame.contentWindow?.postMessage({ inkCheck }, location.origin);
+      }
+
+      frame.addEventListener("load", () => {
+        const script = frame.contentDocument.createElement("script");
+        script.type = "module";
+        script.src = new URL("./expedition-browser-driver.js", location.href).href;
+        frame.contentDocument.body.append(script);
+      });
+      document.querySelector("#auto").addEventListener("click", () => send("auto"));
+      document.querySelector("#manual").addEventListener("click", () => send("manual"));
+      fitButton.addEventListener("click", () => setFitPreview(!fitPreview));
+      sizeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const [width, height] = button.dataset.size.split("x").map(Number);
+          setViewport(width, height);
+        });
+      });
+      window.addEventListener("message", (event) => {
+        if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+        if (event.data.inkCheckStatus) status.textContent = event.data.inkCheckStatus;
+      });
+      window.addEventListener("resize", layoutViewport);
+      new ResizeObserver(layoutViewport).observe(header);
+
+      window.inkExpeditionCheck = Object.freeze({
+        setViewport,
+        setFitPreview,
+        snapshot: () => frame.contentWindow?.inkCheckApi?.snapshot() || null,
+        start: () => send("auto"),
+        stop: () => send("manual"),
+      });
+      layoutViewport();
+    </script>
+  </body>
+</html>

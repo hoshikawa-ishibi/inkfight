@@ -9,6 +9,7 @@ import {
   launchEncounter,
   resolveEncounter,
   chooseCamp,
+  expeditionProgress,
 } from "../core/expedition.js";
 import { PARTY_PRESETS, loadSavedParties } from "../core/party.js";
 import { renderExpedition } from "../view/expedition-view.js";
@@ -62,9 +63,11 @@ function render() {
     root.prepend(note);
   }
 }
-function confirmReplace(callback) {
+function confirmReplace(callback, abandoning = false) {
   const mask = openModal(
-    '<h3>重写这条墨路？</h3><p>当前旅程会被新旅程替换，已完成次数会保留。</p><div class="row"><button class="btn btn-confirm">重写旅程</button><button class="btn" data-cancel>保留当前</button></div>',
+    abandoning
+      ? '<h3>结束本次远征？</h3><p>将放弃当前旅程，已完成次数与称号会保留。</p><div class="row"><button class="btn btn-confirm">结束本次远征</button><button class="btn" data-cancel>继续旅程</button></div>'
+      : '<h3>重写这条墨路？</h3><p>当前旅程会被新旅程替换，已完成次数会保留。</p><div class="row"><button class="btn btn-confirm">重写旅程</button><button class="btn" data-cancel>保留当前</button></div>',
   );
   mask.querySelector("[data-cancel]").onclick = () => dismiss(mask);
   mask.querySelector(".btn-confirm").onclick = () => {
@@ -149,13 +152,14 @@ function launch() {
   startBattle();
 }
 export function finishExpeditionBattle(result) {
-  if (!run || !resolveEncounter(run, result)) return;
+  if (!run || !resolveEncounter(run, result)) return null;
   if (run.phase === "complete") {
     best.completed++;
     if (run.activeRoute?.kind === "elite" && !best.titles.includes("破阵归人"))
       best.titles.push("破阵归人");
   }
   persist();
+  return { phase: run.phase, ...expeditionProgress(run) };
 }
 async function act(action, value) {
   playSfx("click");
@@ -203,7 +207,7 @@ async function act(action, value) {
       landing = true;
       persist();
       render();
-    });
+    }, true);
     return;
   }
   if (action === "copy-seed") {

@@ -44,6 +44,8 @@ node tools/expedition-check.mjs 180  # 远征诊断
 
 当前页面集合是 `title`、`expedition`、`duel`、`archive`、`records`、`battle`、`result`。新增页面必须沿用 `[id^="screen-"]` 的显示机制，不能手抄屏幕列表。弹窗所有关闭路径都走统一 `dismiss()`。状态字段删除或改名后必须全仓库搜索读取方。
 
+页面切换统一设置 `hidden`、`inert` 与 `active`；非活动页面必须实际不占布局。不能只检查 `active` 类：远征曾因高优先级 `display:flex` 覆盖隐藏规则而把战场挤到下一屏。浏览器验收需检查 computed style、矩形、页面滚动及当前唯一可见页，覆盖 2817×1486 宽屏和 390×844 手机视口。
+
 3D 战场只负责 canvas、标签、镜头和模型反馈；角色卡、墨量 HUD、技能 dock 由上层布局负责。3D 失败必须回退立绘。动画不改变战斗计算；`reduced-motion` 只减少表现。
 
 ## 提交边界

@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="src/view/expedition.css" />
     <link rel="stylesheet" href="src/view/party-builder.css" />
     <link rel="stylesheet" href="src/view/game.css" />
+    <link rel="stylesheet" href="src/view/tactical.css" />
   </head>
   <body>
     <div id="scene-bg"></div>
@@ -38,37 +39,40 @@
     </header>
     <div id="shake-wrap">
       <section id="screen-title" class="active">
-        <div class="title-hero">
-          <div class="title-halo"></div>
-          <img id="title-hero-image" alt="" />
-        </div>
-        <div class="title-copy">
-          <span class="title-edition">全队共享 · 三笔成阵</span>
-          <p class="subtitle">INKFIGHT / A SHARED INK TACTICS GAME</p>
-          <h1>一队四人<em>三墨同心</em></h1>
-          <p class="title-manifesto">谁先落笔，由你决定。</p>
-          <p class="title-description">
-            三人连携，一击孤注，或留白化盾。<br />同一份墨量，写出不一样的胜局。
-          </p>
-          <div class="title-actions">
-            <button class="btn title-primary" id="btn-expedition">
-              墨路远征 ↗</button
-            ><button class="btn title-secondary" onclick="openDuel()">
-              自由对战 ↗
-            </button>
+        <div class="title-stage">
+          <div class="title-hero">
+            <div class="title-halo"></div>
+            <img id="title-hero-image" alt="" />
           </div>
-          <div class="home-resume" id="home-resume"></div>
-          <small id="quick-battle-note"></small>
-          <div class="title-links">
-            <button id="btn-quick-battle" onclick="quickBattle()">
-              即刻试一局 ↗</button
-            ><button onclick="showScreen('screen-archive')">行者图鉴 ↗</button
-            ><button onclick="showScreen('screen-records')">战绩 ↗</button
-            ><a href="model-workshop.html">3D 造物间 ↗</a>
+          <div class="title-copy">
+            <span class="title-edition">全队共享 · 三笔成阵</span>
+            <p class="subtitle">INKFIGHT / A SHARED INK TACTICS GAME</p>
+            <h1>一队四人<em>三墨同心</em></h1>
+            <p class="title-manifesto">谁先落笔，由你决定。</p>
+            <p class="title-description">
+              三人连携，一击孤注，或留白化盾。<br />同一份墨量，写出不一样的胜局。
+            </p>
+            <div class="title-actions">
+              <button class="btn title-primary" id="btn-expedition">
+                墨路远征 ↗</button
+              ><button class="btn title-secondary" onclick="openDuel()">
+                自由对战 ↗
+              </button>
+            </div>
+            <div class="home-resume" id="home-resume"></div>
+            <small id="quick-battle-note"></small>
+            <div class="title-links">
+              <button id="btn-quick-battle" onclick="quickBattle()">
+                即刻试一局 ↗</button
+              ><button onclick="showScreen('screen-archive')">
+                行者图鉴 ↗</button
+              ><button onclick="showScreen('screen-records')">战绩 ↗</button
+              ><a href="model-workshop.html">3D 造物间 ↗</a>
+            </div>
           </div>
-        </div>
-        <div class="title-hero-label">
-          <b id="title-hero-name"></b><span id="title-hero-role"></span>
+          <div class="title-hero-label">
+            <b id="title-hero-name"></b><span id="title-hero-role"></span>
+          </div>
         </div>
         <div class="title-roster-wrap">
           <div class="title-roster-head">
@@ -78,8 +82,8 @@
           <div id="title-roster" aria-label="选择首页角色"></div>
         </div>
       </section>
-      <section id="screen-expedition"></section>
-      <section id="screen-duel" class="page-shell">
+      <section id="screen-expedition" hidden inert></section>
+      <section id="screen-duel" class="page-shell" hidden inert>
         <header class="page-heading">
           <div>
             <span class="eyebrow">FORM YOUR INK</span>
@@ -121,7 +125,7 @@
           赤方先手。同屏双人在当前队伍亮起时交替操作；观战可以暂停、单招推进或加速。
         </p>
       </section>
-      <div id="screen-archive">
+      <div id="screen-archive" hidden inert>
         <div class="archive-shell">
           <aside class="archive-sidebar">
             <div class="archive-title">
@@ -145,7 +149,7 @@
       </div>
 
       <!-- 战绩室 -->
-      <div id="screen-records">
+      <div id="screen-records" hidden inert>
         <div class="records-shell">
           <header class="records-head">
             <div class="records-title">
@@ -187,7 +191,7 @@
 
       <!-- 模式 -->
 
-      <section id="screen-battle" aria-label="共享墨量战场">
+      <section id="screen-battle" aria-label="共享墨量战场" hidden inert>
         <header class="battle-top">
           <div class="turn-info">
             <b id="round-badge">第1轮</b><span id="turn-text"></span>
@@ -199,8 +203,13 @@
               ><button id="spec-step" onclick="stepSpectate()">单招</button>
             </div>
             <button id="spec-speed" onclick="cycleSpectateSpeed()">1×</button
-            ><button id="btn-battle-info" onclick="toggleBattleInfo()">
-              情报 / 战报</button
+            ><button
+              id="btn-battle-info"
+              onclick="toggleBattleInfo()"
+              aria-controls="battle-info"
+              aria-expanded="false"
+            >
+              战斗记录</button
             ><button onclick="confirmExit()">退出</button>
           </div>
         </header>
@@ -223,16 +232,56 @@
           </section>
         </div>
         <section id="ink-hud" class="ink-hud" aria-label="本轮墨状态"></section>
+        <section id="battle-tactics" aria-label="所选角色锋芒"></section>
         <section id="skill-panel" aria-label="技能操作"></section>
-        <aside id="battle-info" class="battle-info" hidden>
+        <button
+          id="battle-info-backdrop"
+          class="battle-info-backdrop"
+          aria-label="关闭战斗记录"
+          onclick="toggleBattleInfo(false)"
+          hidden
+        ></button>
+        <aside
+          id="battle-info"
+          class="battle-info"
+          aria-labelledby="battle-info-title"
+          hidden
+        >
           <header>
-            <h3>战局情报</h3>
-            <button onclick="toggleBattleInfo(false)">关闭</button>
+            <h3 id="battle-info-title">战局手札</h3>
+            <button
+              id="btn-close-battle-info"
+              onclick="toggleBattleInfo(false)"
+            >
+              关闭 ×
+            </button>
           </header>
-          <p id="scene-banner"></p>
-          <div id="unit-inspector"></div>
-          <details open>
-            <summary>本局战报</summary>
+          <nav id="battle-info-tabs" role="tablist" aria-label="手札内容">
+            <button
+              role="tab"
+              data-info-tab="log"
+              aria-selected="true"
+              aria-controls="battle-log-panel"
+            >
+              战斗记录
+            </button>
+            <button
+              role="tab"
+              data-info-tab="unit"
+              aria-selected="false"
+              aria-controls="battle-unit-panel"
+            >
+              角色详情
+            </button>
+          </nav>
+          <section id="battle-unit-panel" role="tabpanel" hidden>
+            <p id="scene-banner"></p>
+            <div id="unit-inspector"></div>
+          </section>
+          <section id="battle-log-panel" role="tabpanel">
+            <p class="log-explainer">
+              按发生顺序记录招式、伤害、治疗与状态变化。
+            </p>
             <div class="log-controls">
               <button onclick="clearLog()">清空显示</button
               ><button id="btn-log-pause" onclick="toggleLogPause()">
@@ -240,15 +289,15 @@
               </button>
             </div>
             <div id="battle-log"></div>
-          </details>
+          </section>
         </aside>
       </section>
-      <section id="screen-result" class="page-shell">
+      <section id="screen-result" class="page-shell" hidden inert>
         <span class="eyebrow">THE INK SETTLES</span>
         <h1 id="result-title"></h1>
         <p id="result-desc"></p>
-        <div id="result-stats" class="result-stats"></div>
         <div id="result-actions" class="row"></div>
+        <div id="result-stats" class="result-stats"></div>
         <button class="btn" onclick="showScreen('screen-title')">
           返回大厅
         </button>

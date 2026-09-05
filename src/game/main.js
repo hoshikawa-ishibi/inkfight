@@ -82,9 +82,14 @@ export function showScreen(id) {
     if (currentScreen === "screen-battle") Audio.startMenuBgm();
   }
   clearSkillCue();
-  document
-    .querySelectorAll('[id^="screen-"]')
-    .forEach((el) => el.classList.toggle("active", el.id === id));
+  toggleBattleInfo(false, "log", false);
+  document.querySelectorAll('[id^="screen-"]').forEach((el) => {
+    const active = el.id === id;
+    el.hidden = !active;
+    el.inert = !active;
+    el.classList.toggle("active", active);
+    if (!active) el.scrollTop = 0;
+  });
   document.body.dataset.screen = id;
   currentScreen = id;
   window.scrollTo(0, 0);
@@ -102,7 +107,14 @@ function renderResume() {
   $("home-resume").replaceChildren();
   if (run && !["complete", "failed"].includes(run.phase)) {
     const b = document.createElement("button");
-    b.textContent = "继续远征 · 第 " + ((run.battleIndex || 0) + 1) + " 战 / 3";
+    b.textContent =
+      run.phase === "reward"
+        ? "继续远征 · 领取第 " + run.wins + " 关奖励"
+        : run.phase === "camp"
+          ? "继续远征 · 第 " + run.wins + " 关后整备"
+          : run.phase === "blessing"
+            ? "继续远征 · 选择开局墨契"
+            : "继续远征 · 第 " + ((run.battleIndex || 0) + 1) + " 关 / 3";
     b.onclick = () => openExpedition();
     $("home-resume").append(b);
   }
@@ -229,12 +241,34 @@ export function quickBattle() {
   renderDuel();
   launchDuel();
 }
-export function toggleBattleInfo(force) {
+export function toggleBattleInfo(force, tab = "log", moveFocus = true) {
   const show = typeof force === "boolean" ? force : $("battle-info").hidden;
   $("battle-info").hidden = !show;
-  if (show) renderInspector();
+  $("battle-info-backdrop").hidden = !show;
+  if (show) {
+    renderInspector();
+    selectBattleInfoTab(tab);
+    if (moveFocus) $("btn-close-battle-info").focus({ preventScroll: true });
+  } else if (moveFocus && $("battle-info").contains(document.activeElement)) {
+    $("btn-battle-info").focus({ preventScroll: true });
+  }
   $("btn-battle-info").setAttribute("aria-expanded", String(show));
+  $("btn-battle-info").textContent = show ? "收起记录" : "战斗记录";
 }
+function selectBattleInfoTab(tab) {
+  const unit = tab === "unit";
+  $("battle-unit-panel").hidden = !unit;
+  $("battle-log-panel").hidden = unit;
+  document.querySelectorAll("[data-info-tab]").forEach((button) => {
+    button.setAttribute(
+      "aria-selected",
+      String(button.dataset.infoTab === tab),
+    );
+  });
+}
+document.querySelectorAll("[data-info-tab]").forEach((button) => {
+  button.onclick = () => selectBattleInfoTab(button.dataset.infoTab);
+});
 let shakeTimer;
 export function screenShake(intensity = 4, duration = 200) {
   if (document.body.classList.contains("reduced-motion")) return;
@@ -361,11 +395,12 @@ initBattle(
   () => openExpedition(),
 );
 initExpedition({ showScreen, startBattle });
-initRender(getEffectiveAtk, onTargetClick, onPreviewUnit);
+initRender(getEffectiveAtk, onTargetClick, onPreviewUnit, (tab) =>
+  toggleBattleInfo(true, tab),
+);
 initPresentation();
-startMenuBackground();
+showScreen("screen-title");
 syncMuteButton();
-renderResume();
 Object.assign(window, {
   goHome,
   showScreen,

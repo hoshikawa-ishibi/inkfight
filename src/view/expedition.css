@@ -21,7 +21,7 @@
   --exp-rust: #a8705f;
   --exp-border: rgba(130, 177, 157, 0.25);
   position: relative;
-  display: flex;
+  display: none;
   justify-content: flex-start;
   align-items: stretch;
   min-height: 100svh;
@@ -41,6 +41,9 @@
     linear-gradient(135deg, #0c2529, #07151a 60%, #101d1c);
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   isolation: isolate;
+}
+#screen-expedition.expedition-root.active {
+  display: flex;
 }
 #screen-expedition.expedition-root::before {
   content: "";

@@ -363,6 +363,45 @@ export function applyExpeditionBattle(run, p1, p2) {
     u.hp = u.maxHp;
   });
 }
+
+/**
+ * Derived journey position shared by the battle result and expedition screens.
+ * It adds no fields to v1 saves, so existing expeditions remain compatible.
+ */
+export function expeditionProgress(run) {
+  const total = JOURNEY_RULES.battles;
+  const completed = Math.max(
+    0,
+    Math.min(total, Math.floor(Number(run?.wins) || 0)),
+  );
+  const battleIndex = Math.max(
+    0,
+    Math.min(total - 1, Math.floor(Number(run?.battleIndex) || 0)),
+  );
+  const attempted = Math.max(
+    0,
+    Math.min(total, Array.isArray(run?.history) ? run.history.length : 0),
+  );
+  const phase = String(run?.phase || "");
+  return {
+    total,
+    completed,
+    current:
+      phase === "complete"
+        ? total
+        : phase === "failed"
+          ? Math.max(1, attempted)
+          : battleIndex + 1,
+    next:
+      phase === "complete" || phase === "failed"
+        ? null
+        : Math.min(total, completed + 1),
+    rewardsRemaining: Math.max(
+      0,
+      Math.floor(Number(run?.rewardsRemaining) || 0),
+    ),
+  };
+}
 export function expeditionView(
   run,
   {
@@ -377,6 +416,8 @@ export function expeditionView(
   return {
     ...v,
     phase: landing ? "landing" : v.phase,
+    savedPhase: landing && run ? v.phase : null,
+    progress: expeditionProgress(v),
     hasSavedRun,
     best,
     parties,

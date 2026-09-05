@@ -8,6 +8,7 @@ import {
   isAiSide,
 } from "../core/state.js";
 import { renderBattle, animateUnit } from "../view/render.js";
+import { critSkillPresentation } from "../view/tactical.js";
 import {
   playSkillVfx as rawSkillVfx,
   spawnFloatText,
@@ -43,7 +44,6 @@ import {
   getEffectiveAtk,
   previewDmg as calcPreviewDmg,
   unitSpec,
-  willCrit,
   canUseSkill,
   needsEnemyTarget,
   DIFF_LABEL,
@@ -729,26 +729,63 @@ function showResult(w) {
   gameState.resultShown = true;
   if (isExpedition()) {
     stopBattle();
-    _onExpeditionResult?.({
+    const settlement = _onExpeditionResult?.({
       winner: w,
       rounds: gameState.round,
       finalUnits: [...gameState.p1Units, ...gameState.p2Units],
     });
+    const journey = gameState.expeditionRun || {};
+    const total = Math.max(1, Number(settlement?.total) || 3);
+    const completed = Math.max(
+      0,
+      Math.min(total, Number(settlement?.completed ?? journey.wins) || 0),
+    );
+    const current = Math.max(
+      1,
+      Math.min(
+        total,
+        Number(settlement?.current) || (Number(journey.battleIndex) || 0) + 1,
+      ),
+    );
+    const phase = settlement?.phase || journey.phase;
+    const rewardsRemaining = Math.max(
+      0,
+      Number(settlement?.rewardsRemaining ?? journey.rewardsRemaining) || 0,
+    );
+    let title;
+    let description;
+    let returnLabel;
+    if (w === 1 && phase === "complete") {
+      title = "墨路远征完整通关";
+      description = `已完成 ${completed} / ${total} 关。三场战斗全部胜利；下一步：查看完整通关记录。`;
+      returnLabel = "查看完整通关 →";
+    } else if (w === 1 && phase === "reward") {
+      title = `第 ${completed} 关胜利`;
+      description = `已完成 ${completed} / ${total} 关。下一步：领取 ${rewardsRemaining} 件战后墨契，再到营地整备，前往第 ${Math.min(total, completed + 1)} 关。`;
+      returnLabel = `领取第 ${completed} 关奖励 →`;
+    } else if (w === 1 && phase === "camp") {
+      title = `第 ${completed} 关胜利`;
+      description = `已完成 ${completed} / ${total} 关。下一步：在营地选择整备方式，再前往第 ${Math.min(total, completed + 1)} 关。`;
+      returnLabel = `前往第 ${completed} 关营地 →`;
+    } else if (w === 1) {
+      title = `第 ${Math.max(1, completed)} 关胜利`;
+      description = `已完成 ${completed} / ${total} 关。下一步：返回墨路继续远征。`;
+      returnLabel = "返回墨路继续 →";
+    } else {
+      title = `第 ${current} 关失利`;
+      description = `已完成 ${completed} / ${total} 关。本次远征在第 ${current} 关结束；下一步：查看本次记录，或用同一种子重新启程。`;
+      returnLabel = "查看本次远征总结 →";
+    }
     _showScreen("screen-result");
-    document.getElementById("result-actions").style.display = "none";
-    document.getElementById("result-title").textContent =
-      w === 1 ? "此路已破" : "墨迹未干";
+    const actions = document.getElementById("result-actions");
+    actions.style.display = "flex";
+    actions.innerHTML = `<button class="btn btn-confirm" id="btn-expedition-return">${returnLabel}</button>`;
+    document.getElementById("result-title").textContent = title;
     document.getElementById("result-title").style.color =
       w === 1 ? "#9bd9c4" : "#dba594";
-    document.getElementById("result-desc").textContent =
-      w === 1
-        ? "伤势与墨契已保存。带着这次落笔，继续走下去。"
-        : "这条墨路止于此处。换一种落笔顺序，再写一条。";
+    document.getElementById("result-desc").textContent = description;
     playSfx(w === 1 ? "victory" : "defeat");
-    renderStatsPanel(
-      [],
-      '<div style="margin-top:18px"><button class="btn btn-confirm" id="btn-expedition-return">返回墨路 →</button></div>',
-    );
+    renderStatsPanel([]);
     document.getElementById("btn-expedition-return").onclick = () =>
       _returnExpedition?.();
     return;
@@ -838,7 +875,14 @@ export function renderSkillPanel(u) {
     btn.disabled = gameState.inkBusy || !canInkAct(gameState.inkTurn, u, s);
     const cost = inkActionCost(gameState.inkTurn, u, s),
       dmg = previewDmg(u, s),
-      effect = previewInkSkill(gameState.inkTurn, u, s);
+      effect = previewInkSkill(gameState.inkTurn, u, s),
+      crit = critSkillPresentation(
+        u,
+        effect,
+        effect.type === "damageAll"
+          ? getEnemies(u.player).filter((enemy) => enemy.alive).length
+          : undefined,
+      );
     btn.innerHTML =
       "<strong>" +
       s.icon +
@@ -849,8 +893,9 @@ export function renderSkillPanel(u) {
       ' 墨</span><span class="skill-desc">' +
       s.desc +
       '</span><span class="skill-outcome' +
-      (willCrit(u, s) ? " will-crit" : "") +
+      (crit.triggersCrit ? " will-crit" : "") +
       '">' +
+      (crit.label ? crit.label + " · " : "") +
       (u.disrupted ? "扰乱：输出降低 · " : "") +
       (effect.outputMultiplier > 1
         ? "墨契 ×" + effect.outputMultiplier + " · "

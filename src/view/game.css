@@ -11,6 +11,10 @@
 * {
   box-sizing: border-box;
 }
+[hidden],
+#shake-wrap > [id^="screen-"]:not(.active) {
+  display: none !important;
+}
 body {
   margin: 0;
   background: #081418;
@@ -221,49 +225,6 @@ select {
   font-size: 12px;
   line-height: 1.7;
 }
-/* Home keeps the original illustrations as its visual identity. */
-#screen-title {
-  padding: 100px 7vw 140px;
-  min-height: 100svh;
-}
-#screen-title.active {
-  display: flex;
-}
-#screen-title h1 {
-  font-size: clamp(44px, 6.3vw, 92px);
-}
-.title-copy {
-  width: 58%;
-}
-.title-links {
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.title-links a {
-  font-size: 12px;
-  align-self: center;
-}
-.title-roster-wrap {
-  bottom: 18px;
-}
-.title-roster-head {
-  font-size: 10px;
-}
-.title-roster-item {
-  padding: 0;
-}
-.home-resume {
-  margin-top: 14px;
-}
-.home-resume button {
-  color: var(--jade);
-  border-color: #9bdbc744;
-  font-size: 12px;
-}
-.title-hero-label {
-  right: 7%;
-  bottom: 170px;
-}
 /* One configuration screen replaces the old linear setup wizard. */
 .duel-config {
   display: flex;
@@ -316,7 +277,7 @@ select {
 }
 #screen-battle.active {
   display: grid;
-  grid-template-rows: 34px minmax(180px, 1fr) 80px 46px 106px;
+  grid-template-rows: 34px minmax(180px, 1fr) 94px 46px 38px 106px;
 }
 .battle-top {
   display: flex;
@@ -716,12 +677,12 @@ select {
   border-radius: 4px;
 }
 .battle-info {
-  position: absolute;
-  right: 12px;
+  position: fixed;
+  right: max(12px, calc((100vw - 1900px) / 2 + 12px));
   top: 94px;
   bottom: 16px;
-  width: 350px;
-  z-index: 40;
+  width: min(420px, calc(100vw - 24px));
+  z-index: 96;
   overflow: auto;
   background: #0a1c22f5;
   border: 1px solid var(--gold);
@@ -729,6 +690,35 @@ select {
   padding: 16px;
   box-shadow: 0 20px 60px #000b;
   backdrop-filter: blur(15px);
+}
+.battle-info-backdrop {
+  position: fixed;
+  inset: 48px 0 0;
+  z-index: 95;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: #020c1266;
+  cursor: default;
+}
+.battle-info-backdrop:hover:not(:disabled) {
+  background: #020c1266;
+}
+#battle-info-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+#battle-info-tabs [aria-selected="true"] {
+  background: var(--gold);
+  color: #0c2025;
+}
+#battle-log:empty::before {
+  content: "还没有招式记录。落下第一笔后，变化会记在这里。";
+  display: block;
+  padding: 18px 0;
+  color: var(--muted);
 }
 .battle-info[hidden] {
   display: none;
@@ -762,9 +752,9 @@ select {
   font-size: 12px;
 }
 #battle-log {
-  max-height: 290px;
+  max-height: calc(100svh - 320px);
   overflow: auto;
-  font-size: 11px;
+  font-size: 13px;
   padding: 10px 0;
 }
 .log-entry {
@@ -1021,7 +1011,7 @@ select {
 }
 @media (min-width: 1400px) {
   #screen-battle.active {
-    grid-template-rows: 36px minmax(250px, 1fr) 86px 50px 120px;
+    grid-template-rows: 36px minmax(250px, 1fr) 100px 50px 40px 120px;
   }
   .battle-unit {
     height: 65px;
@@ -1084,58 +1074,6 @@ select {
   .duel-teams {
     margin-top: 14px;
   }
-  #screen-title {
-    padding: 80px 20px 130px;
-    min-height: 850px;
-  }
-  .title-copy {
-    width: 100%;
-  }
-  #screen-title h1 {
-    font-size: 52px;
-  }
-  .title-hero {
-    right: -18%;
-    top: 12%;
-    width: 87%;
-    height: 57%;
-    opacity: 0.45;
-  }
-  .title-description {
-    max-width: 270px !important;
-  }
-  .title-links {
-    gap: 14px;
-    max-width: 320px;
-  }
-  .title-hero-label {
-    display: none;
-  }
-  .title-roster-wrap {
-    left: 20px;
-    right: 20px;
-    bottom: 15px;
-  }
-  .title-roster-head span:nth-child(2) {
-    display: none;
-  }
-  #title-roster {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 4px;
-  }
-  .title-roster-item {
-    height: 52px;
-  }
-  .title-roster-item span {
-    font-size: 9px;
-  }
-  .title-actions .btn {
-    min-width: 0;
-    padding: 12px 15px;
-  }
-  .title-roster-head {
-    margin-bottom: 6px;
-  }
   #screen-battle {
     padding: 48px 7px 6px;
     height: auto;
@@ -1143,7 +1081,7 @@ select {
     overflow: visible;
   }
   #screen-battle.active {
-    grid-template-rows: 58px clamp(220px, 35svh, 400px) 129px 46px minmax(
+    grid-template-rows: 58px clamp(200px, 31svh, 360px) 151px 46px auto minmax(
         150px,
         auto
       );
@@ -1366,7 +1304,7 @@ select {
     min-height: 100svh;
   }
   #screen-battle.active {
-    grid-template-rows: 34px 300px 80px 46px 106px;
+    grid-template-rows: 34px 250px 94px 46px 38px 106px;
   }
 }
 
