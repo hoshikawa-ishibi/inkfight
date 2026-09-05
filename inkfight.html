@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>墨境之战 - 火柴人回合制对战 (终极版)</title>
+<title>墨境之战 · 一念成锋</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -547,6 +547,7 @@ body {
 .vs-divider { width:2px; background:linear-gradient(180deg,transparent,#e94560,transparent); position:relative; }
 .vs-divider::before { content:"VS"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#e94560; font-weight:bold; font-size:24px; background:#0a0a18; padding:8px; border-radius:50%; border:2px solid #e94560; box-shadow:0 0 16px rgba(233,69,96,.6); }
 </style>
+<link rel="stylesheet" href="./src/view/presentation.css">
 </head>
 <body>
 
@@ -568,17 +569,26 @@ body {
 
 <!-- 标题 -->
 <div id="screen-title" class="active">
-  <div class="subtitle">INK · REALM · CLASH</div>
-  <h1>墨 境 之 战</h1>
-  <div class="title-deco"></div>
-  <p>在黑白交织的墨境世界中，火柴人战士们以灵能（SP）为力量源泉展开对决。<br>
-  小心灵能过载——SP 蓄得太满，就会被对手扰乱！</p>
-  <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
-    <button class="btn" onclick="playSfx('click'); showScreen('screen-mode')">⚔ 开始对战</button>
-    <button class="btn" onclick="playSfx('click'); showScreen('screen-archive')">◈ 角色档案</button>
-    <button class="btn" onclick="playSfx('click'); showScreen('screen-records')">📜 战绩室</button>
-    <button class="btn btn-sm" onclick="playSfx('click'); showHelp()">❓ 玩法说明</button>
+  <div class="title-hero" aria-hidden="true"><div class="title-halo"></div><img id="title-hero-image" alt="" fetchpriority="high"></div>
+  <div class="title-copy">
+    <div class="title-edition">墨 境 · 一 念 成 锋</div>
+    <div class="subtitle">INKFIGHT / REALM OF INK</div>
+    <h1>墨境<em>之战</em></h1>
+    <p class="title-manifesto">万象皆墨，一念成锋。</p>
+    <p class="title-description">看穿敌人的下一招，选定此刻出手的人。<br>破阵、护佑、扰乱——让每一回合，写下你的胜负。</p>
+    <div class="title-actions">
+      <button class="btn title-primary" id="btn-quick-battle" onclick="playSfx('confirm'); quickBattle()">即刻出战　↗</button>
+      <button class="btn title-secondary" onclick="playSfx('click'); showScreen('screen-mode')">自由配队</button>
+    </div>
+    <small id="quick-battle-note"></small>
+    <div class="title-links">
+      <button onclick="playSfx('click'); showScreen('screen-archive')">角色档案 ↗</button>
+      <button onclick="playSfx('click'); showScreen('screen-records')">战绩室 ↗</button>
+      <button onclick="playSfx('click'); showHelp()">玩法说明 ↗</button>
+    </div>
   </div>
+  <div class="title-hero-label"><b id="title-hero-name"></b><span id="title-hero-role"></span></div>
+  <div class="title-roster-wrap"><div class="title-roster-head"><span id="title-roster-count"></span><span id="title-hero-skills"></span><span>选择你的行者</span></div><div id="title-roster" aria-label="选择首页角色"></div></div>
 </div>
 
 <!-- 角色档案 -->
@@ -626,7 +636,7 @@ body {
   <div class="option-grid" id="mode-grid">
     <div class="option-card" data-mode="pvp">
       <div class="ic">👥</div><h3>双人对战 PVP</h3>
-      <div class="desc">两位玩家轮流操作各自的两名战士。</div>
+      <div class="desc" id="pvp-mode-desc"></div>
     </div>
     <div class="option-card" data-mode="ai">
       <div class="ic">🤖</div><h3>人机对战</h3>
@@ -765,9 +775,12 @@ body {
     <span style="font-size:11px;color:#888;">空格 暂停／继续 · → 单步</span>
   </div>
   <div class="battle-field">
+    <div class="team-caption side-a"><span>壹 · 玩家1</span><b id="team-vitals-1"></b></div>
+    <div class="team-caption side-b"><b id="team-vitals-2"></b><span>玩家2 · 贰</span></div>
     <div class="team-side left" id="team-left"></div>
     <div class="vs-divider"></div>
     <div class="team-side right" id="team-right"></div>
+    <svg class="battle-intent-map" id="battle-intent-map" aria-hidden="true"></svg>
   </div>
   <div class="skill-panel" id="skill-panel"><span style="color:#666;">等待行动...</span></div>
   <div class="log-controls">
@@ -870,6 +883,7 @@ body {
 </div>
 
 </div>
+<div id="skill-cue" aria-hidden="true"></div>
 <script type="module" src="./src/game/main.js"></script>
 </body>
 </html>

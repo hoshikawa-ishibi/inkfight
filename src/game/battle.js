@@ -9,6 +9,7 @@ import { teachOnce } from '../view/codex.js';
 import { recordCharPlays } from './save.js';
 import { makeRecord, mvpOf } from '../core/record.js';
 import { commitRecord, openShareDialog } from '../view/records.js';
+import { showSkillCue } from '../view/presentation.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -597,7 +598,7 @@ export function renderSkillPanel(u){
   if(u.disrupted){
     const warning=document.createElement('div');
     warning.style.cssText='max-width:280px;padding:8px 10px;border:1px solid #f5a623;border-radius:8px;background:rgba(245,166,35,.12);color:#ffd180;font-size:12px;line-height:1.5;';
-    warning.innerHTML='<b>💫 灵能扰乱</b><br>本次行动的伤害和治疗降低40%；护盾、净化、增益等效果不受影响。行动后自动解除。';
+    warning.innerHTML=`<b>💫 灵能扰乱</b><br>本次行动的伤害和治疗降低${Math.round((1-INTERRUPT_OUTPUT_MULTIPLIER)*100)}%；护盾、净化、增益等效果不受影响。行动后自动解除。`;
     p.appendChild(warning);
   }
   u.skills.forEach((s,i)=>{
@@ -707,6 +708,7 @@ function aiAct(u){
 }
 
 function executeSkill(actor,skill,target){
+  showSkillCue(actor,skill);
   const interrupted = consumeInterruptedSkill(actor, skill);
   skill = interrupted.skill;
   if(interrupted.consumed){
@@ -903,7 +905,8 @@ function presentDamage(actor,target,r){
     return 0;
   }
   if(r.isCrit){
-    addLog(`重击！`,'crit');   // 💥 由 LOG_ICON.crit 补，这里再写一个会变成 💥💥 playSfx('crit'); spawnCritBurst(target);
+    addLog(`重击！`,'crit');
+    playSfx('crit'); spawnCritBurst(target);
   }
   if(r.shieldAbsorbed > 0){
     addLog(`${target.name} 护盾吸收 ${r.shieldAbsorbed}`,'info');

@@ -3,8 +3,9 @@ import { clamp } from '../core/state.js';
 export function getUnitScreenPos(u){
   const el=document.getElementById('unit-'+u.id);
   if(!el) return null;
-  const r=el.getBoundingClientRect();
-  return {x:r.left+r.width/2,y:r.top+70};
+  const art=el.querySelector('.unit-art');
+  const r=(art || el).getBoundingClientRect();
+  return {x:r.left+r.width/2,y:art?r.top+r.height*.46:r.top+70};
 }
 
 let fxItems=[],fxLoopRunning=false;
@@ -68,11 +69,18 @@ function vfxSlash(a,b,color,onHit){
     endAt:start+dur,
     draw:(ctx,now)=>{
       const t=(now-start)/dur;
-      ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(-Math.PI/4+t*Math.PI/2);
-      ctx.strokeStyle=color; ctx.lineWidth=4*(1-t); ctx.globalAlpha=1-t;
-      ctx.beginPath(); ctx.arc(0,0,40,-0.6,0.6); ctx.stroke();
-      ctx.lineWidth=1.5; ctx.globalAlpha=(1-t)*0.6;
-      ctx.beginPath(); ctx.arc(0,0,32,-0.6,0.6); ctx.stroke();
+      ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(-Math.PI/3+t*.8);
+      ctx.scale(1,.48);
+      ctx.globalAlpha=1-t;
+      ctx.shadowColor=color; ctx.shadowBlur=18; ctx.fillStyle=color;
+      // 弧形刀光以尖端收笔，留出中部的白色锋线。
+      const r=70+t*30;
+      ctx.beginPath(); ctx.arc(0,0,r,-1.1,1.1);
+      ctx.quadraticCurveTo(r*.43,0,Math.cos(-1.1)*r,Math.sin(-1.1)*r); ctx.fill();
+      ctx.shadowBlur=0; ctx.strokeStyle='#fff1d6'; ctx.lineWidth=2*(1-t);
+      ctx.beginPath(); ctx.arc(0,0,r,-.95,.95); ctx.stroke();
+      ctx.strokeStyle=color; ctx.lineWidth=1; ctx.globalAlpha=(1-t)*.4;
+      ctx.beginPath(); ctx.arc(0,0,r+14,-1.3,.8); ctx.stroke();
       ctx.restore();
     }
   });
@@ -257,21 +265,28 @@ export function spawnHitBurst(unit,color){
   const parts=[];
   for(let i=0;i<22;i++){
     const ang=Math.random()*Math.PI*2, sp=2+Math.random()*5;
-    parts.push({x:p.x,y:p.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:2+Math.random()*2.5});
+    parts.push({vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:2+Math.random()*2.5});
   }
   pushFx({
     endAt:start+dur,
     draw:(ctx,now)=>{
       const t=(now-start)/dur;
-      ctx.strokeStyle=c; ctx.lineWidth=3; ctx.globalAlpha=1-t;
-      ctx.beginPath(); ctx.arc(p.x,p.y,t*40,0,Math.PI*2); ctx.stroke();
+      ctx.save();
+      ctx.strokeStyle=c; ctx.lineWidth=2*(1-t); ctx.globalAlpha=1-t;
+      ctx.beginPath(); ctx.arc(p.x,p.y,10+t*60,0,Math.PI*2); ctx.stroke();
+      const glow=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,45);
+      glow.addColorStop(0,'#fff0cf'); glow.addColorStop(.2,c); glow.addColorStop(1,'transparent');
+      ctx.globalAlpha=Math.max(0,1-t*3)*.8; ctx.fillStyle=glow;
+      ctx.fillRect(p.x-45,p.y-45,90,90);
       ctx.fillStyle=c;
       parts.forEach(pt=>{
-        pt.x+=pt.vx; pt.y+=pt.vy; pt.vy+=0.2;
+        const elapsed=t*22;
+        const x=p.x+pt.vx*elapsed, y=p.y+pt.vy*elapsed+elapsed*elapsed*.1;
         ctx.globalAlpha=1-t;
-        ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-pt.vx*2,y-pt.vy*2);
+        ctx.strokeStyle=pt.r>3?c:'#e4d7b5'; ctx.lineWidth=pt.r*(1-t); ctx.stroke();
       });
-      ctx.globalAlpha=1;
+      ctx.restore();
     }
   });
 }

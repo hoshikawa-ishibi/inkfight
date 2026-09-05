@@ -15,9 +15,13 @@ import { isDebug, setDebug } from './save.js';
 import { initBattle, startBattle, getEffectiveAtk, previewDmg, onTargetClick, cancelTargeting, confirmExit, clearLog, toggleLogPause, onPreviewUnit, toggleSpectatePause, stepSpectate, cycleSpectateSpeed } from './battle.js';
 import { runSimulation } from '../../tools/sim.js';
 import { initTeamStudy } from '../view/team-study.js';
+import { initPresentation, featuredCharacter, clearSkillCue } from '../view/presentation.js';
+import { portraitFor } from '../data/character-portraits.js';
+import { shuffle } from '../../tools/sim.js';
 
 let _inBattle = false;
 export function showScreen(id) {
+  clearSkillCue();
   // 按前缀选，**不要写死屏幕列表**。原来这里手抄了 12 个 id，
   // 而 inkfight.html 的 CSS 里还有同样一份——加「观战」屏时只改了 CSS
   // 忘了这里，结果两个屏幕同时显示。同一份知识两份实现，又一次。
@@ -40,6 +44,20 @@ export function showScreen(id) {
   if (id==='screen-spectate') initSpectateScreen();
   if (id==='screen-archive') initCharacterGallery();
   if (id==='screen-records') initRecordsScreen();
+}
+
+// 从首页挑一位角色即可开局；人数、角色池与战斗入口仍走正式规则。
+export function quickBattle(){
+  const hero = featuredCharacter();
+  const n = teamSizeFor('ai');
+  Object.assign(gameState, {
+    mode:'ai', difficulty:'normal', aiLevels:{1:null, 2:'normal'},
+    scene:SCENES.find(s=>s.id==='spring') || SCENES[0],
+    p1Picks:[hero, ...shuffle(CHARACTERS.filter(c=>c.id!==hero).map(c=>c.id)).slice(0,n-1)],
+    p2Picks:shuffle(CHARACTERS.map(c=>c.id)).slice(0,n), bannedIds:[],
+    waitingForTarget:false, pendingSkill:null, pendingActor:null, pendingSkillFriendly:false,
+  });
+  startBattle();
 }
 
 function showModal(inner){
@@ -90,6 +108,7 @@ export function screenShake(intensity=10, duration=300){
 
 let chosenMode=null;
 function initModeScreen() {
+  document.getElementById('pvp-mode-desc').textContent=`两位玩家轮流指挥各自的 ${teamSizeFor('pvp')} 名战士，每回合各派一人出手。`;
   chosenMode=null;
   document.getElementById('btn-mode-next').disabled=true;
   syncDebugOnlyCards();
@@ -303,7 +322,7 @@ function renderBanGrid(){
     const card=document.createElement('div');
     card.className='char-card'+(banned?' disabled':'');
     card.innerHTML=`
-      <div class="stick-preview"><canvas width="80" height="90" id="ban-prev-${c.id}"></canvas></div>
+      <div class="stick-preview">${portraitFor(c.id)?`<img class="draft-portrait" src="${portraitFor(c.id)}" alt="${c.name}" loading="lazy">`:`<canvas width="80" height="90" id="ban-prev-${c.id}"></canvas>`}</div>
       <div class="cname" style="color:${banned?'#555':c.color}">${c.name}</div>
       <div class="crole" style="color:${banned?'#444':'#aaa'}">${banned?'已禁用':c.role}</div>`;
     if(!banned){
@@ -383,7 +402,7 @@ function renderCharGrid(){
       +(isHero?' hero-locked':'')
       +(((frozen&&!isHero)||isBanned)?' disabled':'');
     card.innerHTML=
-      '<div class="stick-preview"><canvas width="80" height="90" id="prev-'+c.id+'"></canvas></div>'
+      '<div class="stick-preview">'+(portraitFor(c.id)&&!(slot&&slot.kind==='locked')?`<img class="draft-portrait" src="${portraitFor(c.id)}" alt="${c.name}" loading="lazy">`:'<canvas width="80" height="90" id="prev-'+c.id+'"></canvas>')+'</div>'
       +'<div class="cname" style="color:'+(dim?'#555':c.color)+'">'+title+'</div>'
       +'<div class="crole" style="color:'+(dim?'#444':'#aaa')+'">'+sub+'</div>'
       +'<div class="cstats">'+(showStats?('HP:'+c.hp+' SP:'+c.sp+'<br>ATK:'+c.atk+' DEF:'+c.def):'')+'</div>';
@@ -798,7 +817,11 @@ document.addEventListener('mousemove',e=>{
 });
 document.getElementById('vol-bgm').addEventListener('input',e=>{ Audio.init(); Audio.setBgmVol(e.target.value/100); });
 document.getElementById('vol-sfx').addEventListener('input',e=>{ Audio.init(); Audio.setSfxVol(e.target.value/100); });
-document.addEventListener('click',()=>{ Audio.init(); Audio.startMenuBgm(); },{once:true});
+document.addEventListener('click',()=>{
+  Audio.init();
+  if(document.getElementById('screen-battle').classList.contains('active')) Audio.startBgm(gameState.scene);
+  else Audio.startMenuBgm();
+},{once:true});
 
 // 标签页切走就停 BGM，切回来续上。**只有音频需要这一条**——
 // 画面那边（场景层、idle 呼吸、特效、震动）全是 requestAnimationFrame，
@@ -812,6 +835,7 @@ initDebugTap();
 
 initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
 initRender(getEffectiveAtk, onTargetClick, onPreviewUnit);
+initPresentation();
 startMenuBackground();
 
 // ── 雷达图 ────────────────────────────────────────────────
@@ -890,6 +914,7 @@ function showRadar(){
 export function onRadarNext(){ startBattle(); }
 
 Object.assign(window, {
+  quickBattle,
   playSfx, toggleMute, showScreen, showHelp,
   confirmMode, confirmDifficulty, confirmSpectate, goBackFromScene, confirmScene,
   confirmSelection, clearLog, toggleLogPause, confirmExit,

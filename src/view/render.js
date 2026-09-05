@@ -2,6 +2,7 @@ import { CHARACTERS } from '../data/data.js';
 import { playSfx } from './audio.js';
 import { gameState, pct, getAllUnits, getUnit } from '../core/state.js';
 import { drawStickman } from './stickman.js';
+import { portraitFor } from '../data/character-portraits.js';
 import { bossPhase, DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER,
   CRIT_METER_FULL, CRIT_MULTIPLIER, willCrit } from '../core/combat.js';
 
@@ -18,8 +19,34 @@ export function renderBattle(){
     c.innerHTML='';
     const units=idx===0?gameState.p1Units:gameState.p2Units;
     units.forEach(u=>c.appendChild(renderUnit(u)));
+    const vitals=document.getElementById(`team-vitals-${idx+1}`);
+    if(vitals) vitals.textContent=`${units.filter(u=>u.alive).length}/${units.length} 存活 · ${units.reduce((n,u)=>n+u.hp,0)} HP`;
   });
+  requestAnimationFrame(drawIntentPath);
 }
+
+// 锁定目标从同一个 enemyIntent 读取；随布局重算端点，避免特效打向旧卡片坐标。
+function drawIntentPath(){
+  const svg=document.getElementById('battle-intent-map');
+  if(!svg) return;
+  svg.replaceChildren();
+  if(!document.getElementById('screen-battle')?.classList.contains('active')) return;
+  const intent=gameState.enemyIntent;
+  if(!intent?.targetId || !getUnit(intent.unitId)?.alive || !getUnit(intent.targetId)?.alive) return;
+  const source=document.querySelector(`#unit-${intent.unitId} .unit-art`);
+  const target=document.querySelector(`#unit-${intent.targetId} .unit-art`);
+  if(!source || !target) return;
+  const box=svg.getBoundingClientRect(), a=source.getBoundingClientRect(), b=target.getBoundingClientRect();
+  const x1=a.left+a.width/2-box.left, x2=b.left+b.width/2-box.left;
+  const y1=a.top+10-box.top, y2=b.top+10-box.top;
+  const bend=Math.max(5, Math.min(y1,y2)-42);
+  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d',`M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${bend}, ${x2} ${y2}`);
+  const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx',x2); dot.setAttribute('cy',y2); dot.setAttribute('r',4);
+  svg.append(path,dot);
+}
+window.addEventListener('resize',drawIntentPath);
 
 // 状态条。四条规矩：
 //   1. **有层数 / 剩余回合的，数字必须外显**——「中毒」不说还剩几回合等于没说。
@@ -147,6 +174,13 @@ function renderUnit(u){
     +(isPickable?' pickable':'')
     +(isPreview?' previewing':'');
   div.id='unit-'+u.id;
+  div.style.setProperty('--unit-color',u.color);
+  if(isTargetable || isPickable){
+    div.tabIndex=0;
+    div.setAttribute('role','button');
+    div.setAttribute('aria-label',`${isTargetable?'选择目标':'查看技能'}：玩家${u.player} ${u.name}，HP ${u.hp}/${u.maxHp}`);
+    div.onkeydown=e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); div.click(); } };
+  }
   const eff=_getEffectiveAtk(u);
   const atkChanged=Math.abs(eff-u.atk)>0.5;
   // 锋芒条。
@@ -159,7 +193,12 @@ function renderUnit(u){
     ? `${CRIT_METER_FULL}/${CRIT_METER_FULL} +${meter - CRIT_METER_FULL}`
     : `${meter}/${CRIT_METER_FULL}`;
   div.innerHTML=`
-    <canvas class="unit-canvas" width="100" height="92" id="cv-${u.id}"></canvas>
+    <div class="unit-art${portraitFor(u.charId)?' has-portrait':''}" id="art-${u.id}">
+      <span class="unit-sigil"></span>
+      ${portraitFor(u.charId)?`<img class="unit-portrait" src="${portraitFor(u.charId)}" alt="${u.name}" draggable="false">`:''}
+      <canvas class="unit-canvas" width="100" height="92" id="cv-${u.id}"></canvas>
+      ${!u.alive?'<span class="unit-action-tag">已阵亡</span>':isTargetable?'<span class="unit-action-tag">选择目标</span>':isPreview?'<span class="unit-action-tag">准备出手</span>':isActive?'<span class="unit-action-tag">正在行动</span>':''}
+    </div>
     <div class="unit-name"><span style="color:${u.color}">${u.name}</span><span style="font-size:11px;color:#aaa">${u.player===1?'P1':'P2'}</span></div>
     <div class="unit-meta">
       <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${u.atk}</s>→${eff.toFixed(0)}`:u.atk}</span>
@@ -177,13 +216,18 @@ function renderUnit(u){
     ${intentBar(u)}`;
   if(isTargetable) div.onclick=()=>{ playSfx('select'); _onTargetClick(u); };
   else if(isPickable) div.onclick=()=>{ playSfx('select'); _onPreviewUnit(u); };
-  setTimeout(()=>drawStickman(document.getElementById('cv-'+u.id),u,u.alive?((u.disrupted||u.stunned)?'stun':u.pose):'dead'),10);
+  const portrait=div.querySelector('.unit-portrait');
+  if(portrait) portrait.addEventListener('error',()=>{
+    portrait.remove(); div.querySelector('.unit-art').classList.remove('has-portrait');
+    redrawUnit(u);
+  },{once:true});
+  if(!portrait) setTimeout(()=>redrawUnit(u),10);
   return div;
 }
 
 export function redrawUnit(u){
   const cv=document.getElementById('cv-'+u.id);
-  if(cv) drawStickman(cv,u,u.alive?((u.disrupted||u.stunned)?'stun':u.pose):'dead');
+  if(cv && !cv.parentElement.classList.contains('has-portrait')) drawStickman(cv,u,u.alive?((u.disrupted||u.stunned)?'stun':u.pose):'dead');
 }
 
 export function animateUnit(id,cls){
@@ -194,7 +238,7 @@ export function animateUnit(id,cls){
 }
 
 export function lungeActor(actor){
-  const cv=document.getElementById('cv-'+actor.id);
+  const cv=document.getElementById('art-'+actor.id);
   if(!cv) return;
   const cls=actor.player===1?'lunge-left':'lunge-right';
   cv.classList.add(cls);
@@ -222,7 +266,7 @@ setInterval(()=>{
   getAllUnits().forEach(u=>{
     if(u.alive&&u.pose==='idle'){
       const cv=document.getElementById('cv-'+u.id);
-      if(cv) drawStickman(cv,u,'idle',idleAnimTime);
+      if(cv && !cv.parentElement.classList.contains('has-portrait')) drawStickman(cv,u,'idle',idleAnimTime);
     }
   });
   CHARACTERS.forEach(c=>{
