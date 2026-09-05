@@ -1,0 +1,455 @@
+.party-builder {
+  --party-ink: #183e37;
+  --party-muted: #6c8175;
+  --party-paper: #fbf8ee;
+  color: var(--party-ink);
+  background: rgba(255, 253, 244, 0.76);
+  border: 1px solid rgba(58, 105, 84, 0.2);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 16px 42px rgba(50, 76, 55, 0.08);
+}
+.party-builder-heading,
+.party-builder-roster-heading,
+.party-builder-save,
+.party-builder-preset-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.party-builder-overline {
+  display: block;
+  color: #779789;
+  font-size: 0.67rem;
+  letter-spacing: 0.17em;
+  font-weight: 800;
+}
+.party-builder h3 {
+  margin: 4px 0 5px;
+  font:
+    700 clamp(1.35rem, 2vw, 1.8rem) / 1.1 Georgia,
+    serif;
+  color: #173f37;
+}
+.party-builder-heading p {
+  margin: 0;
+  color: var(--party-muted);
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+.party-builder-count {
+  flex: 0 0 auto;
+  border: 1px solid rgba(38, 88, 69, 0.25);
+  border-radius: 99px;
+  padding: 7px 11px;
+  font-size: 0.75rem;
+  color: #587466;
+  white-space: nowrap;
+  background: #f4f1e5;
+}
+.party-builder-count b {
+  font-size: 1.1rem;
+  color: #1f6853;
+}
+.party-builder-count.is-ready {
+  background: #e6f1e4;
+  color: #276b53;
+  border-color: #80b59a;
+}
+.party-builder-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  margin: 17px 0 20px;
+}
+.party-builder-preset {
+  min-width: 0;
+  text-align: left;
+  padding: 12px 11px 10px;
+  border: 1px solid rgba(60, 98, 77, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: inherit;
+  cursor: pointer;
+  transition: 0.18s ease;
+  box-shadow: 0 3px 0 rgba(76, 112, 87, 0.04);
+}
+.party-builder-preset:hover,
+.party-builder-preset:focus-visible {
+  border-color: #5c9b7e;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 17px rgba(47, 89, 67, 0.13);
+  outline: none;
+}
+.party-builder-preset.is-selected {
+  background: #e8f2e7;
+  border-color: #4d9478;
+  box-shadow: inset 0 0 0 1px rgba(67, 132, 100, 0.25);
+}
+.party-builder-preset-top {
+  align-items: center;
+}
+.party-builder-preset-tag,
+.party-builder-preset-tags span {
+  font-size: 0.64rem;
+  color: #4f7d6b;
+  letter-spacing: 0.04em;
+}
+.party-builder-preset-mark {
+  font-size: 0.9rem;
+  color: #67917d;
+}
+.party-builder-preset strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 0.93rem;
+}
+.party-builder-preset-description {
+  display: block;
+  color: #75877c;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  margin-top: 4px;
+  min-height: 2.8em;
+}
+.party-builder-preset-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.party-builder-preset-tags span {
+  background: #f0eee2;
+  border-radius: 5px;
+  padding: 2px 4px;
+}
+.party-builder-mini-portraits {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+}
+.party-builder-portrait {
+  display: block;
+  width: 42px;
+  height: 48px;
+  object-fit: cover;
+  object-position: 50% 12%;
+  border-radius: 8px 8px 3px 3px;
+  background: #e0e7db;
+  border: 1px solid rgba(55, 99, 76, 0.16);
+}
+.party-builder-portrait.is-small {
+  width: 24px;
+  height: 27px;
+  border-radius: 5px;
+}
+.party-builder-placeholder {
+  display: grid;
+  place-items: center;
+  color: #44715f;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.party-builder-roster-heading {
+  align-items: baseline;
+  border-top: 1px solid rgba(69, 103, 83, 0.14);
+  padding-top: 16px;
+  color: #325f4d;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+.party-builder-roster-heading small {
+  font-size: 0.73rem;
+  color: #829286;
+  font-weight: 400;
+}
+.party-builder-roster {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.party-builder-character {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid rgba(72, 104, 86, 0.15);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.46);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  position: relative;
+}
+.party-builder-character:hover,
+.party-builder-character:focus-visible {
+  border-color: #65a184;
+  outline: none;
+}
+.party-builder-character.is-selected {
+  background: #e8f2e7;
+  border-color: #5f9b7d;
+}
+.party-builder-character:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.party-builder-character-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.party-builder-character-copy strong {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.party-builder-character-copy span {
+  font-size: 0.65rem;
+  color: #7a897d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.party-builder-check {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #4f9777;
+  font-size: 0.7rem;
+}
+.party-builder-character:not(.is-selected) .party-builder-check {
+  background: #e1e5d9;
+  color: transparent;
+}
+.party-builder-save {
+  align-items: end;
+  gap: 12px;
+  margin-top: 19px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(69, 103, 83, 0.14);
+}
+.party-builder-save label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #315c4c;
+}
+.party-builder-save input {
+  display: block;
+  width: min(330px, 100%);
+  margin-top: 7px;
+  padding: 9px 10px;
+  border: 1px solid rgba(57, 98, 78, 0.25);
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #193f36;
+  font: inherit;
+}
+.party-builder-save input:focus {
+  outline: 2px solid #72a78d;
+  outline-offset: 1px;
+}
+.party-builder-save small {
+  display: block;
+  color: #839287;
+  font-size: 0.68rem;
+  margin-top: 5px;
+}
+.party-builder-save-button,
+.party-builder-saved-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #23644f;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.party-builder-save-button:hover,
+.party-builder-save-button:focus-visible,
+.party-builder-saved-actions button:hover,
+.party-builder-saved-actions button:focus-visible {
+  background: #174d3d;
+  outline: 2px solid #74ad8e;
+  outline-offset: 2px;
+}
+.party-builder-save-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.party-builder-saved {
+  margin-top: 13px;
+  border-top: 1px solid rgba(69, 103, 83, 0.14);
+  padding-top: 12px;
+}
+.party-builder-saved summary {
+  cursor: pointer;
+  color: #426d5a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.party-builder-saved ul {
+  list-style: none;
+  padding: 0;
+  margin: 9px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.party-builder-saved-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f3f1e5;
+  border-radius: 9px;
+}
+.party-builder-saved-item strong,
+.party-builder-saved-item span {
+  display: block;
+}
+.party-builder-saved-item strong {
+  font-size: 0.78rem;
+}
+.party-builder-saved-item div > span {
+  font-size: 0.67rem;
+  color: #77887d;
+  margin-top: 3px;
+}
+.party-builder-saved-actions {
+  display: flex !important;
+  gap: 5px;
+}
+.party-builder-saved-actions button {
+  font-size: 0.7rem;
+  padding: 5px 8px;
+  background: #4e816c;
+}
+.party-builder-saved-actions button:last-child {
+  background: #aa675a;
+}
+.party-builder-compact {
+  padding: 14px;
+  border-radius: 15px;
+}
+.party-builder-compact .party-builder-heading p,
+.party-builder-compact .party-builder-presets,
+.party-builder-compact .party-builder-save,
+.party-builder-compact .party-builder-saved {
+  display: none;
+}
+.party-builder-compact .party-builder-heading {
+  align-items: center;
+}
+.party-builder-compact .party-builder-heading h3 {
+  font-size: 1.1rem;
+}
+.party-builder-compact .party-builder-roster {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.party-builder-compact .party-builder-portrait {
+  width: 30px;
+  height: 34px;
+}
+.party-builder-compact .party-builder-character-copy span {
+  display: none;
+}
+@media (max-width: 1000px) {
+  .party-builder-presets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .party-builder-roster {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .party-builder {
+    padding: 15px;
+    border-radius: 16px;
+  }
+  .party-builder-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .party-builder-roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .party-builder-character {
+    padding: 6px;
+    gap: 6px;
+  }
+  .party-builder-portrait {
+    width: 34px;
+    height: 40px;
+  }
+  .party-builder-save {
+    display: block;
+  }
+  .party-builder-save-button {
+    width: 100%;
+    margin-top: 10px;
+  }
+  .party-builder-saved-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .party-builder-saved-actions {
+    width: 100%;
+  }
+  .party-builder-saved-actions button {
+    flex: 1;
+  }
+  .party-builder-compact .party-builder-roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Ten presets stay discoverable without pushing the primary action below the
+   fold; custom selection is an explicit drawer. */
+.party-builder-presets {
+  display: flex;
+  overflow-x: auto;
+  gap: 9px;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-color: #7fa791 transparent;
+}
+.party-builder-preset {
+  flex: 0 0 clamp(168px, 18vw, 205px);
+  scroll-snap-align: start;
+}
+.party-builder-roster-drawer {
+  border-top: 1px solid rgba(69, 103, 83, 0.14);
+}
+.party-builder-roster-drawer > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.party-builder-roster-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+.party-builder-roster-drawer > summary::after {
+  content: "＋";
+  font-size: 1rem;
+  color: #719786;
+  margin-left: auto;
+}
+.party-builder-roster-drawer[open] > summary::after {
+  content: "－";
+}
+.party-builder-roster-drawer .party-builder-roster-heading {
+  border-top: 0;
+}
+.party-builder-roster-drawer .party-builder-saved {
+  border-top: 0;
+}

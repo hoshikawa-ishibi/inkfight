@@ -1,895 +1,260 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>墨境之战 · 一念成锋</title>
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background:#05050d; color:#eee; font-family:'Courier New', monospace;
-  overflow-x:hidden; min-height:100vh; position:relative;
-  -webkit-font-smoothing:antialiased;
-}
-#scene-bg { position:fixed; inset:0; z-index:0; transition:background 1s, opacity .65s; background:#05050d; background-size:cover; background-repeat:no-repeat; }
-#scene-bg-canvas { position:fixed; inset:0; z-index:1; pointer-events:none; }
-#scene-fx { position:fixed; inset:0; z-index:2; pointer-events:none; }
-#fx-canvas { position:fixed; inset:0; z-index:50; pointer-events:none; }
-
-/* 屏幕震动包装 */
-#shake-wrap { position:relative; z-index:3; width:100%; min-height:100vh; transition:transform .05s linear; }
-
-.btn {
-  padding:10px 22px; border:2px solid #e94560; background:transparent;
-  color:#e94560; font-family:inherit; font-size:15px; cursor:pointer;
-  transition:all .2s; border-radius:4px; position:relative; overflow:hidden;
-  letter-spacing:1px;
-}
-.btn::after{
-  content:""; position:absolute; inset:0; background:radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,.35), transparent 60%);
-  opacity:0; transition:opacity .3s;
-}
-.btn:hover:not(:disabled)::after{ opacity:1; }
-.btn:hover:not(:disabled){ background:#e94560; color:#1a1a2e; box-shadow:0 0 20px rgba(233,69,96,.6); transform:translateY(-1px); }
-.btn:active:not(:disabled){ transform:translateY(1px); }
-.btn:disabled { opacity:.35; cursor:not-allowed; }
-.btn-sm { padding:6px 14px; font-size:13px; }
-.btn-confirm { border-color:#16c79a; color:#16c79a; }
-.btn-confirm:hover:not(:disabled){ background:#16c79a; color:#1a1a2e; box-shadow:0 0 20px rgba(22,199,154,.6);}
-.btn-danger { border-color:#ff5252; color:#ff5252; }
-.btn-danger:hover:not(:disabled){ background:#ff5252; color:#1a1a2e;}
-
-/* 顶部音量/设置 */
-#top-bar { position:fixed; top:8px; left:8px; z-index:100; display:flex; gap:8px; align-items:center; background:rgba(0,0,0,.5); padding:6px 10px; border-radius:20px; border:1px solid rgba(233,69,96,.3); }
-#top-bar label{ font-size:11px; color:#ccc; }
-#top-bar input[type=range]{ width:80px; }
-
-/* 所有 #screen-* 默认隐藏。按前缀写，加新屏不用回来改这一行。 */
-[id^="screen-"] {
-  display:none; width:100%; min-height:100vh;
-  flex-direction:column; align-items:center; justify-content:center;
-  animation:fadeIn .5s ease;
-}
-@keyframes fadeIn { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
-.active { display:flex !important; }
-
-#screen-title h1 {
-  font-size:72px; color:#e94560;
-  text-shadow:0 0 30px rgba(233,69,96,.7), 0 0 60px rgba(233,69,96,.3);
-  margin-bottom:10px; letter-spacing:12px;
-  animation:titleGlow 3s ease-in-out infinite;
-  font-weight:bold;
-}
-@keyframes titleGlow { 0%,100%{text-shadow:0 0 30px rgba(233,69,96,.7), 0 0 60px rgba(233,69,96,.3);} 50%{text-shadow:0 0 50px rgba(233,69,96,1),0 0 90px rgba(233,69,96,.6);} }
-#screen-title .subtitle { color:#16c79a; font-size:14px; letter-spacing:8px; margin-bottom:18px; opacity:.8; }
-#screen-title p { color:#ddd; margin-bottom:30px; max-width:600px; text-align:center; line-height:1.7; }
-#screen-title .title-deco { width:300px; height:2px; background:linear-gradient(90deg,transparent,#e94560,transparent); margin:8px 0; }
-
-/* 角色档案：名单、立绘位、战斗资料三层分离。未来加入立绘只替换 portrait slot。 */
-#screen-archive { padding:52px 28px 24px; justify-content:flex-start; }
-.archive-shell { width:min(1240px,100%); height:calc(100vh - 96px); min-height:610px; display:grid; grid-template-columns:230px 1fr; background:rgba(6,9,18,.9); border:1px solid #27364d; box-shadow:0 24px 70px rgba(0,0,0,.55); overflow:hidden; }
-.archive-sidebar { display:flex; flex-direction:column; min-height:0; background:linear-gradient(180deg,#101929,#090d16); border-right:1px solid #304059; }
-.archive-title { padding:22px 18px 15px; border-bottom:1px solid #304059; }
-.archive-title span,.archive-heading span { color:#61718b; font-size:10px; letter-spacing:3px; }
-.archive-title h2 { margin-top:4px; color:#f2f5f8; letter-spacing:4px; }
-.archive-roster { padding:8px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
-.archive-roster-item { min-height:52px; display:flex; align-items:center; gap:10px; border:0; border-left:3px solid transparent; background:rgba(255,255,255,.025); color:#dce3eb; text-align:left; padding:7px 10px; cursor:pointer; font-family:inherit; transition:.18s; }
-.archive-roster-item:hover { background:rgba(255,255,255,.07); }
-.archive-roster-item.selected { border-left-color:var(--char); background:linear-gradient(90deg,color-mix(in srgb,var(--char) 22%,transparent),rgba(255,255,255,.04)); }
-.archive-roster-mark { width:7px; height:30px; background:var(--char); box-shadow:0 0 10px var(--char); transform:skew(-10deg); }
-.archive-roster-item b,.archive-roster-item small { display:block; }
-.archive-roster-item small { margin-top:3px; color:#7f8b9b; font-size:10px; }
-.archive-back { margin:10px; }
-.archive-detail { min-width:0; min-height:0; display:grid; grid-template-columns:minmax(330px,42%) 1fr; }
-.archive-portrait { position:relative; overflow:hidden; min-height:0; background:radial-gradient(circle at 50% 38%,color-mix(in srgb,var(--char) 18%,transparent),transparent 45%),linear-gradient(145deg,#111827,#070a11); border-right:1px solid #26354a; }
-.archive-portrait::before { content:""; position:absolute; inset:8% -20%; border-top:1px solid color-mix(in srgb,var(--char) 45%,transparent); transform:rotate(-18deg); box-shadow:0 90px 0 color-mix(in srgb,var(--char) 20%,transparent); }
-.archive-portrait-slot { position:absolute; inset:10% 9% 16%; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px dashed rgba(255,255,255,.16); color:#748093; text-align:center; background:linear-gradient(135deg,rgba(255,255,255,.025),transparent); }
-.archive-portrait-slot span { font-size:9px; letter-spacing:3px; }.archive-portrait-slot b { margin:9px 0 5px; color:#9ca7b5; }.archive-portrait-slot small { font-size:10px; }
-.archive-portrait-slot.has-portrait { inset:0; border:0; background:none; justify-content:flex-end; pointer-events:none; }
-.archive-portrait-slot img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 14px 18px rgba(0,0,0,.7)); }
-.archive-identity { position:absolute; left:24px; bottom:25px; text-shadow:0 2px 10px #000; }.archive-identity span { color:var(--char); font-size:11px; letter-spacing:2px; }.archive-identity h2 { font-size:42px; margin:3px 0; }.archive-identity p { color:#b8c1cc; }
-.archive-profile { min-width:0; overflow-y:auto; padding:22px 25px 28px; background:linear-gradient(160deg,rgba(20,29,44,.96),rgba(7,10,17,.97)); }
-.archive-heading { border-left:3px solid #e94560; padding-left:10px; margin-bottom:12px; }.archive-heading h3 { margin-top:2px; font-size:18px; letter-spacing:2px; }
-.archive-combat-preview { display:flex; align-items:center; min-height:175px; padding:5px 15px; background:linear-gradient(90deg,rgba(15,52,96,.32),transparent); border:1px solid rgba(74,99,133,.35); }
-.archive-combat-preview canvas { width:180px; height:166px; flex:none; filter:drop-shadow(0 8px 7px #000); }.archive-combat-preview b { color:#e8edf2; }.archive-combat-preview p { color:#16c79a; margin:7px 0; font-size:13px; }.archive-combat-preview small { color:#728096; font-size:10px; }
-.archive-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:12px 0; }.archive-stats div { background:rgba(255,255,255,.04); padding:8px 10px; border-bottom:2px solid #26374e; }.archive-stats span,.archive-stats b { display:block; }.archive-stats span { color:#77859a; font-size:10px; }.archive-stats b { margin-top:3px; color:#dce4ec; }
-.archive-passive { display:flex; gap:12px; padding:11px 13px; border-left:3px solid #ffd54f; background:rgba(255,213,79,.07); }.archive-passive>span { color:#ffd54f; font-size:11px; }.archive-passive b { font-size:13px; }.archive-passive p { color:#aeb7c2; font-size:11px; line-height:1.55; margin-top:3px; }
-/* 机制解读。解锁门槛挂在角色自己身上（出战满若干局），
-   门槛值见 save.js 的 INSIGHT_UNLOCK_PLAYS。 */
-.archive-heading-insight { margin-top:18px; border-left-color:#16c79a; }
-.archive-heading-insight span { color:#16c79a; }
-.archive-insight { padding:12px 14px; border-left:3px solid #16c79a; background:rgba(22,199,154,.07); }
-.archive-insight p { color:#aeb7c2; font-size:12px; line-height:1.95; }
-.archive-insight b { color:#16c79a; }
-.archive-insight.is-locked { border-left-color:#4a5568; background:rgba(255,255,255,.03); }
-.archive-insight .archive-insight-locked { color:#7b8798; font-size:11px; }
-.archive-insight .archive-insight-locked b { color:#aeb7c2; }
-.archive-heading-skills { margin-top:18px; }.archive-skills { display:grid; grid-template-columns:1fr 1fr; gap:8px; }.archive-skill { display:flex; gap:9px; padding:10px; min-height:74px; background:rgba(255,255,255,.035); border:1px solid #26364b; }.archive-skill-icon { width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid var(--skill); color:var(--skill); background:color-mix(in srgb,var(--skill) 12%,transparent); }.archive-skill header { display:flex; justify-content:space-between; gap:10px; }.archive-skill header span { color:#16c79a; font-size:9px; white-space:nowrap; }.archive-skill p { margin-top:5px; color:#929eae; font-size:10px; line-height:1.45; }
-@media(max-width:850px){#screen-archive{padding:48px 10px 12px}.archive-shell{grid-template-columns:150px 1fr}.archive-detail{display:block;overflow-y:auto}.archive-portrait{height:360px}.archive-profile{overflow:visible}.archive-stats{grid-template-columns:repeat(2,1fr)}.archive-skills{grid-template-columns:1fr}.archive-roster-item small{display:none}}
-
-
-/* 战绩室：和角色档案同一套骨架（外壳 + 左列表右详情），只是多了顶部页签。 */
-#screen-records { padding:52px 28px 24px; justify-content:flex-start; }
-.records-shell { width:min(1240px,100%); height:calc(100vh - 96px); min-height:560px; display:flex; flex-direction:column; background:rgba(6,9,18,.9); border:1px solid #27364d; box-shadow:0 24px 70px rgba(0,0,0,.55); overflow:hidden; }
-.records-head { display:flex; align-items:flex-end; gap:22px; flex-wrap:wrap; padding:18px 20px 12px; border-bottom:1px solid #304059; background:linear-gradient(180deg,#101929,#090d16); }
-.records-title span { color:#61718b; font-size:10px; letter-spacing:3px; }
-.records-title h2 { margin-top:4px; color:#f2f5f8; letter-spacing:4px; font-size:22px; }
-.records-who { display:flex; flex-direction:column; gap:3px; }
-.records-who label { color:#77859a; font-size:10px; letter-spacing:2px; }
-.records-who input { background:#0d1420; border:1px solid #2b3b52; color:#dce4ec; font-family:inherit; font-size:13px; padding:5px 9px; border-radius:3px; width:180px; }
-.records-who input:focus { outline:none; border-color:#16c79a; }
-.records-who small { color:#5d6a7d; font-size:10px; }
-.records-tabs { margin-left:auto; display:flex; gap:6px; }
-.records-tab { border:1px solid #2b3b52; background:rgba(255,255,255,.03); color:#9dabbd; font-family:inherit; font-size:13px; padding:7px 14px; cursor:pointer; border-radius:3px; transition:.18s; }
-.records-tab:hover { background:rgba(255,255,255,.08); color:#dce4ec; }
-.records-tab.selected { border-color:#e94560; color:#e94560; background:rgba(233,69,96,.12); }
-.records-body { flex:1; min-height:0; overflow:hidden; }
-.records-foot { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:1px solid #304059; background:rgba(9,13,22,.92); }
-.records-foot-right { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
-.records-split { display:grid; grid-template-columns:300px 1fr; height:100%; min-height:0; }
-.records-list { overflow-y:auto; border-right:1px solid #26354a; padding:8px; display:flex; flex-direction:column; gap:5px; }
-.records-detail { overflow-y:auto; padding:18px 22px 26px; min-width:0; }
-.records-career { overflow-y:auto; height:100%; padding:20px 26px 30px; }
-.records-empty { padding:56px 30px; text-align:center; color:#9dabbd; }
-.records-empty b { color:#dce4ec; font-size:16px; }
-.records-empty p { margin-top:10px; font-size:12px; line-height:1.9; }
-.records-note { color:#7b8798; font-size:11px; line-height:1.85; margin-top:8px; }
-.records-note b { color:#aeb7c2; }
-
-/* 一条战绩 */
-.rec-row { display:block; width:100%; text-align:left; border:0; border-left:3px solid transparent; background:rgba(255,255,255,.025); color:#dce3eb; font-family:inherit; padding:8px 10px; cursor:pointer; transition:.18s; }
-.rec-row:hover { background:rgba(255,255,255,.07); }
-.rec-row.selected { border-left-color:#e94560; background:linear-gradient(90deg,rgba(233,69,96,.18),rgba(255,255,255,.04)); }
-.rec-row-top { display:flex; align-items:center; gap:7px; }
-.rec-row-top b { font-size:12px; color:#e8edf2; }
-.rec-when { margin-left:auto; color:#6d7a8c; font-size:10px; }
-.rec-row-teams { margin-top:5px; color:#98a4b4; font-size:10px; line-height:1.5; }
-.rec-row-teams i { color:#5d6a7d; font-style:normal; margin:0 3px; }
-.rec-row-foot { margin-top:4px; color:#6d7a8c; font-size:10px; }
-.rec-row-flat { border-left-color:#26354a; margin-bottom:4px; }
-.rec-chip { font-size:10px; padding:1px 7px; border:1px solid currentColor; border-radius:2px; letter-spacing:1px; }
-.rec-win { color:#16c79a; }
-.rec-loss { color:#ff6b6b; }
-.rec-none { color:#8d97a8; }
-.rec-tag-backfill { color:#ffd54f; border:1px solid rgba(255,213,79,.5); padding:0 4px; font-size:9px; border-radius:2px; }
-
-/* 一局的详情 */
-.rec-detail-head { display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; border-bottom:1px solid #26354a; padding-bottom:12px; }
-.rec-detail-head h3 { color:#f2f5f8; font-size:17px; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
-.rec-detail-head p { color:#7b8798; font-size:11px; margin-top:5px; }
-.rec-detail-acts { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
-.rec-backfill-note { margin-top:12px; padding:9px 12px; border-left:3px solid #ffd54f; background:rgba(255,213,79,.07); color:#c3ccd8; font-size:11px; line-height:1.8; }
-.rec-backfill-note b { color:#ffd54f; }
-.rec-detail-kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:14px 0; }
-.rec-detail-kpi div { background:rgba(255,255,255,.04); padding:8px 10px; border-bottom:2px solid #26374e; }
-.rec-detail-kpi span { display:block; color:#77859a; font-size:10px; }
-.rec-detail-kpi b { display:block; margin-top:3px; color:#dce4ec; font-size:14px; }
-.rec-detail-teams { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.rec-detail-teams h4 { font-size:12px; letter-spacing:2px; margin-bottom:7px; padding-left:8px; border-left:3px solid currentColor; }
-.rec-side-1 { color:#e94560; }
-.rec-side-2 { color:#16c79a; }
-.rec-unit { display:flex; align-items:center; gap:10px; padding:6px 9px; margin-bottom:4px; background:rgba(255,255,255,.035); border:1px solid #22303f; font-size:11px; color:#98a4b4; }
-.rec-unit b { color:#dce4ec; min-width:56px; }
-.rec-unit.is-mvp { border-color:rgba(255,213,79,.55); background:rgba(255,213,79,.08); }
-.rec-unit.is-mvp b::after { content:" ⭐"; }
-.rec-friend-games { margin-top:14px; max-height:230px; overflow-y:auto; }
-
-/* 生涯 */
-.rec-kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
-.rec-kpi-grid div { background:rgba(255,255,255,.04); padding:10px 12px; border-bottom:2px solid #26374e; }
-.rec-kpi-grid span { display:block; color:#77859a; font-size:10px; }
-.rec-kpi-grid b { display:block; margin-top:4px; color:#dce4ec; font-size:19px; }
-.rec-section { margin:20px 0 9px; color:#e94560; font-size:13px; letter-spacing:2px; border-left:3px solid #e94560; padding-left:9px; }
-.rec-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; font-size:11px; color:#c3ccd8; }
-.rec-bar-row span { min-width:44px; }
-.rec-bar-row b { min-width:96px; text-align:right; color:#9dabbd; font-weight:normal; }
-.rec-bar { flex:1; height:9px; background:rgba(255,255,255,.06); border:1px solid #26354a; }
-.rec-bar i { display:block; height:100%; background:linear-gradient(90deg,#16c79a,#4fc3f7); }
-.rec-chars { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:5px; }
-.rec-char-row { display:flex; align-items:center; gap:9px; padding:6px 9px; background:rgba(255,255,255,.035); border:1px solid #22303f; font-size:10px; color:#8f9cad; }
-.rec-char-row b { color:#dce4ec; font-size:12px; min-width:48px; }
-.rec-danger-zone { margin-top:26px; padding-top:14px; border-top:1px dashed #33445c; }
-
-/* 分享 / 导入的弹窗 */
-.rec-modal-sub { color:#9dabbd; font-size:12px; line-height:1.8; margin-bottom:10px; }
-.rec-modal-note { color:#7b8798; font-size:11px; line-height:1.8; margin:10px 0; }
-.rec-modal-actions { flex-wrap:wrap; justify-content:flex-start !important; margin-bottom:10px; }
-.rec-modal-close { margin-left:auto; }
-.rec-modal-status { color:#16c79a; font-size:11px; min-height:16px; margin-top:8px; }
-.rec-code { width:100%; background:#0b1018; border:1px solid #2b3b52; color:#8fd6c0; font-family:inherit; font-size:11px; line-height:1.6; padding:9px; border-radius:3px; resize:vertical; word-break:break-all; }
-.rec-code:focus { outline:none; border-color:#16c79a; }
-.rec-import-result { margin-top:12px; }
-.rec-verify-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.rec-verify { font-size:11px; padding:2px 9px; border:1px solid currentColor; border-radius:2px; }
-.rec-verify.ok { color:#16c79a; }
-.rec-verify.bad { color:#ff6b6b; }
-.rec-good { color:#16c79a; font-size:12px; line-height:1.8; }
-.rec-bad { color:#ff6b6b; font-size:12px; line-height:1.8; }
-.rec-problems { margin:8px 0 0 18px; color:#ffab91; font-size:11px; line-height:1.75; }
-
-/* 结算界面里的「已记入战绩」 */
-.result-record-note { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px dashed #333; color:#16c79a; font-size:12px; }
-.result-record-note.is-fail { color:#ffab91; }
-
-@media(max-width:900px){
-  #screen-records { padding:48px 8px 12px; }
-  .records-split { grid-template-columns:1fr; }
-  .records-list { max-height:200px; border-right:0; border-bottom:1px solid #26354a; }
-  .records-detail { padding:14px; }
-  .rec-detail-kpi { grid-template-columns:repeat(2,1fr); }
-  .rec-detail-teams { grid-template-columns:1fr; }
-  .rec-kpi-grid { grid-template-columns:repeat(3,1fr); }
-  .records-tabs { margin-left:0; }
-}
-
-.option-grid { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; max-width:1100px; margin:16px 0 24px; }
-.option-card {
-  width:240px; border:2px solid #0f3460; border-radius:10px; padding:18px;
-  background:rgba(15,52,96,.35); cursor:pointer; transition:all .25s; text-align:center;
-  position:relative; overflow:hidden;
-}
-.option-card::before{
-  content:""; position:absolute; inset:0;
-  background:linear-gradient(135deg, transparent 40%, rgba(233,69,96,.1) 50%, transparent 60%);
-  transform:translateX(-100%); transition:transform .6s;
-}
-.option-card:hover::before{ transform:translateX(100%); }
-.option-card:hover { border-color:#16c79a; transform:translateY(-4px); box-shadow:0 8px 24px rgba(0,0,0,.5);}
-.option-card.selected { border-color:#e94560; background:rgba(233,69,96,.18); box-shadow:0 0 20px rgba(233,69,96,.4);}
-.option-card h3 { color:#e94560; font-size:20px; margin-bottom:8px; }
-.option-card .ic { font-size:38px; margin-bottom:6px; filter:drop-shadow(0 0 8px currentColor); }
-.option-card .desc { font-size:12px; color:#ccc; line-height:1.6; min-height:60px; }
-.option-card .buff { font-size:12px; color:#16c79a; margin-top:8px; }
-.option-card .preview { height:80px; border-radius:6px; margin-bottom:8px; overflow:hidden; position:relative; }
-
-#screen-select h2 { color:#e94560; margin:18px 0 8px; font-size:22px; }
-.char-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; max-width:1000px; }
-.char-card {
-  width:150px; border:2px solid #0f3460; border-radius:8px; padding:12px 8px;
-  text-align:center; cursor:pointer; transition:all .2s;
-  background:linear-gradient(180deg, rgba(15,52,96,.4), rgba(15,52,96,.15));
-  position:relative;
-}
-.char-card:hover { border-color:#16c79a; transform:translateY(-4px); box-shadow:0 6px 16px rgba(22,199,154,.3); }
-.char-card.selected { border-color:#e94560; background:linear-gradient(180deg,rgba(233,69,96,.3),rgba(233,69,96,.05)); box-shadow:0 0 16px rgba(233,69,96,.5); }
-.char-card.disabled { opacity:.3; pointer-events:none; }
-.char-card .stick-preview { height:90px; display:flex; align-items:center; justify-content:center; }
-.char-card .cname { font-size:16px; font-weight:bold; margin:6px 0 2px; }
-.char-card .crole { font-size:11px; color:#aaa; }
-.char-card .cstats { font-size:11px; color:#16c79a; margin-top:4px; line-height:1.4;}
-
-/* —— 修复 Bug：Tooltip 用 position:fixed + 全局最高层级 —— */
-#global-tooltip {
-  position:fixed; display:none; background:rgba(10,10,24,.97);
-  border:1px solid #e94560; border-radius:8px; padding:10px 12px;
-  font-size:12px; z-index:9999; max-width:260px; pointer-events:none;
-  text-align:left; line-height:1.7; box-shadow:0 4px 24px rgba(0,0,0,.7);
-  backdrop-filter:blur(4px);
-}
-#global-tooltip b { color:#ffd54f; }
-
-.turn-info {
-  text-align:center; padding:8px 0; font-size:18px;
-  color:#e94560; width:100%; background:linear-gradient(90deg,rgba(0,0,0,.4),rgba(0,0,0,.7),rgba(0,0,0,.4));
-  letter-spacing:2px; position:relative;
-}
-.turn-info .round-badge {
-  display:inline-block; background:#e94560; color:#1a1a2e; padding:2px 10px;
-  border-radius:12px; font-size:13px; margin-right:8px; font-weight:bold;
-  animation:badgePulse 2s infinite;
-}
-@keyframes badgePulse { 0%,100%{box-shadow:0 0 0 0 rgba(233,69,96,.6);} 50%{box-shadow:0 0 0 8px rgba(233,69,96,0);} }
-.exit-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); padding:5px 12px; font-size:12px; }
-.scene-banner { width:100%; text-align:center; font-size:12px; color:#ccc; background:rgba(0,0,0,.4); padding:5px; }
-
-.battle-field { display:flex; width:100%; flex:1; min-height:380px; min-height:0; }
-/* 每方最多 4 人（见 state.js 的 teamSizeFor）。竖排 4 张卡在任何屏幕上都会溢出，
-   所以改成**会换行的网格**：2 人一列、3~4 人自动排成两列。
-   仍然保留 overflow-y:auto 兜底。 */
-.team-side {
-  flex:1; display:flex; flex-flow:row wrap; align-content:center; justify-content:center;
-  gap:8px; padding:10px; overflow-y:auto; min-height:0;
-}
-.battle-unit {
-  width:225px; border:2px solid #0f3460; border-radius:10px; padding:8px 12px;
-  background:linear-gradient(180deg,rgba(15,52,96,.55),rgba(15,52,96,.25));
-  transition:all .3s; position:relative; backdrop-filter:blur(2px);
-  flex-shrink:0;
-}
-.battle-unit.active-turn {
-  border-color:#e94560;
-  box-shadow:0 0 20px rgba(233,69,96,.6), inset 0 0 14px rgba(233,69,96,.15);
-  animation:activePulse 1.5s ease-in-out infinite;
-}
-@keyframes activePulse { 0%,100%{box-shadow:0 0 20px rgba(233,69,96,.5);} 50%{box-shadow:0 0 30px rgba(233,69,96,.9);} }
-.battle-unit.target-select { cursor:pointer; border-color:#16c79a; }
-.battle-unit.target-select:hover { box-shadow:0 0 25px rgba(22,199,154,.6); transform:scale(1.03);}
-.battle-unit.dead { opacity:.35; border-color:#333; filter:grayscale(.7);}
-.battle-unit.stunned { border-color:#f5a623; }
-.battle-unit.low-hp { animation:lowHpWarn 1.2s ease-in-out infinite; }
-@keyframes lowHpWarn { 0%,100%{box-shadow:0 0 8px rgba(255,82,82,.3);} 50%{box-shadow:0 0 22px rgba(255,82,82,.8);} }
-.unit-name { font-size:16px; font-weight:bold; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;}
-.unit-meta { font-size:10px; color:#aaa; display:flex; gap:8px; justify-content:center; margin-bottom:4px;}
-.unit-meta span { background:rgba(0,0,0,.4); padding:1px 6px; border-radius:8px; }
-.unit-meta .meta-atk { color:#ff7043; }
-.unit-meta .meta-def { color:#90caf9; }
-.unit-meta .meta-crit { color:#ffd54f; }
-.bar-wrap { height:14px; background:#111; border-radius:7px; margin:4px 0; overflow:hidden; position:relative; border:1px solid #000;}
-.bar-fill { height:100%; border-radius:7px; transition:width .4s; position:relative; }
-.bar-fill::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.25),transparent 50%); }
-.bar-hp .bar-fill { background:linear-gradient(90deg,#c2185b,#e94560,#ff6b6b);}
-.bar-sp .bar-fill { background:linear-gradient(90deg,#0f3460,#4fc3f7,#16c79a);}
-.bar-shield { position:absolute; left:0; top:0; height:100%; background:rgba(144,202,249,.4); border-right:2px solid #90caf9;}
-.bar-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 1px 2px #000; font-weight:bold;}
-.unit-status { font-size:11px; color:#f5a623; margin-top:4px; min-height:14px; }
-.unit-status .stat-chip { display:inline-block; padding:1px 5px; margin:1px; border-radius:8px; background:rgba(0,0,0,.35); }
-/* 增益绿、减益红，两组之间还有一条分隔线。颜色和分隔线是两道独立的保险：
-   任何一道单独存在时，相邻的一好一坏两个状态都可能被读成一个复合状态。 */
-.unit-status .chip-good { color:#6ee7a8; background:rgba(22,199,154,.14); }
-.unit-status .chip-bad  { color:#ff8a80; background:rgba(233,69,96,.16); }
-.unit-status .chip-sep {
-  display:inline-block; width:1px; height:9px; margin:0 4px -1px;
-  background:rgba(255,255,255,.25);
-}
-.unit-canvas { display:block; margin:0 auto 2px; transition:transform .25s; }
-
-/* 锋芒蓄能条（COMBAT_PLAN.md 任务 2b）。重击不掷骰，锋芒攒满 100 必中——
-   所以「快满了」这件事必须看得见，玩家才谈得上「留大招砸在必定重击那一刀」。 */
-.meta-crit.crit-ready { color:#ffd54f; font-weight:bold; text-shadow:0 0 6px rgba(255,213,79,.8); }
-.dmg-preview.will-crit { color:#ffd54f; font-weight:bold; }
-
-/* 观战时的暂停 / 单步 / 倍速条。放在回合信息栏左侧，
-   和右侧的「退出战斗」对称。 */
-/* 单独占一行放在场景横幅下面。**别放进 turn-info**——那一行左上角被
-   固定定位的 #top-bar（音量条）压着，按钮会被盖住一半。 */
-#spectate-bar {
-  width:100%; display:flex; gap:8px; align-items:center; justify-content:center;
-  padding:5px; background:rgba(0,0,0,.25); border-bottom:1px solid rgba(233,69,96,.2);
-}
-#spectate-bar .btn { padding:4px 10px; font-size:12px; }
-#spectate-bar .btn:disabled { opacity:.35; }
-
-/* 观战设置里的难度小卡（比模式卡窄，两列并排放得下） */
-.spec-diff-row { display:flex; flex-direction:column; gap:8px; }
-.spec-diff {
-  width:230px; padding:8px 12px; border:2px solid #0f3460; border-radius:8px;
-  background:rgba(15,52,96,.35); cursor:pointer; transition:all .2s; font-size:13px;
-}
-.spec-diff:hover { border-color:#16c79a; transform:translateX(3px); }
-.spec-diff.selected { border-color:#e94560; background:rgba(233,69,96,.18); }
-.spec-diff .sd-name { font-weight:bold; }
-.spec-diff .sd-note { font-size:11px; color:#999; margin-top:2px; }
-
-/* 「点我方角色查看技能」阶段的可点 / 预览高亮。
-   以前这里是一个独立的选人界面，用户反馈那样「没法挨个点开看技能」。 */
-.battle-unit.pickable { cursor:pointer; border-color:#4fc3f7; }
-.battle-unit.pickable:hover { box-shadow:0 0 22px rgba(79,195,247,.5); transform:scale(1.02); }
-.battle-unit.previewing {
-  border-color:#16c79a;
-  box-shadow:0 0 24px rgba(22,199,154,.55), inset 0 0 14px rgba(22,199,154,.14);
-}
-
-/* BOSS 阶段标记（COMBAT_PLAN.md 任务 4）。规则中途会变，必须一直看得见。 */
-.unit-phase {
-  margin-top:4px; padding:2px 6px; border-radius:5px; font-size:11px;
-  background:rgba(126,87,194,.22); border:1px solid rgba(206,147,216,.6); color:#ce93d8;
-  letter-spacing:1px;
-}
-
-/* 敌人下一击的预告条（COMBAT_PLAN.md 任务 1：意图公开 + 承诺制）。
-   它必须显眼——玩家的每一个决策都要围绕它做，看不见就等于没做。 */
-.unit-intent {
-  margin-top:5px; padding:3px 6px; border-radius:6px; font-size:11px; line-height:1.5;
-  background:rgba(233,69,96,.16); border:1px solid rgba(233,69,96,.55); color:#ffb3c0;
-  animation:intentPulse 1.8s ease-in-out infinite;
-}
-.unit-intent .intent-arrow { margin:0 3px; opacity:.75; }
-.unit-intent .intent-dmg { margin-left:5px; color:#ff8a80; }
-@keyframes intentPulse {
-  0%,100% { border-color:rgba(233,69,96,.55); }
-  50%     { border-color:rgba(233,69,96,1); }
-}
-/* 被预告瞄准的单位：让玩家一眼看出「这一下要落在谁头上」 */
-.battle-unit.intent-target { box-shadow:0 0 18px rgba(233,69,96,.55) inset, 0 0 12px rgba(233,69,96,.35); }
-
-.skill-panel {
-  width:100%; max-width:920px; padding:12px 20px;
-  background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.4));
-  display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
-  min-height:84px; align-items:center;
-  border-top:1px solid rgba(233,69,96,.3); border-bottom:1px solid rgba(233,69,96,.3);
-}
-.skill-btn {
-  padding:8px 14px 8px 38px; border:1px solid #0f3460;
-  background:linear-gradient(180deg,rgba(15,52,96,.7),rgba(15,52,96,.4));
-  color:#eee; font-family:inherit; font-size:13px;
-  cursor:pointer; border-radius:6px; transition:all .2s; position:relative;
-  width:150px; height:64px; text-align:left; box-sizing:border-box; overflow:hidden;
-}
-.skill-btn:hover:not(:disabled){ border-color:#e94560; background:rgba(233,69,96,.25); transform:translateY(-2px); box-shadow:0 4px 12px rgba(233,69,96,.4); }
-.skill-btn:disabled { opacity:.35; cursor:not-allowed; }
-.skill-btn .skill-icon { position:absolute; left:6px; top:50%; transform:translateY(-50%); width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 0 8px currentColor; }
-.skill-btn .sp-cost { font-size:10px; color:#16c79a; display:block; margin-top:2px;}
-.skill-btn .dmg-preview { font-size:10px; color:#ff7043; display:block; }
-.skill-btn .key-hint { position:absolute; top:2px; right:4px; font-size:9px; color:#888; }
-
-.battle-log {
-  width:100%; max-width:920px; height:150px; overflow-y:auto;
-  padding:10px 16px; background:rgba(0,0,0,.7);
-  font-size:12px; line-height:1.7;
-  border:1px solid rgba(15,52,96,.6);
-  font-family:'Consolas','Courier New',monospace;
-  scroll-behavior:smooth;
-}
-.battle-log .log-entry { margin:1px 0; padding:2px 4px; border-left:3px solid transparent; animation:logIn .3s ease; }
-@keyframes logIn { from{opacity:0; transform:translateX(-8px);} to{opacity:1; transform:none;} }
-.battle-log .log-entry .log-time { color:#666; margin-right:6px; }
-.battle-log .log-entry .log-icon { margin-right:4px; }
-.log-divider { color:#e94560; font-weight:bold; border-bottom:1px dashed #e94560; padding-bottom:2px; margin:4px 0;}
-.log-dmg { color:#ff6b7a; border-left-color:#e94560 !important; }
-.log-heal { color:#4dd6a8; border-left-color:#16c79a !important; }
-.log-sp { color:#4fc3f7; border-left-color:#4fc3f7 !important; }
-.log-stun { color:#f5a623; border-left-color:#f5a623 !important; }
-.log-info { color:#aaa; }
-.log-miss { color:#888; font-style:italic; }
-.log-buff { color:#ce93d8; border-left-color:#ce93d8 !important; }
-.log-crit { color:#ffd54f; font-weight:bold; }
-.log-death { color:#ff1744; font-weight:bold; border-left-color:#ff1744 !important;}
-
-.log-controls { display:flex; gap:6px; max-width:920px; width:100%; padding:4px 16px; background:rgba(0,0,0,.5); justify-content:flex-end; }
-.log-controls button { font-size:10px; padding:3px 8px; }
-
-#screen-result h1 { font-size:56px; margin-bottom:16px; text-shadow:0 0 30px currentColor; animation:resultBounce .6s cubic-bezier(.5,1.6,.4,1);}
-@keyframes resultBounce { 0%{transform:scale(0); opacity:0;} 100%{transform:scale(1); opacity:1;} }
-#screen-result .result-stats { background:rgba(0,0,0,.5); padding:16px 24px; border-radius:8px; border:1px solid #0f3460; margin-bottom:20px; min-width:400px;}
-#screen-result .result-stats h3 { color:#e94560; margin-bottom:8px; }
-#screen-result .result-stats .row { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; border-bottom:1px dashed #333;}
-.balance-lab-section { width:min(760px,92vw); background:rgba(8,12,28,.72); border:1px solid #23365d; border-radius:12px; padding:18px; margin:10px 0; }
-.balance-lab-section>h3 { color:#ffd54f; margin:0 0 5px; }
-.balance-lab-note { color:#9299aa; font-size:12px; line-height:1.7; margin:0 0 14px; }
-.team-study-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:#ccc; }
-.team-study-controls select { background:#1a1a2e; color:#eee; border:1px solid #0f3460; padding:7px 10px; border-radius:5px; font-family:inherit; }
-.team-study-empty { padding:18px; color:#788196; border:1px dashed #33405c; border-radius:8px; margin-top:12px; text-align:center; }
-.team-study-summary { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:15px 0 8px; color:#aeb7cb; font-size:12px; }
-.team-study-summary strong { color:#dce4f5; }
-.team-study-card { display:grid; grid-template-columns:42px 1fr 130px; gap:12px; align-items:center; padding:13px 8px; border-top:1px solid #27334d; }
-.team-study-rank { color:#ffd54f; font-size:18px; font-weight:bold; text-align:center; }
-.team-study-main h3 { margin:0 0 4px; color:#f2f5fb; font-size:15px; }
-.team-study-roles,.team-study-scenes,.team-study-matchups { color:#8d98ae; font-size:11px; line-height:1.6; }
-.team-study-scenes { color:#66c7c0; margin-top:4px; }
-.team-study-matchups { margin-top:4px; }
-.team-study-rate { text-align:right; display:flex; flex-direction:column; gap:3px; }
-.team-study-rate b { color:#e94560; font-size:20px; }
-.team-study-rate span { color:#aab4c8; font-size:11px; }
-.team-study-rate small { color:#69758c; font-size:10px; }
-@media(max-width:600px){ .team-study-card{grid-template-columns:34px 1fr}.team-study-rate{grid-column:2;text-align:left}.team-study-summary{flex-direction:column} }
-
-@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-@keyframes flash { 0%,100%{opacity:1} 50%{opacity:.4} }
-.anim-hit { animation:shake .35s ease; }
-.anim-heal { animation:flash .4s ease 2; }
-.unit-canvas.lunge-left { transform:translateX(50px) scale(1.08); }
-.unit-canvas.lunge-right { transform:translateX(-50px) scale(1.08); }
-
-.modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
-.modal-box { background:#1a1a2e; border:2px solid #e94560; border-radius:10px; padding:24px; min-width:320px; text-align:center; box-shadow:0 0 40px rgba(233,69,96,.5); }
-.modal-box h3 { color:#e94560; margin-bottom:14px; }
-.modal-box p { color:#ccc; margin-bottom:18px; }
-.modal-box .row { display:flex; gap:10px; justify-content:center; }
-
-/* ── 教学提示 + 机制词典（UX_PLAN 阶段 3）────────────────── */
-.modal-box.modal-wide { max-width:min(760px, 92vw); width:760px; text-align:left; }
-.codex-tip-tag {
-  display:inline-block; font-size:11px; letter-spacing:1px; color:#16c79a;
-  border:1px solid rgba(22,199,154,.5); border-radius:10px; padding:1px 8px; margin-bottom:8px;
-}
-/* 提示正文一行一句。行距放宽，让三行读起来是三件事而不是一段话。 */
-.modal-box .codex-tip-line { color:#d5dae2; font-size:13px; line-height:1.85; margin-bottom:7px; text-align:left; }
-.modal-box .codex-tip-line:last-of-type { margin-bottom:14px; }
-.modal-box .codex-tip-line b { color:#ffd54f; }
-.modal-box .codex-tip-foot { font-size:11px; color:#777; margin-bottom:14px; text-align:center; }
-.codex-nav { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
-.codex-nav-item {
-  font-family:inherit; font-size:12px; cursor:pointer; color:#ccc;
-  background:rgba(255,255,255,.05); border:1px solid rgba(233,69,96,.35);
-  border-radius:12px; padding:3px 10px;
-}
-.codex-nav-item:hover { background:rgba(233,69,96,.2); color:#fff; }
-/* 词典要能滚动，而且**不能把整个页面撑高**——战斗界面本来就满屏了 */
-.codex-body { max-height:min(52vh, 420px); overflow-y:auto; padding-right:6px; }
-.codex-entry { border-top:1px dashed #333; padding:12px 2px; scroll-margin-top:4px; }
-.codex-entry:first-child { border-top:none; }
-.codex-entry h4 { color:#f5a623; font-size:14px; margin-bottom:6px; }
-.modal-box .codex-entry p { color:#bbb; font-size:13px; line-height:1.9; margin-bottom:0; }
-.modal-box .codex-entry b { color:#e94560; }
-
-/* 雷达图预览 */
-#screen-radar { text-align:center; }
-.radar-wrap { display:flex; gap:40px; justify-content:center; align-items:flex-start; margin:16px 0 24px; flex-wrap:wrap; }
-.radar-side { display:flex; flex-direction:column; align-items:center; gap:8px; }
-.radar-side h3 { font-size:14px; letter-spacing:2px; }
-.radar-labels { font-size:11px; color:#888; line-height:1.8; text-align:left; }
-
-/* 战役地图 */
-.campaign-map { display:flex; flex-direction:column; gap:10px; max-width:680px; width:100%; margin:16px 0 24px; }
-.stage-row { display:flex; align-items:center; gap:12px; }
-.stage-node {
-  width:52px; height:52px; border-radius:50%; border:2px solid #0f3460;
-  display:flex; align-items:center; justify-content:center; font-size:18px;
-  flex-shrink:0; cursor:pointer; transition:all .25s; position:relative;
-  background:rgba(15,52,96,.4);
-}
-.stage-node.unlocked { border-color:#16c79a; cursor:pointer; }
-.stage-node.unlocked:hover { transform:scale(1.15); box-shadow:0 0 16px rgba(22,199,154,.6); }
-.stage-node.completed { border-color:#e94560; background:rgba(233,69,96,.2); }
-.stage-node.locked { opacity:.35; cursor:not-allowed; }
-.stage-node.current { border-color:#ffd54f; box-shadow:0 0 20px rgba(255,213,79,.6); animation:activePulse 1.5s infinite; }
-.stage-info { flex:1; }
-.stage-info .s-title { font-size:14px; font-weight:bold; color:#e0e0e0; }
-.stage-info .s-desc { font-size:11px; color:#888; margin-top:2px; }
-.stage-connector { width:2px; height:16px; background:linear-gradient(180deg,#0f3460,#16c79a); margin-left:25px; }
-
-/* 过场文字 */
-.char-card.hero-locked { border-color:#ffd54f; box-shadow:0 0 14px rgba(255,213,79,.35); cursor:default; }
-.char-card.hero-locked .crole { color:#ffd54f !important; }
-
-#screen-cutscene { text-align:center; }
-#cutscene-stage { font-size:13px; color:#16c79a; letter-spacing:4px; margin-bottom:12px; }
-#cutscene-text {
-  max-width:560px; min-height:120px; font-size:16px; line-height:2; color:#e0e0e0;
-  white-space:pre-line; margin-bottom:12px;
-  text-shadow:0 0 8px rgba(233,69,96,.3);
-  display:flex; align-items:center; justify-content:center;
-}
-#cutscene-dots { font-size:12px; color:#666; letter-spacing:3px; margin-bottom:20px; min-height:16px; }
-
-
-.vs-divider { width:2px; background:linear-gradient(180deg,transparent,#e94560,transparent); position:relative; }
-.vs-divider::before { content:"VS"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#e94560; font-weight:bold; font-size:24px; background:#0a0a18; padding:8px; border-radius:50%; border:2px solid #e94560; box-shadow:0 0 16px rgba(233,69,96,.6); }
-</style>
-<link rel="stylesheet" href="./src/view/presentation.css">
-<link rel="stylesheet" href="./src/view/expedition.css">
-<link rel="stylesheet" href="./src/view/ink-hud.css">
-<link rel="stylesheet" href="./src/view/arena3d.css">
-</head>
-<body>
-
-<div id="scene-bg"></div>
-<canvas id="scene-bg-canvas"></canvas>
-<canvas id="scene-fx"></canvas>
-<canvas id="fx-canvas"></canvas>
-
-<div id="top-bar">
-  <span id="debug-tap" style="font-size:14px;cursor:pointer;" title="音量">🔊</span>
-  <label>BGM<input type="range" id="vol-bgm" min="0" max="100" value="35"></label>
-  <label>SFX<input type="range" id="vol-sfx" min="0" max="100" value="60"></label>
-  <button class="btn btn-sm" id="btn-mute" onclick="toggleMute()">🔔</button>
-</div>
-
-<div id="global-tooltip"></div>
-
-<div id="shake-wrap">
-
-<!-- 标题 -->
-<div id="screen-title" class="active">
-  <div class="title-hero" aria-hidden="true"><div class="title-halo"></div><img id="title-hero-image" alt="" fetchpriority="high"></div>
-  <div class="title-copy">
-    <div class="title-edition">墨 境 · 三 笔 成 阵</div>
-    <div class="subtitle">INKFIGHT / REALM OF INK</div>
-    <h1>墨境<em>之战</em></h1>
-    <p class="title-manifesto">万象皆墨，一念成锋。</p>
-    <p class="title-description">一队行者，三笔共享的墨。<br>谁来铺阵，谁来收锋——让落笔的顺序，改写这条归路。</p>
-    <div class="title-actions">
-      <button class="btn title-primary" id="btn-expedition">墨路远征　↗</button>
-      <button class="btn title-secondary" id="btn-quick-battle" onclick="playSfx('confirm'); quickBattle()">经典快战</button>
-    </div>
-    <small id="quick-battle-note"></small>
-    <div class="title-links">
-      <button onclick="playSfx('click'); showScreen('screen-mode')">经典配队 ↗</button>
-      <a href="./model-workshop.html">3D 造物间 ↗</a>
-      <button onclick="playSfx('click'); showScreen('screen-archive')">角色档案 ↗</button>
-      <button onclick="playSfx('click'); showScreen('screen-records')">战绩室 ↗</button>
-      <button onclick="playSfx('click'); showHelp()">玩法说明 ↗</button>
-    </div>
-  </div>
-  <div class="title-hero-label"><b id="title-hero-name"></b><span id="title-hero-role"></span></div>
-  <div class="title-roster-wrap"><div class="title-roster-head"><span id="title-roster-count"></span><span id="title-hero-skills"></span><span>选择你的行者</span></div><div id="title-roster" aria-label="选择首页角色"></div></div>
-</div>
-
-<!-- 角色档案 -->
-<div id="screen-expedition"></div>
-<div id="screen-archive">
-  <div class="archive-shell">
-    <aside class="archive-sidebar">
-      <div class="archive-title"><span>INKFIGHT ARCHIVE</span><h2>角色档案</h2></div>
-      <nav class="archive-roster" id="archive-roster" aria-label="角色列表"></nav>
-      <button class="btn btn-sm archive-back" onclick="playSfx('click'); showScreen('screen-title')">返回首页</button>
-    </aside>
-    <main class="archive-detail" id="archive-detail"></main>
-  </div>
-</div>
-
-<!-- 战绩室 -->
-<div id="screen-records">
-  <div class="records-shell">
-    <header class="records-head">
-      <div class="records-title"><span>INKFIGHT RECORDS</span><h2>战 绩 室</h2></div>
-      <div class="records-who">
-        <label>我的名字</label>
-        <input id="records-name" maxlength="12" placeholder="无名墨客">
-        <small>分享战绩时，朋友看到的署名</small>
-      </div>
-      <nav class="records-tabs">
-        <button class="records-tab" data-tab="mine">📜 我的战绩</button>
-        <button class="records-tab" data-tab="career">📊 生涯</button>
-        <button class="records-tab" data-tab="friends">👥 好友战绩</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a171b" />
+    <title>墨境之战 · 三墨同心</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' font-size='52'%3E墨%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="src/view/library.css" />
+    <link rel="stylesheet" href="src/view/presentation.css" />
+    <link rel="stylesheet" href="src/view/arena3d.css" />
+    <link rel="stylesheet" href="src/view/expedition.css" />
+    <link rel="stylesheet" href="src/view/party-builder.css" />
+    <link rel="stylesheet" href="src/view/game.css" />
+  </head>
+  <body>
+    <div id="scene-bg"></div>
+    <canvas id="scene-bg-canvas"></canvas><canvas id="scene-fx"></canvas
+    ><canvas id="fx-canvas"></canvas>
+    <div id="tooltip" role="tooltip"></div>
+    <header id="app-nav">
+      <button class="brand" onclick="goHome()">
+        墨境 <small>三墨同心</small>
+      </button>
+      <nav>
+        <button onclick="showHelp()">规则</button
+        ><button id="btn-settings" onclick="openSettings()">设置</button
+        ><button id="btn-mute" onclick="toggleMute()" aria-label="切换静音">
+          🔊
+        </button>
       </nav>
     </header>
-    <div class="records-body" id="records-body"></div>
-    <footer class="records-foot">
-      <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-title')">返回首页</button>
-      <div class="records-foot-right">
-        <button class="btn btn-sm" id="btn-records-import">📥 导入好友战绩</button>
-        <button class="btn btn-sm btn-confirm" id="btn-records-export">📤 分享我的战绩</button>
+    <div id="shake-wrap">
+      <section id="screen-title" class="active">
+        <div class="title-hero">
+          <div class="title-halo"></div>
+          <img id="title-hero-image" alt="" />
+        </div>
+        <div class="title-copy">
+          <span class="title-edition">全队共享 · 三笔成阵</span>
+          <p class="subtitle">INKFIGHT / A SHARED INK TACTICS GAME</p>
+          <h1>一队四人<em>三墨同心</em></h1>
+          <p class="title-manifesto">谁先落笔，由你决定。</p>
+          <p class="title-description">
+            三人连携，一击孤注，或留白化盾。<br />同一份墨量，写出不一样的胜局。
+          </p>
+          <div class="title-actions">
+            <button class="btn title-primary" id="btn-expedition">
+              墨路远征 ↗</button
+            ><button class="btn title-secondary" onclick="openDuel()">
+              自由对战 ↗
+            </button>
+          </div>
+          <div class="home-resume" id="home-resume"></div>
+          <small id="quick-battle-note"></small>
+          <div class="title-links">
+            <button id="btn-quick-battle" onclick="quickBattle()">
+              即刻试一局 ↗</button
+            ><button onclick="showScreen('screen-archive')">行者图鉴 ↗</button
+            ><button onclick="showScreen('screen-records')">战绩 ↗</button
+            ><a href="model-workshop.html">3D 造物间 ↗</a>
+          </div>
+        </div>
+        <div class="title-hero-label">
+          <b id="title-hero-name"></b><span id="title-hero-role"></span>
+        </div>
+        <div class="title-roster-wrap">
+          <div class="title-roster-head">
+            <span id="title-roster-count"></span
+            ><span id="title-hero-skills"></span><span>选择你的行者</span>
+          </div>
+          <div id="title-roster" aria-label="选择首页角色"></div>
+        </div>
+      </section>
+      <section id="screen-expedition"></section>
+      <section id="screen-duel" class="page-shell">
+        <header class="page-heading">
+          <div>
+            <span class="eyebrow">FORM YOUR INK</span>
+            <h1>一处备战，即刻落笔</h1>
+            <p>
+              双方各四人，每轮各有三墨。难度只改变 AI 的判断，双方基础属性相同。
+            </p>
+          </div>
+          <button class="btn" onclick="showScreen('screen-title')">
+            返回大厅
+          </button>
+        </header>
+        <div class="duel-config">
+          <label
+            >对战方式<select id="duel-mode">
+              <option value="ai">与 AI 对弈</option>
+              <option value="pvp">同屏双人 · 交替操作</option>
+              <option value="spectate">观战 · AI 对弈</option>
+            </select></label
+          ><label id="difficulty-label"
+            >AI 判断<select id="duel-difficulty">
+              <option value="easy">入门 · 允许失误</option>
+              <option value="normal" selected>标准 · 思考连携</option>
+              <option value="hard">进阶 · 精算落笔</option>
+            </select></label
+          ><label>战场<select id="duel-scene"></select></label
+          ><button class="btn btn-confirm" id="btn-duel-start">
+            进入战场 →
+          </button>
+        </div>
+        <div class="duel-teams">
+          <button id="edit-team-1" class="selected">赤方阵容</button
+          ><button id="edit-team-2">青方阵容</button
+          ><button class="btn btn-sm" id="swap-teams">交换阵容</button
+          ><span id="duel-summary"></span>
+        </div>
+        <div id="duel-party-builder"></div>
+        <p class="muted" id="duel-rule-note">
+          赤方先手。同屏双人在当前队伍亮起时交替操作；观战可以暂停、单招推进或加速。
+        </p>
+      </section>
+      <div id="screen-archive">
+        <div class="archive-shell">
+          <aside class="archive-sidebar">
+            <div class="archive-title">
+              <span>INKFIGHT ARCHIVE</span>
+              <h2>角色档案</h2>
+            </div>
+            <nav
+              class="archive-roster"
+              id="archive-roster"
+              aria-label="角色列表"
+            ></nav>
+            <button
+              class="btn btn-sm archive-back"
+              onclick="playSfx('click'); showScreen('screen-title')"
+            >
+              返回首页
+            </button>
+          </aside>
+          <main class="archive-detail" id="archive-detail"></main>
+        </div>
       </div>
-    </footer>
-  </div>
-</div>
 
-<!-- 模式 -->
-<div id="screen-mode">
-  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 模 式</h2>
-  <div class="option-grid" id="mode-grid">
-    <div class="option-card" data-mode="pvp">
-      <div class="ic">👥</div><h3>双人对战 PVP</h3>
-      <div class="desc" id="pvp-mode-desc"></div>
+      <!-- 战绩室 -->
+      <div id="screen-records">
+        <div class="records-shell">
+          <header class="records-head">
+            <div class="records-title">
+              <span>INKFIGHT RECORDS</span>
+              <h2>战 绩 室</h2>
+            </div>
+            <div class="records-who">
+              <label>我的名字</label>
+              <input id="records-name" maxlength="12" placeholder="无名墨客" />
+              <small>分享战绩时，朋友看到的署名</small>
+            </div>
+            <nav class="records-tabs">
+              <button class="records-tab" data-tab="mine">📜 我的战绩</button>
+              <button class="records-tab" data-tab="career">📊 生涯</button>
+              <button class="records-tab" data-tab="friends">
+                👥 好友战绩
+              </button>
+            </nav>
+          </header>
+          <div class="records-body" id="records-body"></div>
+          <footer class="records-foot">
+            <button
+              class="btn btn-sm"
+              onclick="playSfx('click'); showScreen('screen-title')"
+            >
+              返回首页
+            </button>
+            <div class="records-foot-right">
+              <button class="btn btn-sm" id="btn-records-import">
+                📥 导入好友战绩
+              </button>
+              <button class="btn btn-sm btn-confirm" id="btn-records-export">
+                📤 分享我的战绩
+              </button>
+            </div>
+          </footer>
+        </div>
+      </div>
+
+      <!-- 模式 -->
+
+      <section id="screen-battle" aria-label="共享墨量战场">
+        <header class="battle-top">
+          <div class="turn-info">
+            <b id="round-badge">第1轮</b><span id="turn-text"></span>
+          </div>
+          <div class="battle-controls">
+            <div id="spectate-bar">
+              <button id="spec-pause" onclick="toggleSpectatePause()">
+                暂停</button
+              ><button id="spec-step" onclick="stepSpectate()">单招</button>
+            </div>
+            <button id="spec-speed" onclick="cycleSpectateSpeed()">1×</button
+            ><button id="btn-battle-info" onclick="toggleBattleInfo()">
+              情报 / 战报</button
+            ><button onclick="confirmExit()">退出</button>
+          </div>
+        </header>
+        <div class="battle-field">
+          <div id="battle-intent" aria-live="polite"></div>
+          <div id="battle-feedback" aria-live="polite"></div>
+        </div>
+        <div class="battle-rosters">
+          <section class="team-ribbon">
+            <span class="team-caption"
+              >赤方 <small id="team-vitals-1"></small
+            ></span>
+            <div id="team-left" class="team-side"></div>
+          </section>
+          <section class="team-ribbon">
+            <span class="team-caption"
+              >青方 <small id="team-vitals-2"></small
+            ></span>
+            <div id="team-right" class="team-side"></div>
+          </section>
+        </div>
+        <section id="ink-hud" class="ink-hud" aria-label="本轮墨状态"></section>
+        <section id="skill-panel" aria-label="技能操作"></section>
+        <aside id="battle-info" class="battle-info" hidden>
+          <header>
+            <h3>战局情报</h3>
+            <button onclick="toggleBattleInfo(false)">关闭</button>
+          </header>
+          <p id="scene-banner"></p>
+          <div id="unit-inspector"></div>
+          <details open>
+            <summary>本局战报</summary>
+            <div class="log-controls">
+              <button onclick="clearLog()">清空显示</button
+              ><button id="btn-log-pause" onclick="toggleLogPause()">
+                暂停滚动
+              </button>
+            </div>
+            <div id="battle-log"></div>
+          </details>
+        </aside>
+      </section>
+      <section id="screen-result" class="page-shell">
+        <span class="eyebrow">THE INK SETTLES</span>
+        <h1 id="result-title"></h1>
+        <p id="result-desc"></p>
+        <div id="result-stats" class="result-stats"></div>
+        <div id="result-actions" class="row"></div>
+        <button class="btn" onclick="showScreen('screen-title')">
+          返回大厅
+        </button>
+      </section>
     </div>
-    <div class="option-card" data-mode="ai">
-      <div class="ic">🤖</div><h3>人机对战</h3>
-      <div class="desc">玩家1自由操作，玩家2由AI掌控，三种难度可选。</div>
-    </div>
-    <div class="option-card" data-mode="campaign" data-debug-only style="display:none;">
-      <div class="ic">⚔️</div><h3>战役（暂弃）</h3>
-      <div class="desc">挑战8关剧情战役。<b>未完工</b>：难度曲线未校准，随时可能不可用。</div>
-    </div>
-    <div class="option-card" data-mode="spectate">
-      <div class="ic">👁️</div><h3>观战模式</h3>
-      <div class="desc">两边都交给 AI，各选一档难度，你在旁边看一整局怎么打。</div>
-    </div>
-    <div class="option-card" data-mode="test" data-debug-only style="display:none;">
-      <div class="ic">🧪</div><h3>平衡测试</h3>
-      <div class="desc">双方AI自动对战多轮，统计胜率，检验角色数值平衡。</div>
-    </div>
-  </div>
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-title')">返回</button>
-    <button class="btn btn-confirm" id="btn-mode-next" disabled onclick="playSfx('confirm'); confirmMode()">下一步</button>
-  </div>
-</div>
-
-<!-- 难度 -->
-<div id="screen-spectate">
-  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">观 战 设 置</h2>
-  <p style="color:#aaa;font-size:12px;max-width:620px;text-align:center;line-height:1.8;margin-bottom:14px;">
-    这里两边<b style="color:#4fc3f7">不是公平对决</b>：A 方替你坐在玩家的位置上，能提前看到
-    B 方下一步要打谁、打多少；B 方看不到 A 方的，而且必须照自己的预告打出来。<br>
-    所以你看到的是<b>「一个 A 档水平的玩家，去打一个 B 档的 AI」</b>——和你自己打人机时的处境一样。
-  </p>
-
-  <div style="display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;">
-    <div>
-      <h3 style="color:#e94560;text-align:center;margin-bottom:8px;">A 方（黑墨团）</h3>
-      <div class="spec-diff-row" id="spec-a"></div>
-    </div>
-    <div>
-      <h3 style="color:#16c79a;text-align:center;margin-bottom:8px;">B 方（白线派）</h3>
-      <div class="spec-diff-row" id="spec-b"></div>
-    </div>
-  </div>
-
-  <h3 style="color:#e94560;margin-bottom:8px;">出战角色</h3>
-  <div class="option-grid" id="spec-roster" style="margin:0 0 18px;">
-    <div class="option-card" data-roster="random">
-      <div class="ic">🎲</div><h3>随机分配</h3>
-      <div class="desc">双方各随机抽满一队角色。</div>
-    </div>
-    <div class="option-card" data-roster="manual">
-      <div class="ic">✍️</div><h3>我来指定</h3>
-      <div class="desc">先给 A 方挑满，再给 B 方挑满。</div>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
-    <button class="btn btn-confirm" id="btn-spec-next" disabled onclick="playSfx('confirm'); confirmSpectate()">下一步</button>
-  </div>
-</div>
-
-<div id="screen-difficulty">
-  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 AI 难 度</h2>
-  <div class="option-grid" id="diff-grid">
-    <div class="option-card" data-diff="easy">
-      <div class="ic">🟢</div><h3>简单</h3>
-      <div class="desc">AI 会用技能，但经常选错目标、偶尔白白抡一记普攻，也不会和队友配合。</div>
-      <div class="buff">伤害 ×0.85</div>
-    </div>
-    <div class="option-card" data-diff="normal">
-      <div class="ic">🟡</div><h3>普通</h3>
-      <div class="desc">AI 按评分选技能与目标，会集火但配合意识只有一半。</div>
-      <div class="buff">伤害 ×0.88</div>
-    </div>
-    <div class="option-card" data-diff="hard">
-      <div class="ic">🔴</div><h3>困难</h3>
-      <div class="desc">AI 整队集火同一目标、不重复上增益、队友濒危时顶上去，且不会浪费回合。</div>
-      <div class="buff">无属性加成 — 纯靠 AI 水平</div>
-    </div>
-    <div class="option-card" data-diff="nightmare" id="diff-card-nightmare" style="display:none;">
-      <div class="ic">👑</div><h3>墨皇</h3>
-      <div class="desc">墨皇的意志。整队集火、不浪费任何一个回合、攒蓝放大招、专挑满蓝的目标扰乱——它不会失误。</div>
-      <div class="buff">伤害 ×1.07，SP回复 ×1.1</div>
-    </div>
-  </div>
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
-    <button class="btn btn-confirm" id="btn-diff-next" disabled onclick="playSfx('confirm'); confirmDifficulty()">下一步</button>
-  </div>
-</div>
-
-<!-- 场景 -->
-<div id="screen-scene">
-  <h2 style="color:#e94560;margin-bottom:10px;letter-spacing:4px;">选 择 战 场</h2>
-  <div class="option-grid" id="scene-grid"></div>
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); goBackFromScene()">返回</button>
-    <button class="btn btn-confirm" id="btn-scene-next" disabled onclick="playSfx('confirm'); confirmScene()">下一步</button>
-  </div>
-</div>
-
-<!-- Ban阶段 -->
-<div id="screen-ban">
-  <h2 id="ban-title" style="color:#e94560;margin-bottom:8px;letter-spacing:4px;">BAN 阶 段</h2>
-  <p id="ban-desc" style="color:#aaa;font-size:13px;margin-bottom:16px;"></p>
-  <div class="char-grid" id="ban-grid"></div>
-  <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
-    <span id="ban-status" style="color:#ffd54f;"></span>
-  </div>
-</div>
-
-<!-- 选人 -->
-<div id="screen-select">
-  <h2 id="select-title">玩家 1（黑墨团）选择角色</h2>
-  <div class="char-grid" id="char-grid"></div>
-  <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
-    <span id="select-count">已选: 0/4</span>
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-scene')">返回</button>
-    <button class="btn btn-confirm" id="btn-confirm-select" disabled onclick="playSfx('confirm'); confirmSelection()">确认选择</button>
-  </div>
-</div>
-
-<!-- 战斗 -->
-<div id="screen-battle">
-  <div class="turn-info" id="turn-info">
-    <span class="round-badge" id="round-badge">回合 1</span>
-    <span id="turn-text">玩家1 行动</span>
-    <button class="btn btn-sm btn-danger exit-btn" onclick="playSfx('click'); confirmExit()">退出战斗 (ESC)</button>
-  </div>
-  <div class="scene-banner" id="scene-banner"></div>
-  <div id="spectate-bar" style="display:none;">
-    <button class="btn btn-sm" id="spec-pause" onclick="playSfx('click'); toggleSpectatePause()">⏸ 暂停</button>
-    <button class="btn btn-sm" id="spec-step" onclick="playSfx('click'); stepSpectate()" disabled>⏭ 单步</button>
-    <button class="btn btn-sm" id="spec-speed" onclick="playSfx('click'); cycleSpectateSpeed()">⏩ 1×</button>
-    <span style="font-size:11px;color:#888;">空格 暂停／继续 · → 单步</span>
-  </div>
-  <div class="battle-field">
-    <div class="team-caption side-a"><span>壹 · 玩家1</span><b id="team-vitals-1"></b></div>
-    <div class="team-caption side-b"><b id="team-vitals-2"></b><span>玩家2 · 贰</span></div>
-    <div class="team-side left" id="team-left"></div>
-    <div class="vs-divider"></div>
-    <div class="team-side right" id="team-right"></div>
-    <svg class="battle-intent-map" id="battle-intent-map" aria-hidden="true"></svg>
-  </div>
-  <div class="skill-panel" id="skill-panel"><span style="color:#666;">等待行动...</span></div>
-  <div class="log-controls">
-    <button class="btn btn-sm" onclick="clearLog()">清空</button>
-    <button class="btn btn-sm" id="btn-log-pause" onclick="toggleLogPause()">暂停滚动</button>
-    <!-- 战斗内的词典入口。词典必须在战斗中也能打开，
-         只放在标题界面的玩法说明里不够。 -->
-    <button class="btn btn-sm" id="btn-codex" onclick="openCodex()" title="机制词典：锋芒、扰乱、墨蚀、轮空回蓝…">❓ 机制</button>
-  </div>
-  <div class="battle-log" id="battle-log"></div>
-</div>
-
-<!-- 结果 -->
-<div id="screen-result">
-  <h1 id="result-title">胜利！</h1>
-  <p id="result-desc"></p>
-  <div class="result-stats" id="result-stats"></div>
-  <!-- 按钮由 battle.js 的 showResult 按模式填充（同阵容再来 / 换阵容重开） -->
-  <div style="display:flex;gap:10px;" id="result-actions"></div>
-</div>
-
-<!-- 战役地图 -->
-<div id="screen-campaign">
-  <h2 style="color:#e94560;margin-bottom:4px;letter-spacing:4px;">战 役 模 式</h2>
-  <p style="color:#888;font-size:12px;margin-bottom:4px;">揭开墨境世界的秘密，击败墨皇</p>
-  <div class="campaign-map" id="campaign-map"></div>
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-sm" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
-    <button class="btn btn-confirm" id="btn-campaign-reset" onclick="playSfx('click'); resetCampaign()">重置进度</button>
-  </div>
-</div>
-
-<!-- 过场文字 -->
-<div id="screen-cutscene">
-  <div id="cutscene-stage"></div>
-  <div id="cutscene-text"></div>
-  <div id="cutscene-dots"></div>
-  <button class="btn btn-confirm" id="btn-cutscene" onclick="playSfx('confirm'); onCutsceneNext()">继续</button>
-</div>
-
-<!-- 阵容雷达图 -->
-<div id="screen-radar">
-  <h2 style="color:#e94560;margin-bottom:4px;letter-spacing:4px;">阵 容 对 比</h2>
-  <div class="radar-wrap">
-    <div class="radar-side">
-      <h3 id="radar-title-p1" style="color:#e94560;">玩家1</h3>
-      <canvas id="radar-canvas-p1" width="200" height="200"></canvas>
-      <div class="radar-labels" id="radar-labels-p1"></div>
-    </div>
-    <div class="radar-side">
-      <h3 id="radar-title-p2" style="color:#16c79a;">玩家2</h3>
-      <canvas id="radar-canvas-p2" width="200" height="200"></canvas>
-      <div class="radar-labels" id="radar-labels-p2"></div>
-    </div>
-  </div>
-  <button class="btn btn-confirm" onclick="playSfx('confirm'); onRadarNext()">开始战斗！</button>
-</div>
-
-<!-- 隐藏的平衡实验室 -->
-<div id="screen-test">
-  <h2 style="color:#e94560;margin-bottom:6px;letter-spacing:4px;">平 衡 实 验 室</h2>
-  <p style="color:#888;font-size:12px;margin-bottom:20px;">只在调试模式出现 · 所有分析均需手动开始</p>
-  <section class="balance-lab-section">
-  <h3>角色平衡</h3>
-  <p class="balance-lab-note">随机阵容 · 双方最高AI · 统计各角色胜率</p>
-  <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
-    <label style="font-size:13px;color:#ccc;">测试轮数：</label>
-    <select id="test-rounds" style="background:#1a1a2e;color:#eee;border:1px solid #0f3460;padding:6px 12px;border-radius:4px;font-family:inherit;font-size:14px;">
-      <option value="100">100 局</option>
-      <option value="500">500 局</option>
-      <option value="1000" selected>1000 局</option>
-      <option value="5000">5000 局</option>
-      <option value="10000">10000 局</option>
-    </select>
-  </div>
-  <div id="test-progress" style="display:none;color:#ffd54f;font-size:13px;margin-bottom:12px;"></div>
-  <div id="test-results" class="result-stats" style="display:none;min-width:420px;max-width:560px;"></div>
-  <div style="display:flex;gap:10px;margin-top:16px;">
-    <button class="btn btn-confirm" id="btn-test-start" onclick="playSfx('confirm'); startTestRun()">开始测试</button>
-  </div>
-  </section>
-
-  <section class="balance-lab-section team-study-section">
-    <h3>4v4 配队推荐</h3>
-    <p class="balance-lab-note">先普查 1820 种队伍，再让候选队互换先后手并跨三个场景复赛。报告完成后留在本机，除非你手动重新分析。高局数可能持续数分钟；中途离开不会覆盖旧报告。</p>
-    <div class="team-study-controls">
-      <label for="team-study-rounds">实际战斗局数：</label>
-      <select id="team-study-rounds">
-        <option value="10000">10,000 局（快速）</option>
-        <option value="50000" selected>50,000 局（推荐）</option>
-        <option value="100000">100,000 局（精细）</option>
-        <option value="200000">200,000 局（高精度）</option>
-      </select>
-      <button class="btn btn-confirm" id="btn-team-study-start">开始 / 重新分析</button>
-    </div>
-    <div id="team-study-progress" style="display:none;color:#ffd54f;font-size:13px;margin:12px 0;"></div>
-    <div id="team-study-results"></div>
-  </section>
-  <button class="btn btn-sm" style="margin-top:18px" onclick="playSfx('click'); showScreen('screen-mode')">返回</button>
-</div>
-
-</div>
-<div id="skill-cue" aria-hidden="true"></div>
-<script type="module" src="./src/game/main.js"></script>
-</body>
+    <div id="skill-cue" aria-hidden="true"></div>
+    <script type="module" src="src/game/main.js"></script>
+  </body>
 </html>

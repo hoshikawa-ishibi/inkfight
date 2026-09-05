@@ -1,38 +1,141 @@
-.battle-view-tools { width:100%; display:flex; gap:8px; justify-content:center; align-items:center; padding:5px 12px; background:#0b1724cc; font-size:10px; }
-.battle-view-tools span { color:#b5c6c9; margin-right:14px; letter-spacing:2px; }
-.battle-view-tools button { font:inherit; font-size:11px; padding:4px 11px; border:1px solid #7d91974a; background:#14202a; color:#cdd4d2; cursor:pointer; }
-.battle-view-tools button[aria-pressed="true"] { color:#e6ce9c; border-color:#cbb382; background:#67583b40; }
-#battle-3d { height:clamp(340px,47vh,520px); grid-column:1/-1; grid-row:1; position:relative; min-width:0; overflow:hidden; border:1px solid #768d9b35; border-radius:3px; }
-#battle-3d[hidden] { display:none; }
-.arena-canvas { display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
-.arena-canvas:active { cursor:grabbing; }
-.arena-help { position:absolute; left:16px; bottom:12px; color:#d2e0dc; font-size:10px; letter-spacing:2px; pointer-events:none; background:#07101977; padding:6px 10px; }
-.arena-intent { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.arena-intent path { fill:none; stroke:#f5cd8f; stroke-width:1.5; stroke-dasharray:5 6; opacity:.85; }
-.arena-labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
-.arena-name { position:absolute; transform:translate(-50%,-100%); color:#bfddd4; font-size:10px; line-height:1.4; white-space:nowrap; padding:1px 5px; background:#10212d99; border:0; border-radius:2px; pointer-events:auto; cursor:pointer; }
-.arena-name.side-2 { color:#e2c6b3; }
-.arena-name.selected { color:#ffe1a8; outline:1px solid #d6be8259; }
-#screen-battle.stage3d-mode .battle-field { display:grid; grid-template-columns:1fr 28px 1fr; grid-template-rows:auto auto; min-height:0; padding:0 16px 5px; gap:9px 0; }
-#screen-battle.stage3d-mode .team-side { grid-row:2; padding:0; gap:5px; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); align-items:stretch; }
-#screen-battle.stage3d-mode .team-side.left { grid-column:1; }
-#screen-battle.stage3d-mode .team-side.right { grid-column:3; }
-#screen-battle.stage3d-mode .vs-divider { grid-column:2; grid-row:2; }
-#screen-battle.stage3d-mode .unit-art,#screen-battle.stage3d-mode .team-caption,#screen-battle.stage3d-mode .battle-intent-map { display:none; }
-#screen-battle.stage3d-mode .battle-unit { margin:0; min-height:104px; padding:7px; background:#0d1a24e8; border-color:#67858a4d; }
-#screen-battle.stage3d-mode .battle-unit:nth-child(even) { margin-bottom:0; }
-#screen-battle.stage3d-mode .unit-status { min-height:12px; }
-#screen-battle.stage3d-mode .unit-name { font-size:12px; margin-bottom:3px; }
-#screen-battle.stage3d-mode .unit-intent { font-size:9px; }
-#screen-battle.stage3d-mode .skill-panel { margin-top:3px; }
-.music-state { color:#cab88f; font-size:10px; margin-left:8px; letter-spacing:1px; }
-.title-links a { color:#c5b99c; font-size:11px; letter-spacing:1px; text-decoration:none; padding:6px 12px; border-bottom:1px solid #9c967b55; }
-@media(max-width:700px){
-  .battle-view-tools { flex-wrap:wrap; gap:5px; }
-  .battle-view-tools span { margin-right:2px; letter-spacing:0; }
-  #screen-battle.stage3d-mode .battle-field { padding-inline:5px; grid-template-columns:1fr 10px 1fr; }
-  #screen-battle.stage3d-mode .team-side { grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
-  #screen-battle.stage3d-mode .battle-unit { padding:5px; }
-  #battle-3d { height:310px; }
-  .arena-help { left:5px; font-size:9px; letter-spacing:0; }
+.battle-view-tools {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 5px 8px;
+  background: #0b1724cc;
+  font-size: 10px;
+}
+.battle-view-tools span {
+  color: #b5c6c9;
+  margin-right: 14px;
+  letter-spacing: 2px;
+}
+.battle-view-tools button {
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 11px;
+  border: 1px solid #7d91974a;
+  background: #14202a;
+  color: #cdd4d2;
+  cursor: pointer;
+}
+.battle-view-tools button[aria-pressed="true"] {
+  color: #e6ce9c;
+  border-color: #cbb382;
+  background: #67583b40;
+}
+#battle-3d {
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #768d9b35;
+  border-radius: 3px;
+}
+#battle-3d[hidden] {
+  display: none;
+}
+.arena-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.arena-canvas:active {
+  cursor: grabbing;
+}
+.arena-help {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  color: #d2e0dc;
+  font-size: 10px;
+  letter-spacing: 2px;
+  pointer-events: none;
+  background: #07101977;
+  padding: 6px 10px;
+}
+.arena-intent {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.arena-intent path {
+  fill: none;
+  stroke: #f5cd8f;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 6;
+  opacity: 0.85;
+}
+.arena-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.arena-name {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  color: #bfddd4;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  padding: 1px 5px;
+  background: #10212d99;
+  border: 0;
+  border-radius: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.arena-name.side-2 {
+  color: #e2c6b3;
+}
+.arena-name.selected {
+  color: #ffe1a8;
+  outline: 1px solid #d6be8259;
+}
+.music-state {
+  color: #cab88f;
+  font-size: 10px;
+  margin-left: 8px;
+  letter-spacing: 1px;
+}
+.title-links a {
+  color: #c5b99c;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-bottom: 1px solid #9c967b55;
+}
+@media (max-width: 700px) {
+  .battle-view-tools {
+    top: 5px;
+    right: 5px;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-width: calc(100% - 10px);
+  }
+  .battle-view-tools span {
+    margin-right: 2px;
+    letter-spacing: 0;
+  }
+  #battle-3d {
+    min-height: 0;
+  }
+  .arena-help {
+    left: 5px;
+    font-size: 9px;
+    letter-spacing: 0;
+  }
 }

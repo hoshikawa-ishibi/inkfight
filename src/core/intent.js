@@ -15,8 +15,8 @@
 //
 // **只重解目标，绝不重选技能。** 否则「承诺」就是假的——玩家针对预告
 // 做的所有布置都会落空，而这正是 Into the Breach 那套设计要避免的东西。
-import { previewDmg, canUseSkill } from './combat.js';
-import { pickTarget } from '../ai/ai-scoring.js';
+import { previewDmg, canUseSkill } from "./combat.js";
+import { pickTarget } from "../ai/ai-scoring.js";
 
 // 下一个该行动的单位。
 // **battle.js 的 startTurn 和意图预测必须共用这一份**，否则会出现
@@ -24,11 +24,11 @@ import { pickTarget } from '../ai/ai-scoring.js';
 //
 // 规则来自原 startTurn：两个都活着且上回合有人动过，就轮到另一个；
 // 其余情况（只剩一个、或本方还没动过）都是列表里第一个活着的。
-export function nextActor(units, lastActedId){
-  const alive = units.filter(u => u.alive);
-  if(!alive.length) return null;
-  if(alive.length === 2 && lastActedId){
-    return alive.find(u => u.id !== lastActedId) || alive[0];
+export function nextActor(units, lastActedId) {
+  const alive = units.filter((u) => u.alive);
+  if (!alive.length) return null;
+  if (alive.length === 2 && lastActedId) {
+    return alive.find((u) => u.id !== lastActedId) || alive[0];
   }
   return alive[0];
 }
@@ -41,22 +41,22 @@ export function nextActor(units, lastActedId){
 // **暴击也算进来**：任务 2b 之后暴击是蓄能条驱动的确定事件，previewDmg
 // 已经把它算好了。改造前这里报 ≈43 而实际打出 66（暴击），差额一半以上
 // 的时候是错的——现在这个数字是准的。
-export function estimateDamage(unit, skill, target, scene){
-  if(!skill.power) return null;
+export function estimateDamage(unit, skill, target, scene) {
+  if (!skill.power) return null;
   const raw = previewDmg(unit, skill, scene);
-  if(raw == null) return null;
-  if(!target) return raw;
+  if (raw == null) return null;
+  if (!target) return raw;
   let d = raw * (1 - target.def / (target.def + 50));
-  if(target.debuffs.some(x => x.type === 'defDown')) d *= 1.2;
-  if(target.dodge) d *= (1 - target.dodge / 100);
+  if (target.debuffs.some((x) => x.type === "defDown")) d *= 1.2;
+  if (target.dodge) d *= 1 - target.dodge / 100;
   return Math.max(1, Math.floor(d));
 }
 
 // 把 AI 的决策封成一份「承诺」。
 // 存 id 而不是对象引用：单位可能在兑现之前死掉，存 id 才能干净地发现这件事。
 // skill 存引用是安全的——技能是 createUnit 时深拷贝到单位身上的，不会被换掉。
-export function makeIntent(unit, chosen, scene){
-  if(!unit || !chosen || !chosen.skill) return null;
+export function makeIntent(unit, chosen, scene) {
+  if (!unit || !chosen || !chosen.skill) return null;
   const target = chosen.target || null;
   return {
     unitId: unit.id,
@@ -72,28 +72,37 @@ export function makeIntent(unit, chosen, scene){
 //
 // 三种失效情况：
 //   目标已阵亡 → 按同类规则重选一个合法目标（技能不变）
-//   HP 不够付 hpCost → 退化为普攻（只有 hpCost 会出现这种情况：
-//                      SP 在承诺之后只增不减，玩家没有任何手段抽对方的蓝）
+//   HP 不够付 hpCost → 退化为普攻
 //   单位被扰乱 → 技能承诺不变，但 combat.js 的预览和执行都会把伤害 / 治疗降到 60%
-export function resolveIntent(unit, intent, foes, friends, opts = {}){
-  if(!intent || intent.unitId !== unit.id) return null;
+export function resolveIntent(unit, intent, foes, friends, opts = {}) {
+  if (!intent || intent.unitId !== unit.id) return null;
   const skill = intent.skill;
 
-  if(!canUseSkill(unit, skill)){
+  if (!canUseSkill(unit, skill)) {
     const basic = unit.skills[0];
     return {
       skill: basic,
       target: pickTarget(unit, basic, foes, friends, opts),
-      retargeted: false, fellBack: true, hesitated: false,
+      retargeted: false,
+      fellBack: true,
+      hesitated: false,
     };
   }
 
   let target = null;
-  if(intent.targetId){
-    target = [...foes, ...friends].find(u => u.id === intent.targetId && u.alive) || null;
+  if (intent.targetId) {
+    target =
+      [...foes, ...friends].find((u) => u.id === intent.targetId && u.alive) ||
+      null;
   }
   const retargeted = !!intent.targetId && !target;
-  if(!target) target = pickTarget(unit, skill, foes, friends, opts);
+  if (!target) target = pickTarget(unit, skill, foes, friends, opts);
 
-  return { skill, target, retargeted, fellBack: false, hesitated: intent.hesitated };
+  return {
+    skill,
+    target,
+    retargeted,
+    fellBack: false,
+    hesitated: intent.hesitated,
+  };
 }

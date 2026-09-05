@@ -13,7 +13,7 @@ for(const noise of [0,12,35]){
     while(run.phase==='route'){
       chooseRoute(run,routeOffers(run)[0].id);launchEncounter(run);
       const base=SCENES.find(s=>s.id===run.activeRoute.sceneId);
-      const scene=base.buff==='spRegen'?{...base,buff:null}:base;
+      const scene=base;
       const result=runInkBattle(run.team.map(t=>t.charId),run.activeRoute.enemyIds,scene,{
         relics:run.relics,p1Noise:noise,random:seededRandom(`${run.seed}/${run.battleIndex}/combat`),
         beforeBattle:({p1,p2})=>applyExpeditionBattle(run,p1,p2)
