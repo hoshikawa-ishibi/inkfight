@@ -3,6 +3,7 @@ import { playSfx } from './audio.js';
 import { gameState, pct, getAllUnits, getUnit } from '../core/state.js';
 import { drawStickman } from './stickman.js';
 import { portraitFor } from '../data/character-portraits.js';
+import { syncBattle3D, animateStageUnit } from './battle3d.js';
 import { bossPhase, DEFAULT_INTERRUPT_SP, INTERRUPT_OUTPUT_MULTIPLIER,
   CRIT_METER_FULL, CRIT_MULTIPLIER, willCrit } from '../core/combat.js';
 
@@ -23,6 +24,7 @@ export function renderBattle(){
     if(vitals) vitals.textContent=`${units.filter(u=>u.alive).length}/${units.length} 存活 · ${units.reduce((n,u)=>n+u.hp,0)} HP`;
   });
   requestAnimationFrame(drawIntentPath);
+  syncBattle3D();
 }
 
 // 锁定目标从同一个 enemyIntent 读取；随布局重算端点，避免特效打向旧卡片坐标。
@@ -231,6 +233,7 @@ export function redrawUnit(u){
 }
 
 export function animateUnit(id,cls){
+  if(cls==='anim-hit') animateStageUnit(id,'hit');
   const el=document.getElementById('unit-'+id);
   if(!el) return;
   el.classList.add(cls);

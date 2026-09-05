@@ -15,6 +15,13 @@
 import { BACKFILLED_RECORDS } from '../data/backfill-records.js';
 import { normalizeRecord, summarize } from '../core/record.js';
 
+export function getPresentationMode(){
+  try{return localStorage.getItem('inkfight_presentation')||'3d';}catch{return '3d';}
+}
+export function setPresentationMode(mode){
+  try{localStorage.setItem('inkfight_presentation',mode);}catch{ /* 模式在本次会话仍可切换。 */ }
+}
+
 // ── 调试模式 ───────────────────────────────────────────────
 // 实验功能总开关：控制战役 / 平衡测试 / 墨皇难度是否可见，
 // 并让所有解锁门槛一律视为已达成。

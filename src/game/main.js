@@ -17,10 +17,12 @@ import { runSimulation } from '../../tools/sim.js';
 import { initTeamStudy } from '../view/team-study.js';
 import { initPresentation, featuredCharacter, clearSkillCue } from '../view/presentation.js';
 import { portraitFor } from '../data/character-portraits.js';
+import { stopBattle3D } from '../view/battle3d.js';
 import { shuffle } from '../../tools/sim.js';
 
 let _inBattle = false;
 export function showScreen(id) {
+  if(id!=='screen-battle')stopBattle3D();
   clearSkillCue();
   // 按前缀选，**不要写死屏幕列表**。原来这里手抄了 12 个 id，
   // 而 inkfight.html 的 CSS 里还有同样一份——加「观战」屏时只改了 CSS

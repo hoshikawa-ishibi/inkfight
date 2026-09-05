@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "themes": [
+    {
+      "theme": "menu",
+      "seconds": 32,
+      "peak": 0.26811,
+      "rms": 0.04597,
+      "tail": 0
+    },
+    {
+      "theme": "spring",
+      "seconds": 32,
+      "peak": 0.48498,
+      "rms": 0.05615,
+      "tail": 0
+    },
+    {
+      "theme": "void",
+      "seconds": 32,
+      "peak": 0.49116,
+      "rms": 0.0583,
+      "tail": 0.000004
+    },
+    {
+      "theme": "lava",
+      "seconds": 32,
+      "peak": 0.46854,
+      "rms": 0.06068,
+      "tail": 0
+    }
+  ],
+  "lifecycle": "menu / hidden / resume / scene / mute / unmute / stop"
+}

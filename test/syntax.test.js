@@ -20,7 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // node_modules 是别人的代码；.git 里没有源码；.claude 里的脚本未必是 ESM，
 // 按 ESM 解析会误报——一个天天变红的测试等于没有测试。
-const SKIP_DIRS = new Set(['node_modules', '.git', '.claude']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', 'vendor']);
 
 function listSources(dir){
   const out = [];

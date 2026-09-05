@@ -10,6 +10,7 @@ import { recordCharPlays } from './save.js';
 import { makeRecord, mvpOf } from '../core/record.js';
 import { commitRecord, openShareDialog } from '../view/records.js';
 import { showSkillCue } from '../view/presentation.js';
+import { animateStageUnit } from '../view/battle3d.js';
 import {
   createUnit, getEffectiveAtk, previewDmg as calcPreviewDmg, applyRestRegen,
   processStartOfTurn as resolveStartOfTurn, calcDamage, resolveStun,
@@ -708,6 +709,7 @@ function aiAct(u){
 }
 
 function executeSkill(actor,skill,target){
+  animateStageUnit(actor.id,'attack',target?.id);
   showSkillCue(actor,skill);
   const interrupted = consumeInterruptedSkill(actor, skill);
   skill = interrupted.skill;

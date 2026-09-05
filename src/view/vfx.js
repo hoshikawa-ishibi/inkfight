@@ -1,6 +1,8 @@
 import { clamp } from '../core/state.js';
+import { stageAnchor } from './battle3d.js';
 
 export function getUnitScreenPos(u){
+  const point=stageAnchor(u.id);if(point)return point;
   const el=document.getElementById('unit-'+u.id);
   if(!el) return null;
   const art=el.querySelector('.unit-art');

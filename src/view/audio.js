@@ -1,3 +1,7 @@
+import { MusicEngine } from './music-engine.js';
+import { musicIntensity } from '../core/music-score.js';
+import { gameState } from '../core/state.js';
+
 // 静音状态持久化到 localStorage：刷新页面后仍然保持，不必每次重新点静音。
 const MUTE_KEY = 'inkfight_muted';
 function loadMuted(){
@@ -8,22 +12,26 @@ export function saveMuted(m){
 }
 
 export const Audio = {
-  ctx:null, master:null, bgmGain:null, sfxGain:null, muted:loadMuted(), bgmTimer:null, bgmNodes:[],
-  _menuTimer:null, _battlePhase:0, _battleBeat:0,
+  ctx:null, master:null, bgmGain:null, sfxGain:null, muted:loadMuted(), music:null,
+  _bgmKind:null, _bgmScene:null,
   init(){
     if(this.ctx) return;
     try{
       this.ctx = new (window.AudioContext||window.webkitAudioContext)();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 1;   // 尊重上次保存的静音状态
-      this.master.connect(this.ctx.destination);
+      this.limiter=this.ctx.createDynamicsCompressor();this.limiter.threshold.value=-3;this.limiter.ratio.value=12;
+      this.master.connect(this.limiter);this.limiter.connect(this.ctx.destination);
       this.bgmGain = this.ctx.createGain(); this.bgmGain.gain.value = 0.35; this.bgmGain.connect(this.master);
       this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 0.6; this.sfxGain.connect(this.master);
     }catch(e){ console.warn('AudioContext init failed', e); }
   },
   setBgmVol(v){ if(this.bgmGain) this.bgmGain.gain.value = v; },
   setSfxVol(v){ if(this.sfxGain) this.sfxGain.gain.value = v; },
-  setMuted(m){ this.muted=m; if(this.master) this.master.gain.value = m?0:1; },
+  setMuted(m){
+    this.muted=m;if(this.master)this.master.gain.value=m?0:1;
+    if(m){this.music?.stop();this.music=null;}else this.resumeMusic();
+  },
   tone(freq, dur, type='sine', vol=0.3, attack=0.005, release=0.05, dest=null){
     if(!this.ctx||this.muted) return;
     const o = this.ctx.createOscillator();
@@ -46,94 +54,26 @@ export const Audio = {
     src.connect(filter); filter.connect(g); g.connect(dest||this.sfxGain);
     src.start();
   },
-  startMenuBgm(){
-    this.stopBgm();
-    this._bgmKind='menu'; this._bgmScene=null;
-    if(!this.ctx) return;
-    // 神秘琶音：Am pentatonic，慢速，带回响
-    const scale = [220, 261, 294, 330, 392, 440, 523, 587, 659];
-    let step = 0;
-    const pattern = [0,2,4,6,5,3,1,4,2,0,3,5,7,6,4,2];
-    const playChime = () => {
-      if(this.muted||!this.bgmGain) return;
-      const freq = scale[pattern[step % pattern.length]];
-      step++;
-      // 主音
-      this.tone(freq, 1.2, 'sine', 0.12, 0.02, 0.8, this.bgmGain);
-      // 泛音（高八度，更轻）
-      if(step % 3 === 0) this.tone(freq*2, 0.8, 'sine', 0.05, 0.05, 0.6, this.bgmGain);
-      // 低音衬底（每4拍）
-      if(step % 4 === 0) this.tone(110, 1.5, 'triangle', 0.07, 0.1, 1.0, this.bgmGain);
-    };
-    playChime();
-    this._menuTimer = setInterval(playChime, 480);
-    this.bgmTimer = this._menuTimer;
+  resumeMusic(){
+    if(!this.ctx||this.muted||document.hidden||!this._bgmKind||this.music)return;
+    this.ctx.resume().catch(()=>{});
+    this.music=new MusicEngine(this.ctx,this.bgmGain);
+    this.music.start(this._bgmKind==='menu'?'menu':this._bgmScene?.id||'void',
+      ()=>this._bgmKind==='menu'?0:musicIntensity(gameState));
   },
-  startBgm(scene){
-    this.stopBgm();
-    this._bgmKind='battle'; this._bgmScene=scene;
-    if(!this.ctx) return;
-    // 战斗BGM：鼓点 + 旋律，按场景变化音色和调式
-    const themes = {
-      void: { mel:[220,247,262,294,330,294,262,247], bass:110, color:'sawtooth', drumFreq:80 },
-      lava: { mel:[174,196,220,196,174,155,174,196], bass:87,  color:'sawtooth', drumFreq:60 },
-      spring:{ mel:[261,294,330,349,392,349,330,294], bass:130, color:'triangle', drumFreq:90 }
-    };
-    const theme = themes[scene?.id] || themes.void;
-    this._battlePhase = 0; this._battleBeat = 0;
-    const BPM = 140, beat = 60000/BPM;
+  startMenuBgm(){this.stopBgm();this._bgmKind='menu';this._bgmScene=null;this.resumeMusic();},
+  startBgm(scene){this.stopBgm();this._bgmKind='battle';this._bgmScene=scene;this.resumeMusic();},
+  stopBgm(){this.music?.stop();this.music=null;this._bgmKind=null;},
+  pauseForHidden(){this.music?.stop();this.music=null;},
+  resumeFromHidden(){this.resumeMusic();}
 
-    const tick = () => {
-      if(this.muted||!this.bgmGain) return;
-      const b = this._battleBeat;
-      // 鼓点：每拍踢鼓，2/4拍加军鼓
-      this.noise(0.08, 0.18, 200, this.bgmGain);
-      this.tone(theme.drumFreq, 0.12, 'sine', 0.2, 0.002, 0.05, this.bgmGain);
-      if(b % 2 === 1) this.noise(0.06, 0.12, 4000, this.bgmGain);
-      // 旋律：每2拍出一个音
-      if(b % 2 === 0){
-        const melIdx = (b/2) % theme.mel.length;
-        const freq = theme.mel[melIdx];
-        this.tone(freq, 0.35, theme.color, 0.1, 0.01, 0.2, this.bgmGain);
-        // 每8拍加和声
-        if(b % 8 === 0) this.tone(freq * 1.5, 0.5, 'sine', 0.05, 0.05, 0.3, this.bgmGain);
-      }
-      // 低音：每4拍
-      if(b % 4 === 0) this.tone(theme.bass, 0.4, 'triangle', 0.12, 0.02, 0.3, this.bgmGain);
-      this._battleBeat++;
-    };
-    tick();
-    this.bgmTimer = setInterval(tick, beat);
-  },
-  stopBgm(){
-    if(this.bgmTimer){ clearInterval(this.bgmTimer); this.bgmTimer=null; }
-    this._menuTimer = null;
-    this._bgmKind = null;
-  },
-
-  // ── 切到后台就别响了 ──────────────────────────────────
-  // BGM 是 setInterval 驱动的，**不像 rAF 那样会被浏览器自动暂停**：
-  // 不处理的话切走之后音乐照样在放。回到前台按原来那段续上，
-  // 所以要先记住放的是菜单曲还是战斗曲（战斗曲还得记住是哪个场景）。
-  // 静音状态不受影响——playChime / tick 自己会看 this.muted。
-  pauseForHidden(){
-    if(!this.bgmTimer) return;
-    this._resumeKind = this._bgmKind; this._resumeScene = this._bgmScene;
-    this.stopBgm();
-  },
-  resumeFromHidden(){
-    const kind = this._resumeKind;
-    this._resumeKind = null;
-    if(kind === 'menu') this.startMenuBgm();
-    else if(kind === 'battle') this.startBgm(this._resumeScene);
-  }
 };
 
 export const SFX = {
-  click(){ Audio.tone(660, 0.05, 'square', 0.15); },
+  click(){ Audio.tone(660, 0.05, 'sine', 0.12); },
   confirm(){ Audio.tone(523, 0.08, 'triangle', 0.2); setTimeout(()=>Audio.tone(784, 0.1, 'triangle', 0.2), 60); },
   hover(){ Audio.tone(880, 0.03, 'sine', 0.08); },
-  select(){ Audio.tone(440, 0.05, 'square', 0.15); setTimeout(()=>Audio.tone(660, 0.05, 'square', 0.15), 40); },
+  select(){ Audio.tone(440, 0.05, 'triangle', 0.12); setTimeout(()=>Audio.tone(660, 0.05, 'square', 0.15), 40); },
   slash(){ Audio.noise(0.15, 0.4, 4000); Audio.tone(180, 0.08, 'sawtooth', 0.2); },
   hit(){ Audio.noise(0.1, 0.35, 1500); Audio.tone(120, 0.08, 'square', 0.25); },
   crit(){ Audio.tone(800, 0.05, 'square', 0.3); setTimeout(()=>{ Audio.noise(0.2, 0.5, 6000); Audio.tone(1200, 0.1, 'sawtooth', 0.3); }, 30); },

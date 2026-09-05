@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>造物间 · 墨境之战</title>
+  <link rel="stylesheet" href="src/view/arena3d.css">
+  <link rel="stylesheet" href="src/view/workshop.css">
+</head>
+<body>
+  <header><a class="brand" href="inkfight.html">墨境之战 <span>INKFIGHT</span></a><a class="back" href="inkfight.html">返回游戏 ↗</a></header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">THE MAKING OF INK · 01</p><h1>让墨，有了形。</h1></div><p>十六位墨客，走出画卷。<br>转动视角，看见刀锋、衣褶与光。</p></div>
+    <section class="workshop" aria-label="三维角色展示">
+      <div class="viewer-wrap">
+        <div id="model-viewer"><span class="arena-help">拖动旋转 · 滚轮缩放</span></div>
+        <div class="viewer-heading"><span id="model-number">01 / 16</span><span>可旋转 · 可导出</span></div>
+        <div class="environment" aria-label="布景"><button data-scene="spring" aria-pressed="true">灵泉</button><button data-scene="void" aria-pressed="false">虚空</button><button data-scene="lava" aria-pressed="false">赤焰</button></div>
+        <div class="camera-tools"><button id="spin" aria-pressed="false">自动环绕</button><button id="reset">视角归位</button><button id="attack">试一招 ↗</button></div>
+      </div>
+      <aside>
+        <p class="eyebrow">墨客图鉴 / FIGURES</p><h2 id="model-name">剑士</h2><p id="model-role">均衡输出</p>
+        <p class="model-note" id="model-note">赤色围巾，利刃出鞘。以最干净的姿态，正面破局。</p>
+        <div id="roster" class="roster" aria-label="选择角色"></div>
+        <button id="export-model" class="primary">下载此角色 · GLB <span>↓</span></button>
+        <p class="fine">完整立体网格，含独立关节、武器与材质。<br>可导入 Blender 等建模软件继续创作；不含动画片段。</p>
+        <p id="model-status" class="status" role="status">正在准备模型…</p>
+      </aside>
+    </section>
+    <section class="soundtrack" aria-label="原创配乐试听">
+      <div><p class="eyebrow">ORIGINAL SOUNDTRACK · 02</p><h2>听见，战局渐起。</h2><p>拨弦起笔，笛声入墨。<br>随着回合推进与生命流失，鼓点和对旋律逐渐加入。</p></div>
+      <div class="listening">
+        <div class="tracks" aria-label="选择配乐"><button data-track="menu">墨起<small>序曲 / 76 BPM</small></button><button data-track="spring" aria-pressed="true">听泉破阵<small>灵泉 / 96 BPM</small></button><button data-track="void">悬墨<small>虚空 / 100 BPM</small></button><button data-track="lava">赤烬行<small>赤焰 / 112 BPM</small></button></div>
+        <div class="listen-actions"><button class="primary" id="render-music">生成 32 秒试听</button><a id="download-music" hidden>下载 WAV ↓</a></div>
+        <audio id="music-preview" controls preload="none" hidden></audio>
+        <p class="status" id="music-status" role="status">选择曲目后生成试听，点击播放器播放。战斗曲试听会依次演示三层配器。</p>
+      </div>
+    </section>
+  </main>
+  <footer><span>墨境之战 / THE INK TAKES SHAPE</span><span>原创程序化角色 · 实时光影 · 原创配乐</span></footer>
+  <script type="module" src="src/view/model-workshop.js"></script>
+</body>
+</html>
