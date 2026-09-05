@@ -5,12 +5,17 @@ import {
   formatScreenDiagnostics,
 } from "../tools/screen-diagnostics.js";
 
-function screen(id, { active = false, hidden = false, rect } = {}) {
-  return {
+function screen(
+  id,
+  { active = false, hidden = false, rect, queries = {}, descendants = [] } = {},
+) {
+  const item = {
     id,
     hidden,
     inert: hidden,
     classList: { contains: (name) => name === "active" && active },
+    querySelectorAll: (selector) =>
+      selector === "*" ? descendants : queries[selector] || [],
     getBoundingClientRect: () => ({
       left: 0,
       top: 0,
@@ -18,6 +23,42 @@ function screen(id, { active = false, hidden = false, rect } = {}) {
       bottom: 720,
       width: 1280,
       height: 720,
+      ...rect,
+    }),
+  };
+  descendants.forEach((element) => {
+    if (!element.parentElement) element.parentElement = item;
+  });
+  return item;
+}
+
+function element(
+  id,
+  { rect, parentElement, overflowY = "visible", dimensions = {} } = {},
+) {
+  return {
+    id,
+    parentElement,
+    hidden: false,
+    inert: false,
+    disabled: false,
+    textContent: id,
+    className: "",
+    getAttribute: () => null,
+    clientWidth: dimensions.clientWidth || 200,
+    clientHeight: dimensions.clientHeight || 40,
+    scrollWidth: dimensions.scrollWidth || dimensions.clientWidth || 200,
+    scrollHeight: dimensions.scrollHeight || dimensions.clientHeight || 40,
+    scrollLeft: dimensions.scrollLeft || 0,
+    scrollTop: dimensions.scrollTop || 0,
+    style: { overflowY },
+    getBoundingClientRect: () => ({
+      left: 20,
+      top: 100,
+      right: 220,
+      bottom: 140,
+      width: 200,
+      height: 40,
       ...rect,
     }),
   };
@@ -44,6 +85,8 @@ function fixture(items, currentScreen = "screen-battle") {
         visibility: "visible",
         contentVisibility: "visible",
         opacity: "1",
+        overflowX: item.style?.overflowX || "visible",
+        overflowY: item.style?.overflowY || "visible",
       }),
     },
   };
@@ -105,5 +148,58 @@ describe("浏览器 screen 显示不变量", () => {
     assert.equal(result.screens[0].shown, true);
     assert.deepEqual(result.leakedScreens, ["screen-expedition"]);
     assert.equal(result.onlyCurrentVisible, false);
+  });
+
+  test("主要操作区分页面滚动可达与局部滚动可达", () => {
+    const pageButton = element("btn-duel-start", {
+      rect: { top: 800, bottom: 840 },
+    });
+    const localList = element("duel-list", {
+      rect: {
+        left: 0,
+        top: 100,
+        right: 300,
+        bottom: 300,
+        width: 300,
+        height: 200,
+      },
+      overflowY: "auto",
+      dimensions: { clientWidth: 300, clientHeight: 200, scrollHeight: 600 },
+    });
+    const teamButton = element("edit-team-1", {
+      parentElement: localList,
+      rect: { top: 500, bottom: 540 },
+    });
+    const duel = screen("screen-duel", {
+      active: true,
+      queries: {
+        "#btn-duel-start": [pageButton],
+        "#edit-team-1": [teamButton],
+      },
+      descendants: [pageButton, localList, teamButton],
+    });
+    localList.parentElement = duel;
+    const { doc, view } = fixture([duel], "screen-duel");
+    doc.documentElement.scrollHeight = 900;
+
+    const result = collectScreenDiagnostics(doc, view);
+    assert.equal(result.actionGroups[0].actions[0].reach, "page-scroll");
+    assert.equal(result.actionGroups[1].actions[0].reach, "local-scroll");
+    assert.deepEqual(result.actionGroups[1].actions[0].scrollOwners, [
+      { name: "#duel-list", x: 0, y: 0, maxX: 0, maxY: 400 },
+    ]);
+    assert.deepEqual(result.localScrolls, [
+      {
+        name: "#duel-list",
+        axes: "y",
+        x: 0,
+        y: 0,
+        maxX: 0,
+        maxY: 400,
+        inViewport: true,
+      },
+    ]);
+    assert.match(formatScreenDiagnostics(result), /页面滚动1/);
+    assert.match(formatScreenDiagnostics(result), /局部滚动1/);
   });
 });

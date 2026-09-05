@@ -1,4 +1,4 @@
-import { gameState, isAiSide, getAllies } from "../core/state.js";
+import { gameState, isAiSide } from "../core/state.js";
 import { INK_RULES } from "../core/ink-turn.js";
 export function renderInkHud(onEndTurn = () => {}) {
   const panel = document.getElementById("ink-hud");
@@ -23,15 +23,7 @@ export function renderInkHud(onEndTurn = () => {}) {
     left +
     "</b><span>/ " +
     total +
-    ' 墨</span><div class="ink-drops">' +
-    Array.from(
-      { length: total },
-      (_, i) =>
-        '<i class="ink-drop' + (i < left ? " is-filled" : "") + '"></i>',
-    ).join("") +
-    '</div><span class="ink-side-name">' +
-    (gameState.currentPlayer === 1 ? "赤方" : "青方") +
-    '共享</span></div><div class="ink-chain">' +
+    ' 墨</span></div><div class="ink-chain">' +
     (chain.length
       ? chain
           .map(
@@ -47,7 +39,7 @@ export function renderInkHud(onEndTurn = () => {}) {
               "</span>",
           )
           .join("")
-      : '<span class="empty-chain">每人一次 · 选择你的落笔顺序</span>') +
+      : "") +
     "</div>" +
     (t?.relics.includes("flow") && chain.length === 2
       ? '<b class="ink-resonance">第三笔 ×1.5</b>'
@@ -61,13 +53,7 @@ export function renderInkHud(onEndTurn = () => {}) {
   const feedback = document.getElementById("battle-feedback");
   if (feedback)
     feedback.textContent = gameState.waitingForTarget
-      ? "绿色边框是合法目标 · 点选前可看生命与护盾变化"
-      : gameState.inkBusy
-        ? "正在落笔…"
-        : isAiSide(gameState.currentPlayer)
-          ? "对手正在构思连携"
-          : chain.length
-            ? "还剩 " + left + " 墨 · 换一位未行动的队友接笔，或收笔化盾"
-            : "点击人物或立绘，选择第一笔";
+      ? "选择绿色目标 · 数字为预计变化"
+      : "";
   return panel;
 }

@@ -10,18 +10,17 @@ function shell() {
   let viewport = document.getElementById("battle-3d");
   if (!viewport) {
     const field = document.querySelector(".battle-field");
-    const toolbar = document.createElement("div");
+    const toolbar = document.createElement("details");
     toolbar.className = "battle-view-tools";
     toolbar.innerHTML =
-      '<span id="battle-view-status">立体战场</span><button type="button" id="btn-view-3d">3D 战场</button><button type="button" id="btn-view-2d">立绘战场</button><button type="button" id="btn-camera-toggle">近景</button><button type="button" id="btn-camera-reset">视角归位</button>';
+      '<summary>视角</summary><div class="battle-view-options"><span id="battle-view-status">立体战场</span><button type="button" id="btn-view-3d">3D 战场</button><button type="button" id="btn-view-2d">立绘战场</button><button type="button" id="btn-camera-toggle">近景</button><button type="button" id="btn-camera-reset">视角归位</button><small>拖动旋转 · 滚轮缩放</small></div>';
     // Keep the toolbar inside the battlefield so it can overlay the canvas;
     // inserting it before the field creates an extra grid row in the desktop layout.
     field.append(toolbar);
     viewport = document.createElement("div");
     viewport.id = "battle-3d";
     viewport.hidden = true;
-    viewport.innerHTML =
-      '<span class="arena-help">拖动旋转 · 滚轮缩放 · 点击模型选人</span><svg class="arena-intent" aria-hidden="true"></svg>';
+    viewport.innerHTML = '<svg class="arena-intent" aria-hidden="true"></svg>';
     field.prepend(viewport);
     document.getElementById("btn-view-3d").onclick = () => choose(true);
     document.getElementById("btn-view-2d").onclick = () => choose(false);

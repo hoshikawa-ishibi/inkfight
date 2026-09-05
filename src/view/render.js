@@ -4,10 +4,7 @@ import { syncBattle3D, animateStageUnit } from "./battle3d.js";
 import { previewInkSkill } from "../core/ink-turn.js";
 import { previewSkillOutcome } from "../core/skill-executor.js";
 import { CRIT_METER_FULL } from "../core/combat.js";
-import {
-  critGuidePresentation,
-  critMeterPresentation,
-} from "./tactical.js";
+import { critGuidePresentation, critMeterPresentation } from "./tactical.js";
 let _getEffectiveAtk, _onTargetClick, _onPreviewUnit, _openInfo;
 export function initRender(atk, target, preview, openInfo) {
   _getEffectiveAtk = atk;
@@ -108,7 +105,7 @@ function brief(u) {
     .filter((x) => x.type === "corrupt")
     .reduce((n, x) => n + x.value, 0);
   if (corrupt) bits.push("蚀 " + corrupt);
-  return bits.join(" · ") || status(u);
+  return bits.join(" · ");
 }
 function renderUnit(u) {
   const crit = critMeterPresentation(u);
@@ -245,7 +242,7 @@ export function renderBattleTactics() {
     '</b></span><span class="tactical-state">' +
     esc(crit.state) +
     '</span><span class="tactical-rule">' +
-    esc(crit.rule) +
+    `每击 +${crit.baseGain} · 满 ${crit.full} 重击 ×${crit.multiplier}` +
     "</span>";
 }
 function renderFallback() {

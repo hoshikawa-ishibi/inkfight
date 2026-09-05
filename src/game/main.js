@@ -82,6 +82,11 @@ export function showScreen(id) {
     if (currentScreen === "screen-battle") Audio.startMenuBgm();
   }
   clearSkillCue();
+  document
+    .querySelectorAll(".battle-more, .battle-view-tools")
+    .forEach((menu) => {
+      menu.open = false;
+    });
   toggleBattleInfo(false, "log", false);
   document.querySelectorAll('[id^="screen-"]').forEach((el) => {
     const active = el.id === id;
@@ -268,6 +273,12 @@ function selectBattleInfoTab(tab) {
 }
 document.querySelectorAll("[data-info-tab]").forEach((button) => {
   button.onclick = () => selectBattleInfoTab(button.dataset.infoTab);
+});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(
+    ".battle-more button, .battle-view-tools button",
+  );
+  if (button) button.closest("details").open = false;
 });
 let shakeTimer;
 export function screenShake(intensity = 4, duration = 200) {

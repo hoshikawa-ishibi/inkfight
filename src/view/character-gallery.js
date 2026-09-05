@@ -61,9 +61,9 @@ function detailHtml(c) {
 // 未解锁时只显示进度，不透露内容。
 function insightHtml(c) {
   return c.insight
-    ? '<article class="archive-insight"><h3>怎么落笔</h3><p>' +
+    ? '<details class="archive-insight"><summary>怎么落笔 · 展开打法解读</summary><p>' +
         c.insight +
-        "</p></article>"
+        "</p></details>"
     : "";
 }
 

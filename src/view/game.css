@@ -269,7 +269,7 @@ select {
 /* Combat: stage / single roster band / shared resource / actions. */
 #screen-battle {
   height: 100svh;
-  padding: 52px 12px 8px;
+  padding: 10px 12px 10px;
   max-width: 1900px;
   margin: auto;
   gap: 6px;
@@ -277,13 +277,95 @@ select {
 }
 #screen-battle.active {
   display: grid;
-  grid-template-rows: 34px minmax(180px, 1fr) 94px 46px 38px 106px;
+  grid-template-rows: 34px minmax(180px, 1fr) 90px 136px;
 }
 .battle-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+body[data-screen="screen-battle"] #app-nav,
+body[data-screen="screen-expedition"] #app-nav {
+  display: none;
+}
+.battle-more {
+  position: relative;
+  font-size: 11px;
+  z-index: 80;
+}
+.battle-more summary {
+  padding: 5px 10px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.battle-more > div {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 140px;
+  display: grid;
+  padding: 7px;
+  gap: 5px;
+  background: #102126;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.battle-more:not([open]) > div {
+  display: none;
+}
+.battle-command {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #102126;
+}
+.battle-command-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.battle-command #ink-hud {
+  flex: 1;
+  min-width: 260px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 10px;
+}
+.battle-command .ink-resource b {
+  font-size: 21px;
+}
+.battle-command .ink-chain {
+  justify-content: flex-end;
+}
+.battle-command .ink-chain span {
+  padding: 2px 5px;
+  border: 0;
+}
+.battle-command .skill-btn {
+  padding: 8px 10px;
+  background: #16303880;
+  border-color: #9ebfb51f;
+  border-radius: 4px;
+}
+.battle-command .skill-btn strong {
+  font-size: 13px;
+}
+.battle-command .skill-desc {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.battle-command .skill-outcome {
+  font-size: 10px;
+}
+.unit-brief:empty {
+  display: none;
 }
 .turn-info {
   display: flex;
@@ -1011,7 +1093,7 @@ select {
 }
 @media (min-width: 1400px) {
   #screen-battle.active {
-    grid-template-rows: 36px minmax(250px, 1fr) 100px 50px 40px 120px;
+    grid-template-rows: 36px minmax(250px, 1fr) 92px 142px;
   }
   .battle-unit {
     height: 65px;
@@ -1075,16 +1157,13 @@ select {
     margin-top: 14px;
   }
   #screen-battle {
-    padding: 48px 7px 6px;
-    height: auto;
-    min-height: 100svh;
-    overflow: visible;
+    padding: 6px 7px 6px;
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
   }
   #screen-battle.active {
-    grid-template-rows: 58px clamp(200px, 31svh, 360px) 151px 46px auto minmax(
-        150px,
-        auto
-      );
+    grid-template-rows: 54px minmax(150px, 1fr) 148px 268px;
     gap: 5px;
   }
   .battle-top {
@@ -1298,15 +1377,6 @@ select {
     min-height: 360px;
   }
 }
-@media (max-height: 550px) and (min-width: 761px) {
-  #screen-battle {
-    height: auto;
-    min-height: 100svh;
-  }
-  #screen-battle.active {
-    grid-template-rows: 34px 250px 94px 46px 38px 106px;
-  }
-}
 
 .fallback-stage {
   position: absolute;
@@ -1469,4 +1539,349 @@ select {
   color: #49665b;
   font-size: 11px;
   margin: 0 0 6px;
+}
+
+/* Viewport workspaces: only the active collection scrolls; primary actions stay put. */
+#screen-duel.active {
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 66px 28px 16px;
+  max-width: 1480px;
+  gap: 10px;
+}
+#screen-duel .page-heading {
+  margin: 0;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+#screen-duel .page-heading h1 {
+  font-size: 28px;
+}
+#screen-duel .page-heading p {
+  margin-top: 2px;
+  font-size: 12px;
+}
+#screen-duel .duel-config {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  gap: 14px;
+  border-radius: 6px;
+}
+#screen-duel .duel-config label {
+  gap: 3px;
+  font-size: 11px;
+}
+#screen-duel .duel-config select {
+  padding: 6px 8px;
+}
+#screen-duel .duel-config .btn {
+  height: 35px;
+}
+#screen-duel .duel-teams {
+  flex: 0 0 auto;
+  margin: 0;
+  gap: 6px;
+}
+#screen-duel .duel-teams button {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+#duel-summary {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#duel-party-builder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+@media (min-width: 761px) {
+  #duel-party-builder {
+    max-height: 480px;
+  }
+}
+#duel-rule-note {
+  display: none;
+}
+#screen-battle .battle-view-tools {
+  display: block;
+  padding: 0;
+  background: transparent;
+  z-index: 12;
+  top: 8px;
+  right: 8px;
+}
+#screen-battle .battle-view-tools summary {
+  font-size: 11px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border: 1px solid #9ebfb53a;
+  border-radius: 4px;
+  color: #afc7c2;
+  background: #0b1b22bb;
+}
+#screen-battle .battle-view-options {
+  width: 200px;
+  padding: 10px;
+  margin-top: 5px;
+  background: #102126f5;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+#screen-battle .battle-view-tools:not([open]) .battle-view-options {
+  display: none;
+}
+#screen-battle .battle-view-options span,
+#screen-battle .battle-view-options small {
+  grid-column: 1/-1;
+  margin: 0;
+  letter-spacing: 0;
+  font-size: 10px;
+  color: #9bb4af;
+}
+#screen-battle .battle-view-options button {
+  padding: 6px;
+}
+#screen-battle .battle-info-backdrop {
+  top: 0;
+}
+#screen-battle .battle-info {
+  top: 52px;
+}
+.battle-command .battle-tactics {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 10px;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.battle-command .tactical-state {
+  display: none;
+}
+.battle-command .tactical-rule {
+  margin-left: 0;
+  font-size: 10px;
+}
+.battle-command .tactical-owner {
+  font-size: 12px;
+  font-weight: 600;
+}
+#screen-archive,
+#screen-records {
+  height: 100svh;
+  min-height: 0;
+  padding: 64px 16px 16px;
+  overflow: hidden;
+}
+#screen-archive .archive-shell,
+#screen-records .records-shell {
+  height: 100%;
+  min-height: 0;
+  margin: auto;
+  border-radius: 8px;
+}
+#screen-archive .archive-detail {
+  min-height: 0;
+  overflow: auto;
+}
+#screen-records .records-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+#screen-records .records-head {
+  padding: 10px 16px;
+  gap: 14px;
+}
+#screen-records .records-foot {
+  flex-shrink: 0;
+  padding: 10px 16px;
+}
+#screen-result.active {
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 64px;
+  padding-bottom: 14px;
+  gap: 10px;
+}
+#screen-result .eyebrow {
+  display: none;
+}
+#screen-result #result-title {
+  font-size: 34px;
+  line-height: 1.25;
+}
+#screen-result #result-desc {
+  max-width: 780px;
+  font-size: 12px;
+}
+#screen-result #result-actions {
+  flex-shrink: 0;
+}
+#screen-result .result-stats {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 14px 20px;
+}
+#screen-result > .btn {
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  #screen-duel.active {
+    padding: 54px 10px 10px;
+    gap: 8px;
+  }
+  #screen-duel .page-heading h1 {
+    font-size: 23px;
+  }
+  #screen-duel .page-heading p {
+    display: none;
+  }
+  #screen-duel .duel-config {
+    padding: 8px;
+    gap: 6px 10px;
+  }
+  #screen-duel .duel-config .btn {
+    height: 100%;
+  }
+  #screen-duel .duel-teams {
+    flex-wrap: nowrap;
+  }
+  #screen-duel .duel-teams span {
+    display: none;
+  }
+  #screen-duel .duel-teams button {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+  .battle-command {
+    padding: 5px;
+    grid-template-rows: 70px minmax(0, 1fr);
+    gap: 4px;
+  }
+  .battle-command-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .battle-command #ink-hud {
+    flex: 0 0 32px;
+    min-width: 0;
+  }
+  .battle-command .battle-tactics {
+    display: flex;
+    gap: 4px 7px;
+    flex: 0 0 30px;
+    align-content: center;
+  }
+  .battle-command .tactical-rule {
+    flex-basis: 100%;
+    font-size: 9px;
+  }
+  .battle-command .tactical-meter {
+    font-size: 10px;
+  }
+  .battle-command .tactical-owner {
+    font-size: 11px;
+  }
+  .battle-command .ink-hud-end-turn {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+  .battle-command .ink-chain {
+    font-size: 9px;
+  }
+  .battle-command .skill-btn {
+    padding: 7px;
+  }
+  .battle-command .skill-btn strong {
+    font-size: 12px;
+  }
+  .battle-command .skill-desc {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .battle-command .skill-outcome {
+    font-size: 9px;
+  }
+  #screen-battle #battle-intent {
+    top: 8px;
+    max-width: calc(100% - 75px);
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  #screen-archive,
+  #screen-records {
+    padding: 52px 8px 8px;
+  }
+  #screen-archive .archive-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #screen-archive .archive-roster {
+    max-height: 118px;
+  }
+  #screen-archive .archive-title {
+    display: none;
+  }
+  #screen-archive .archive-sidebar {
+    min-height: 0;
+  }
+  #screen-archive .archive-portrait {
+    height: 190px;
+    min-height: 0;
+  }
+  #screen-archive .archive-profile {
+    padding: 12px;
+  }
+  #screen-archive .archive-identity {
+    left: 14px;
+    bottom: 12px;
+  }
+  #screen-archive .archive-identity h2 {
+    font-size: 30px;
+  }
+  #screen-archive .archive-heading {
+    margin-bottom: 6px;
+  }
+  #screen-archive .archive-heading span {
+    display: none;
+  }
+  #screen-archive .archive-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 8px 0;
+  }
+  #screen-archive .archive-stats div {
+    padding: 5px;
+  }
+  #screen-result.active {
+    padding: 54px 10px 10px;
+    gap: 8px;
+  }
+  #screen-result #result-title {
+    font-size: 27px;
+  }
+  #screen-result .result-stats {
+    padding: 12px;
+  }
+}
+@media (max-height: 560px) and (min-width: 761px) {
+  #screen-battle.active {
+    grid-template-rows: 30px minmax(100px, 1fr) 78px 124px;
+  }
+  .battle-command {
+    grid-template-rows: 34px minmax(0, 1fr);
+  }
 }

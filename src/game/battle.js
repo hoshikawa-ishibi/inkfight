@@ -895,13 +895,13 @@ export function renderSkillPanel(u) {
       '</span><span class="skill-outcome' +
       (crit.triggersCrit ? " will-crit" : "") +
       '">' +
-      (crit.label ? crit.label + " · " : "") +
+      (crit.triggersCrit ? crit.label + " · " : "") +
       (u.disrupted ? "扰乱：输出降低 · " : "") +
       (effect.outputMultiplier > 1
         ? "墨契 ×" + effect.outputMultiplier + " · "
         : "") +
       (dmg !== null
-        ? "基础约 " + dmg + " 伤害 · 点目标看实际预估"
+        ? "约 " + dmg + " 伤害"
         : s.hpCost
           ? "消耗 " + s.hpCost + " 生命"
           : "") +

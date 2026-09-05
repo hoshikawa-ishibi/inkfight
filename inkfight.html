@@ -86,11 +86,8 @@
       <section id="screen-duel" class="page-shell" hidden inert>
         <header class="page-heading">
           <div>
-            <span class="eyebrow">FORM YOUR INK</span>
-            <h1>一处备战，即刻落笔</h1>
-            <p>
-              双方各四人，每轮各有三墨。难度只改变 AI 的判断，双方基础属性相同。
-            </p>
+            <h1>自由对战</h1>
+            <p>选四人，分三墨。</p>
           </div>
           <button class="btn" onclick="showScreen('screen-title')">
             返回大厅
@@ -209,8 +206,16 @@
               aria-controls="battle-info"
               aria-expanded="false"
             >
-              战斗记录</button
-            ><button onclick="confirmExit()">退出</button>
+              战斗记录
+            </button>
+            <details class="battle-more">
+              <summary>更多</summary>
+              <div>
+                <button onclick="showHelp()">战斗规则</button>
+                <button onclick="openSettings()">声音与动态</button>
+                <button onclick="confirmExit()">离开战场</button>
+              </div>
+            </details>
           </div>
         </header>
         <div class="battle-field">
@@ -231,9 +236,17 @@
             <div id="team-right" class="team-side"></div>
           </section>
         </div>
-        <section id="ink-hud" class="ink-hud" aria-label="本轮墨状态"></section>
-        <section id="battle-tactics" aria-label="所选角色锋芒"></section>
-        <section id="skill-panel" aria-label="技能操作"></section>
+        <div class="battle-command">
+          <div class="battle-command-head">
+            <section id="battle-tactics" aria-label="所选角色锋芒"></section>
+            <section
+              id="ink-hud"
+              class="ink-hud"
+              aria-label="本轮墨状态"
+            ></section>
+          </div>
+          <section id="skill-panel" aria-label="技能操作"></section>
+        </div>
         <button
           id="battle-info-backdrop"
           class="battle-info-backdrop"

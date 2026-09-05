@@ -58,8 +58,7 @@ function journeyProgress(view) {
     1,
     Math.min(
       total,
-      Number(view?.progress?.current) ||
-        (Number(view?.battleIndex) || 0) + 1,
+      Number(view?.progress?.current) || (Number(view?.battleIndex) || 0) + 1,
     ),
   );
   return {
@@ -181,32 +180,26 @@ function progressMap(view) {
   const phase = text(view.phase, "landing");
   const { completed, total } = journeyProgress(view);
   const activeIndex = Math.max(0, Math.min(2, Number(view.battleIndex) || 0));
-  const routeName = text(view.activeRoute?.name, "下一站");
-  const points = [
-    { x: 56, y: 82, label: text(view.history?.[0]?.name, "入墨") },
-    { x: 220, y: 34, label: text(view.history?.[1]?.name, "回锋") },
-    { x: 384, y: 82, label: text(view.history?.[2]?.name, "归印") },
-  ];
-  const pointMarkup = points
-    .map((point, index) => {
-      const state =
-        index < completed
+  const history = list(view.history);
+  return `<nav class="expedition-progress" aria-label="墨路三关进度"><span class="expedition-map-count">${completed} / ${total} 关已完成</span><ol>${[
+    0, 1, 2,
+  ]
+    .map((index) => {
+      const entry = history[index];
+      const state = entry
+        ? entry.won
           ? "done"
-          : index === activeIndex && phase !== "landing"
-            ? "active"
-            : "future";
-      return `<g class="expedition-map-stop is-${state}"><circle cx="${point.x}" cy="${point.y}" r="${state === "active" ? 13 : 10}"></circle><circle class="expedition-map-core" cx="${point.x}" cy="${point.y}" r="3"></circle><text x="${point.x}" y="${point.y + 33}" text-anchor="middle">${esc(STOP_WORDS[index])}</text><title>${esc(point.label)}</title></g>`;
+          : "lost"
+        : index === activeIndex && phase !== "complete"
+          ? "active"
+          : "future";
+      const label = text(
+        entry?.name,
+        index === activeIndex ? view.activeRoute?.name : "尚未到达",
+      );
+      return `<li class="is-${state}" aria-current="${state === "active" ? "step" : "false"}"><span>${STOP_WORDS[index]}</span><b>第 ${index + 1} 关</b><small>${esc(label)}</small></li>`;
     })
-    .join("");
-  return `<section class="expedition-map-panel" aria-label="墨路三站进度">
-    <div class="expedition-map-heading"><div><span class="expedition-overline">THE INK ROAD · 03 CHECKPOINTS</span><strong>${phase === "landing" ? "一纸未落，三站待行" : `墨路进度 · ${esc(routeName)}`}</strong></div><span class="expedition-map-count">${phase === "landing" ? "等待启程" : `${completed} / ${total} 关已完成`}</span></div>
-    <svg class="expedition-map" viewBox="0 0 440 126" role="img" aria-label="三站手绘旅程地图">
-      <path class="expedition-map-line" d="M56 82 C112 100 168 10 220 34 S329 100 384 82"></path>
-      <path class="expedition-map-echo" d="M56 88 C115 106 166 22 220 42 S325 106 384 88"></path>
-      <path class="expedition-map-branch" d="M220 34 C248 15 273 15 295 27"></path>
-      ${pointMarkup}
-    </svg>
-  </section>`;
+    .join("")}</ol></nav>`;
 }
 
 function runHeader(view) {
@@ -214,18 +207,16 @@ function runHeader(view) {
   const running =
     phase !== "landing" && phase !== "complete" && phase !== "failed";
   return `<header class="expedition-header">
-    <div class="expedition-brand"><span class="expedition-brand-mark" aria-hidden="true">墨</span><div><span class="expedition-overline">INKFIGHT · EXPEDITION</span><strong>墨路远征</strong></div></div>
+    <div class="expedition-brand"><span class="expedition-brand-mark" aria-hidden="true">墨</span><strong>墨路远征</strong></div>
     <div class="expedition-header-right"><span class="expedition-phase-chip">${esc(PHASE_NAMES[phase] || phase)}</span>${phase !== "landing" && view.seed ? `<button class="expedition-text-button" type="button" data-action="copy-seed" aria-label="复制本次远征种子">种子 ${esc(view.seed)} · 复制</button>` : ""}${running ? '<button class="expedition-text-button expedition-home-link" type="button" data-action="home" aria-label="返回首页并保留远征进度">返回首页 <span aria-hidden="true">⌂</span></button><button class="expedition-text-button expedition-abandon" type="button" data-action="abandon" aria-label="放弃本次远征">放弃远征</button>' : ""}${phase === "landing" ? '<button class="expedition-text-button expedition-home-link" type="button" data-action="home" aria-label="返回首页">返回首页 <span aria-hidden="true">⌂</span></button>' : ""}</div>
   </header>`;
 }
 
 function landingView(view) {
   return `<section class="expedition-landing expedition-main-column">
-    <div class="expedition-landing-top"><div class="expedition-landing-intro"><span class="expedition-brush-stroke" aria-hidden="true"></span><span class="expedition-overline">THREE STROKES · ONE FINISH</span><h1>墨路远征</h1><p class="expedition-motto">三笔成阵，一笔收锋</p><p>把一支小队交给一条会改变形状的墨路。每一次择路、取印与歇脚，都会把下一笔写得更近。</p><div class="expedition-rules-note"><span class="expedition-overline">本局节奏</span><strong>${esc(text(view.rulesText, "共用三墨 · 自由连携 · 伤势延续"))}</strong></div></div><aside class="expedition-ink-lesson" aria-label="三笔墨构筑说明"><div class="expedition-ink-lesson-head"><span class="expedition-overline">THE THREE INK STROKES</span><strong>三笔墨，写出一整轮</strong></div><svg class="expedition-ink-lesson-art" viewBox="0 0 420 194" role="img" aria-label="三墨滴可以组成一加一加一连携、一加二铺垫重招、三墨独占整轮"><path class="lesson-brush-line" d="M35 31 C114 11 201 48 382 24"></path><text class="lesson-ink-character" x="27" y="114">墨</text><g class="lesson-drop-hero"><circle cx="113" cy="92" r="15"></circle><circle cx="151" cy="92" r="15"></circle><circle cx="189" cy="92" r="15"></circle></g><text class="lesson-equation" x="114" y="132">1 + 1 + 1</text><text class="lesson-label" x="114" y="153">连携 · 三人各落一笔</text><g class="lesson-combo" transform="translate(254 66)"><circle cx="0" cy="0" r="10"></circle><text x="19" y="5">+</text><circle cx="45" cy="0" r="15"></circle><circle cx="45" cy="0" r="7" class="lesson-inner-drop"></circle><text class="lesson-combo-label" x="22" y="31">1 + 2</text><text class="lesson-combo-caption" x="22" y="49">铺垫重招</text></g><g class="lesson-combo lesson-combo-last" transform="translate(254 137)"><circle cx="0" cy="0" r="19"></circle><circle cx="0" cy="0" r="9" class="lesson-inner-drop"></circle><text x="29" y="6">3</text><text class="lesson-combo-caption" x="64" y="5">独占整轮</text></g></svg><p class="expedition-ink-lesson-note">三次轻招或一记重招，收笔时余墨化盾。</p></aside></div>
-    <p class="expedition-career">已启程 ${esc(view.best?.attempts || 0)} 次 · 完成 ${esc(view.best?.completed || 0)} 次</p><div class="expedition-section-heading"><div><span class="expedition-overline">01 · 选择同行者</span><h2>从一纸阵容出发</h2></div><span>预设打法，或亲手编队</span></div>
+    <div class="expedition-landing-intro"><div><h1>三战一程，带伤前行</h1><p>${esc(text(view.rulesText, "共用三墨 · 自由连携 · 伤势延续"))}</p></div><span class="expedition-career">启程 ${esc(view.best?.attempts || 0)} 次 · 通关 ${esc(view.best?.completed || 0)} 次</span></div>
     <div class="expedition-party-builder" data-party-builder></div>
     <div class="expedition-start-dock"><div class="expedition-seed-wrap"><label class="expedition-seed-field"><span>路线种子 <small>可选 · 留空随机</small></span><input class="expedition-seed-input" type="text" maxlength="40" autocomplete="off" placeholder="留空，让墨迹自行流动" aria-label="输入可选的远征路线种子" value="${esc(view.seedDraft || "")}"></label>${view.hasSavedRun && view.seed ? `<span class="expedition-saved-seed">已保存种子：${esc(view.seed)} · 可手填复刻 <button type="button" class="expedition-seed-copy" data-action="copy-seed" aria-label="复制已保存种子">复制</button></span>` : ""}</div><div class="expedition-start-actions"><button class="expedition-primary-button" type="button" data-action="start" disabled>落笔启程 <span>↗</span></button><button class="expedition-secondary-button" type="button" data-action="continue" ${view.hasSavedRun ? "" : "disabled"}>${esc(continueLabel(view))} <span aria-hidden="true">↻</span></button></div></div>
-    ${view.hasSavedRun ? '<p class="expedition-save-note"><span aria-hidden="true">●</span> 旅程已保存在本机。中断的战斗会从本战开头重来。</p>' : ""}
   </section>`;
 }
 
@@ -234,7 +225,7 @@ function choiceView(view, phase) {
   const offers = list(view.offers).slice(0, 3);
   const { completed, total, next } = journeyProgress(view);
   const remaining = Math.max(0, Number(view.rewardsRemaining) || 0);
-  return `<section class="expedition-main-column expedition-choice-view"><div class="expedition-page-kicker"><span class="expedition-overline">${isReward ? `CHECKPOINT ${completed} CLEARED · ${completed} / ${total}` : "A MARK FOR THE ROAD"}</span><span class="expedition-kicker-symbol" aria-hidden="true">${isReward ? "✧" : "◌"}</span></div><h1>${isReward ? `第 ${completed} 关胜利 · 领取奖励` : "墨契祝福"}</h1><p class="expedition-lede">${isReward ? `已完成 ${completed} / ${total} 关。还可领取 ${remaining} 件墨契；选完后进入营地整备，再前往第 ${next} 关。` : "远征从一枚选择开始。三道墨契在纸上显形，只能带走其中一道。"}</p><div class="expedition-card-grid">${offers.map((offer, index) => relicCard(offer, index, "relic", isReward ? "领取" : "选择")).join("")}</div></section>`;
+  return `<section class="expedition-main-column expedition-choice-view"><header class="expedition-stage-head"><div><h1>${isReward ? `第 ${completed} 关胜利 · 领取奖励` : "选择启程墨契"}</h1><p>${isReward ? `已完成 ${completed} / ${total} 关。还可领取 ${remaining} 件；选完后进入营地整备，再前往第 ${next} 关。` : "三道墨契只能带走一道，它会伴随整条远征。"}</p></div><span>${isReward ? `${remaining} 件待领` : "三选一"}</span></header><div class="expedition-card-grid">${offers.map((offer, index) => relicCard(offer, index, "relic", isReward ? "领取" : "选择")).join("")}</div></section>`;
 }
 
 function routeCard(route, index, selectedId) {
@@ -255,7 +246,7 @@ function routeView(view) {
   const routes = list(view.routes);
   const selected = text(view.activeRoute?.id, "");
   const { completed, total, current } = journeyProgress(view);
-  return `<section class="expedition-main-column expedition-route-view"><div class="expedition-page-kicker"><span class="expedition-overline">CHECKPOINT ${current} · ${completed} / ${total} CLEARED</span><span class="expedition-kicker-symbol" aria-hidden="true">⌁</span></div><h1>第 ${current} 关 · 择路</h1><p class="expedition-lede">已完成 ${completed} / ${total} 关。比较两条路线的敌人和战后所得，为这一关选择落笔处。</p><div class="expedition-route-grid">${routes
+  return `<section class="expedition-main-column expedition-route-view"><header class="expedition-stage-head"><div><h1>第 ${current} 关 · 择路</h1><p>已完成 ${completed} / ${total} 关。比较敌人、路况和战利品，然后直接选择。</p></div><span>二选一</span></header><div class="expedition-route-grid">${routes
     .slice(0, 2)
     .map((route, index) => routeCard(route, index, selected))
     .join("")}</div></section>`;
@@ -264,32 +255,32 @@ function routeView(view) {
 function briefingView(view) {
   const route = view.activeRoute || {};
   const enemies = list(route.enemyIds);
-  return `<section class="expedition-main-column expedition-briefing-view"><div class="expedition-page-kicker"><span class="expedition-overline">CHECKPOINT ${Math.min(3, (Number(view.battleIndex) || 0) + 1)} · INK MEETS INK</span><span class="expedition-kicker-symbol" aria-hidden="true">⚔</span></div><h1>战前一瞥</h1><p class="expedition-lede">你选择了「${esc(text(route.name, "这条路"))}」。纸面已经写出这一站的轮廓。</p><div class="expedition-briefing-card"><div class="expedition-briefing-meta"><span class="expedition-route-kind">${esc(route.kind === "elite" ? "精英墨关" : "寻常墨关")}</span><strong>${esc(text(route.sceneName, route.sceneId || "未知场景"))}</strong><p>${esc(text(route.modText, "此站没有额外路况。"))}</p></div><div class="expedition-enemy-line">${enemies.length ? enemies.map((id, index) => enemyCard(id, index)).join("") : '<span class="expedition-empty-note">敌影尚未显形</span>'}</div><div class="expedition-briefing-foot"><span>胜后所得：<b>${esc(route.rewardText || `${route.rewardCount ?? "—"} 件墨契`)}</b></span><button class="expedition-primary-button" type="button" data-action="launch">踏入战场 <span>↗</span></button></div></div></section>`;
+  const { current } = journeyProgress(view);
+  return `<section class="expedition-main-column expedition-briefing-view"><header class="expedition-stage-head"><div><h1>第 ${current} 关 · ${esc(text(route.name, "战前确认"))}</h1><p>${esc(text(route.modText, "此站没有额外路况。"))}</p></div><span>${esc(route.kind === "elite" ? "精英关" : "普通关")}</span></header><div class="expedition-briefing-card"><div class="expedition-briefing-meta"><strong>${esc(text(route.sceneName, route.sceneId || "未知场景"))}</strong><span>胜后：${esc(route.rewardText || `${route.rewardCount ?? "—"} 件墨契`)}</span></div><div class="expedition-enemy-line">${enemies.length ? enemies.map((id, index) => enemyCard(id, index)).join("") : '<span class="expedition-empty-note">敌影尚未显形</span>'}</div><div class="expedition-briefing-foot"><span>伤势与墨契会带入本战</span><button class="expedition-primary-button" type="button" data-action="launch">踏入战场 <span>↗</span></button></div></div></section>`;
 }
 
 function battleView(view) {
   const route = view.activeRoute || {};
-  return `<section class="expedition-main-column expedition-battle-view"><div class="expedition-battle-sigil" aria-hidden="true"><span></span><b>墨</b></div><span class="expedition-overline">CHECKPOINT ${Math.min(3, (Number(view.battleIndex) || 0) + 1)} · SAVED</span><h1>战斗已落印</h1><p class="expedition-lede">路线、墨契和战前伤势已保存。重新进入会从本战第 1 轮开始。</p><div class="expedition-battle-brief"><span class="expedition-route-kind">当前路线</span><strong>${esc(text(route.name, "未择之路"))}</strong><span>${esc(text(route.sceneName, route.sceneId || "未知场景"))}</span></div><button class="expedition-primary-button expedition-launch-large" type="button" data-action="launch">重新进入战场 <span>↗</span></button></section>`;
+  const { current } = journeyProgress(view);
+  return `<section class="expedition-main-column expedition-battle-view"><header class="expedition-stage-head"><div><h1>第 ${current} 关 · 战斗已保存</h1><p>重新进入会从本战第 1 轮开始，战前伤势与墨契保持不变。</p></div></header><div class="expedition-battle-brief"><span>当前路线</span><strong>${esc(text(route.name, "未择之路"))}</strong><small>${esc(text(route.sceneName, route.sceneId || "未知场景"))}</small><button class="expedition-primary-button" type="button" data-action="launch">重新进入战场 <span>↗</span></button></div></section>`;
 }
 
 function campView(view) {
   const options = list(view.campOptions);
   const { completed, total, next } = journeyProgress(view);
-  return `<section class="expedition-main-column expedition-camp-view"><div class="expedition-page-kicker"><span class="expedition-overline">CHECKPOINT ${completed} CAMP · ${completed} / ${total}</span><span class="expedition-kicker-symbol" aria-hidden="true">⌂</span></div><h1>第 ${completed} 关营地 · 选择整备</h1><p class="expedition-lede">已完成 ${completed} / ${total} 关。选择一种整备方式后，立即进入第 ${next} 关择路。</p><div class="expedition-camp-grid">${options
+  return `<section class="expedition-main-column expedition-camp-view"><header class="expedition-stage-head"><div><h1>第 ${completed} 关营地 · 选择整备</h1><p>已完成 ${completed} / ${total} 关。选择后立即进入第 ${next} 关择路。</p></div><span>磨锋 ${esc(view.forge ?? 0)} 次</span></header><div class="expedition-camp-grid">${options
     .slice(0, 2)
     .map(
       (option, index) =>
         `<button class="expedition-choice-card expedition-camp-card" type="button" data-action="camp" data-value="${esc(text(option?.id, `camp-${index}`))}" aria-label="选择整备方式并进入第 ${next} 关：${esc(text(option?.name, `选项 ${index + 1}`))}"><span class="expedition-card-index">${String(index + 1).padStart(2, "0")}</span><span class="expedition-camp-glyph" aria-hidden="true">${index === 0 ? "◒" : "⌘"}</span><span class="expedition-card-copy"><span class="expedition-card-tag">${index === 0 ? "REST" : "FORGE"}</span><strong>${esc(text(option?.name, `歇脚选项 ${index + 1}`))}</strong><span class="expedition-card-description">${esc(text(option?.description, "让下一笔更稳。"))}</span></span><span class="expedition-card-arrow" aria-hidden="true">前往第 ${next} 关 ↗</span></button>`,
     )
-    .join(
-      "",
-    )}</div><p class="expedition-resource-note">已磨锋次数：<b>${esc(view.forge ?? 0)}</b></p></section>`;
+    .join("")}</div></section>`;
 }
 
 function recapView(view, phase) {
   const won = phase === "complete";
   const { completed, total, current } = journeyProgress(view);
-  return `<section class="expedition-main-column expedition-recap-view"><div class="expedition-recap-stamp is-${won ? "complete" : "failed"}" aria-hidden="true">${won ? "通关" : "结束"}</div><span class="expedition-overline">${won ? `EXPEDITION COMPLETE · ${completed} / ${total}` : `EXPEDITION ENDED · ${completed} / ${total}`}</span><h1>${won ? "墨路远征完整通关" : `第 ${current} 关失利 · 本次远征结束`}</h1><p class="expedition-lede">${won ? `已完成 ${completed} / ${total} 关。三处关隘都已留下你的印。` : `已完成 ${completed} / ${total} 关。这次停在第 ${current} 关，可重新启程或用同一种子更换阵容。`}</p>${won && view.activeRoute?.kind === "elite" ? '<p class="expedition-title-earned">终局险路已破 · 获得称号「破阵归人」</p>' : ""}${historyPanel(view)}<div class="expedition-recap-actions"><button class="expedition-primary-button" type="button" data-action="new">开始新远征 <span>↗</span></button><button class="expedition-secondary-button" type="button" data-action="retry-seed" data-value="${esc(view.seed || "")}">同种子换阵容 <span>⌁</span></button><button class="expedition-secondary-button" type="button" data-action="home">回到首页 <span>⌂</span></button></div></section>`;
+  return `<section class="expedition-main-column expedition-recap-view"><header class="expedition-stage-head"><div><h1>${won ? "墨路远征完整通关" : `第 ${current} 关失利 · 本次远征结束`}</h1><p>${won ? `已完成 ${completed} / ${total} 关，三处关隘都已留下你的印。` : `已完成 ${completed} / ${total} 关。可重新启程或用同一种子更换阵容。`}</p></div><span class="expedition-recap-stamp is-${won ? "complete" : "failed"}">${won ? "通关" : "结束"}</span></header>${won && view.activeRoute?.kind === "elite" ? '<p class="expedition-title-earned">终局险路已破 · 获得称号「破阵归人」</p>' : ""}${historyPanel(view)}<div class="expedition-recap-actions"><button class="expedition-primary-button" type="button" data-action="new">开始新远征 <span>↗</span></button><button class="expedition-secondary-button" type="button" data-action="retry-seed" data-value="${esc(view.seed || "")}">同种子换阵容 <span>⌁</span></button><button class="expedition-secondary-button" type="button" data-action="home">回到首页 <span>⌂</span></button></div></section>`;
 }
 
 function phaseView(view) {
@@ -318,7 +309,8 @@ function phaseView(view) {
 
 function sideRail(view) {
   if (view.phase === "landing") return "";
-  return `<aside class="expedition-rail">${teamPanel(view)}${relicPanel(view)}${view.phase === "complete" || view.phase === "failed" ? "" : '<p class="expedition-rail-note">每一道墨印都只属于这条远征。</p>'}</aside>`;
+  const relicCount = list(view.relics).length;
+  return `<details class="expedition-rail" open><summary><b>行囊</b><span>4 位同行者 · ${relicCount} 件墨契</span></summary><div class="expedition-rail-body">${teamPanel(view)}${relicPanel(view)}</div></details>`;
 }
 
 function bindDelegation(root) {
@@ -348,7 +340,7 @@ function bindDelegation(root) {
 
 /**
  * Render the presentation layer for 墨路远征. The parent owns all state and
- * rules; this view only escapes supplied text, draws the map, and emits actions.
+ * rules; this view only escapes supplied text and emits actions.
  */
 export function renderExpedition(root, view = {}, onAction = () => {}) {
   if (!root) return;
@@ -367,6 +359,13 @@ export function renderExpedition(root, view = {}, onAction = () => {}) {
     `expedition-phase-${phase.replace(/[^a-z0-9_-]/gi, "") || "landing"}`,
   );
   root.innerHTML = `<div class="expedition-inkwash" aria-hidden="true"></div><div class="expedition-shell">${runHeader(renderView)}${phase !== "landing" ? progressMap(renderView) : ""}<div class="expedition-layout">${phaseView(renderView)}${sideRail(renderView)}</div></div>`;
+  const rail = root.querySelector(".expedition-rail");
+  if (
+    rail &&
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(max-width: 620px)").matches
+  )
+    rail.open = false;
   if (phase === "landing") {
     const builderRoot = root.querySelector("[data-party-builder]");
     if (builderRoot)
