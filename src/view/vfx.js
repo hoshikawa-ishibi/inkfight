@@ -319,7 +319,7 @@ export function spawnHealColumn(unit,color){
     draw:(ctx,now)=>{
       const t=(now-start)/dur;
       const g=ctx.createLinearGradient(p.x,p.y-80,p.x,p.y+40);
-      g.addColorStop(0,'transparent'); g.addColorStop(0.5,c+'aa'); g.addColorStop(1,'transparent');
+      g.addColorStop(0,'transparent'); g.addColorStop(0.5,c); g.addColorStop(1,'transparent');
       ctx.fillStyle=g; ctx.globalAlpha=1-t;
       ctx.fillRect(p.x-25,p.y-80,50,120);
       ctx.strokeStyle=c; ctx.lineWidth=2;

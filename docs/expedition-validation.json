@@ -1,0 +1,170 @@
+{
+  "note": "Fixed seeds, normal routes, healing camps, same reward policy. Noise is an AI decision perturbation, not measured human skill.",
+  "rows": [
+    {
+      "noise": 0,
+      "runs": 180,
+      "completed": 156,
+      "wins": 509,
+      "battles": 533,
+      "rounds": 6647,
+      "timeouts": 0,
+      "thirdStrokes": 1262,
+      "heavyStrokes": 2024,
+      "totalActions": 11303,
+      "parties": {
+        "edge": {
+          "runs": 60,
+          "completed": 55
+        },
+        "sigil": {
+          "runs": 60,
+          "completed": 55
+        },
+        "rhythm": {
+          "runs": 60,
+          "completed": 46
+        }
+      },
+      "relics": {
+        "flow": {
+          "runs": 60,
+          "completed": 49
+        },
+        "heavy": {
+          "runs": 60,
+          "completed": 59
+        },
+        "reserve": {
+          "runs": 60,
+          "completed": 48
+        }
+      },
+      "averageRounds": 12.47
+    },
+    {
+      "noise": 12,
+      "runs": 180,
+      "completed": 138,
+      "wins": 478,
+      "battles": 520,
+      "rounds": 6599,
+      "timeouts": 0,
+      "thirdStrokes": 1411,
+      "heavyStrokes": 2000,
+      "totalActions": 11841,
+      "parties": {
+        "edge": {
+          "runs": 60,
+          "completed": 55
+        },
+        "sigil": {
+          "runs": 60,
+          "completed": 48
+        },
+        "rhythm": {
+          "runs": 60,
+          "completed": 35
+        }
+      },
+      "relics": {
+        "flow": {
+          "runs": 60,
+          "completed": 44
+        },
+        "heavy": {
+          "runs": 60,
+          "completed": 55
+        },
+        "reserve": {
+          "runs": 60,
+          "completed": 39
+        }
+      },
+      "averageRounds": 12.69
+    },
+    {
+      "noise": 35,
+      "runs": 180,
+      "completed": 131,
+      "wins": 474,
+      "battles": 523,
+      "rounds": 6690,
+      "timeouts": 0,
+      "thirdStrokes": 1520,
+      "heavyStrokes": 2142,
+      "totalActions": 12929,
+      "parties": {
+        "edge": {
+          "runs": 60,
+          "completed": 51
+        },
+        "sigil": {
+          "runs": 60,
+          "completed": 46
+        },
+        "rhythm": {
+          "runs": 60,
+          "completed": 34
+        }
+      },
+      "relics": {
+        "flow": {
+          "runs": 60,
+          "completed": 40
+        },
+        "heavy": {
+          "runs": 60,
+          "completed": 47
+        },
+        "reserve": {
+          "runs": 60,
+          "completed": 44
+        }
+      },
+      "averageRounds": 12.79
+    }
+  ],
+  "date": "2026-09-05",
+  "testsPassed": 448,
+  "classicRegression": {
+    "battles": 4000,
+    "averageRounds": 20.2,
+    "timeoutRate": 0,
+    "samplingRangePercent": 9.3
+  },
+  "browser": {
+    "realJourney": {
+      "seed": "墨路实测",
+      "party": "edge",
+      "routes": [
+        "纸灯夜渡",
+        "竹影试锋 (elite)",
+        "落日问剑 (elite)"
+      ],
+      "rounds": [
+        9,
+        9,
+        6
+      ],
+      "completed": true,
+      "relics": [
+        "flow",
+        "fourth",
+        "heavy",
+        "opening"
+      ]
+    },
+    "manualChecks": [
+      "one ink attack and actor exhaustion",
+      "target cancellation spends no ink",
+      "one remaining ink grants 7 shields per ally",
+      "saved battle restarts at round one",
+      "elite grants two distinct relic choices",
+      "wounds carry and heal at camp",
+      "opening discount on a 3 ink skill",
+      "390px battle layout"
+    ],
+    "method": "Visible browser fixture drives actual production buttons. No HP edits or synthetic result calls."
+  }
+}

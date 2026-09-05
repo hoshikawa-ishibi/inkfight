@@ -1,7 +1,11 @@
 import { Audio, playSfx } from '../view/audio.js';
 import { gameState, clamp, getUnit, getEnemies, getAllies, aiLevelOf, isAiSide } from '../core/state.js';
 import { renderBattle, redrawUnit, animateUnit, lungeActor } from '../view/render.js';
-import { playSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from '../view/vfx.js';
+import { playSkillVfx as rawSkillVfx, spawnFloatText, spawnHitBurst, spawnCritBurst, spawnHealColumn, spawnHexShield, spawnAura, spawnSmoke, spawnCurse, spawnDrainBeam } from '../view/vfx.js';
+import { applyExpeditionBattle } from '../core/expedition.js';
+import { createInkTurn, availableInkUnits, canInkAct, commitInkAction, finishInkTurn, inkActionCost, previewInkSkill } from '../core/ink-turn.js';
+import { chooseInkAction } from '../ai/ink-ai.js';
+import { renderInkHud } from '../view/ink-hud.js';
 import { AI_BY_LEVEL, aiNormal } from '../ai/ai.js';
 import { makeTeamContext, pickActor } from '../ai/ai-scoring.js';
 import { makeIntent, resolveIntent } from '../core/intent.js';
@@ -25,11 +29,34 @@ import {
 
 export { createUnit, getEffectiveAtk };
 
+let battleGeneration=0;
+let pendingImpacts=0;
+const battleTimers=new Set();
+function battleDelay(fn,ms){
+  const generation=battleGeneration;
+  const timer=globalThis.setTimeout(()=>{battleTimers.delete(timer);if(generation===battleGeneration)fn();},ms);
+  battleTimers.add(timer);return timer;
+}
+function playSkillVfx(actor,target,skill,onHit){
+  const generation=battleGeneration;
+  pendingImpacts++;
+  rawSkillVfx(actor,target,skill,()=>{if(generation===battleGeneration){try{onHit?.();}finally{pendingImpacts--;}}});
+}
+export function stopBattle(){
+  battleGeneration++;for(const timer of battleTimers)clearTimeout(timer);battleTimers.clear();
+  pendingImpacts=0;
+  gameState.inkBusy=true;gameState.waitingForTarget=false;gameState.pickingActor=false;
+  gameState.pendingActor=null;gameState.pendingSkill=null;
+  Audio.stopBgm();
+}
+function isInkBattle(){return gameState.mode==='expedition';}
+
 // 一次性教学提示的闸门。
 // 教学提示只在玩家自己控制的单位身上触发：每条提示只显示一次，
 // 在观战（两边都是 AI）里触发会把它消耗在玩家真正遇到之前。
 // 是否由 AI 控制统一问 state.js 的 isAiSide。
 function teachPlayer(id, unit){
+  if(isInkBattle() && ['restregen','interrupt'].includes(id)) return;
   if(unit && isAiSide(unit.player)) return;
   if(gameState.mode === 'spectate') return;
   teachOnce(id);
@@ -110,6 +137,9 @@ let teamCtx = { 1: makeTeamContext(), 2: makeTeamContext() };
 function renderPassiveEvent(unit, event){
   if(!event) return;
   switch(event.effect){
+    case 'critCharge':
+      addLog(`【${event.name}】${unit.name} 锋芒 +${event.value}`, 'buff');
+      spawnFloatText(unit, `锋芒+${event.value}`, '#ffd54f', 14);break;
     case 'spGain':
       addLog(`【${event.name}】${unit.name} 回复 ${event.value} SP`, 'sp');
       spawnFloatText(unit, `+${event.value} SP`, '#4fc3f7', 14);
@@ -164,11 +194,12 @@ function presentDeath(u, killer, died, undying){
   }
 }
 
-let _showScreen, _hideTooltip, _showTooltip, _screenShake, _onCampaignWin;
-export function initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin){
+let _showScreen, _hideTooltip, _showTooltip, _screenShake, _onCampaignWin, _onExpeditionResult, _returnExpedition;
+export function initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin, onExpeditionResult, returnExpedition){
   _showScreen=showScreen; _hideTooltip=hideTooltip;
   _showTooltip=showTooltip; _screenShake=screenShake;
   _onCampaignWin=onCampaignWin;
+  _onExpeditionResult=onExpeditionResult;_returnExpedition=returnExpedition;
 }
 
 // **同阵容再来一场。** 阵容 / 场景 / 难度 / aiLevels 打完都还留在 gameState 里，
@@ -183,6 +214,9 @@ export function rematch(){
 }
 
 export function startBattle(){
+  stopBattle();
+  gameState.inkTurn=null;gameState.inkBusy=false;
+  document.getElementById('screen-battle').classList.toggle('ink-battle',isInkBattle());
   _showScreen('screen-battle');
   _hideTooltip();
   const fx=document.getElementById('fx-canvas');
@@ -199,7 +233,7 @@ export function startBattle(){
   // 难度的属性加成按**每一方自己的档位**给。观战模式两边各有一档，
   // 所以这里不能再写死「只给 p2」。战役走另一条路（下面的 stageMod），
   // 它的 aiLevels 只用来决定决策档位，属性来自关卡的 enemyMod。
-  if(gameState.mode!=='campaign'){
+  if(gameState.mode!=='campaign' && !isInkBattle()){
     [1,2].forEach(side=>{
       const lv = aiLevelOf(side);
       if(lv) (side===1?gameState.p1Units:gameState.p2Units).forEach(u=>applyDifficulty(u, lv));
@@ -211,6 +245,7 @@ export function startBattle(){
   if(gameState.mode==='campaign'){
     gameState.p2Units.forEach(u=>applyStageMod(u, gameState.stageMod));
   }
+  if(isInkBattle())applyExpeditionBattle(gameState.expeditionRun,gameState.p1Units,gameState.p2Units);
   // 机制解读的解锁计数：只记玩家自己控制的一边。
   // 观战两边都是 AI，不计；PVP 两边都是玩家，两边都计。
   recordCharPlays([
@@ -231,6 +266,7 @@ export function startBattle(){
   buildTurnOrder();
   document.getElementById('battle-log').innerHTML='';
   const modeLabel =
+    isInkBattle() ? `墨路远征 · 第${gameState.expeditionRun.battleIndex+1}战 · 三笔墨` :
     gameState.mode==='campaign' ? `战役·第${gameState.campaignStage}关` :
     gameState.mode==='spectate' ? `观战 A[${DIFF_LABEL[aiLevelOf(1)]}] vs B[${DIFF_LABEL[aiLevelOf(2)]}]` :
     gameState.mode==='ai'       ? `人机·${DIFF_LABEL[aiLevelOf(2)]}` : '双人';
@@ -241,6 +277,7 @@ export function startBattle(){
   addLog(`玩家1: ${gameState.p1Units.map(u=>u.name).join(', ')}  VS  玩家2: ${gameState.p2Units.map(u=>u.name).join(', ')}`,'info');
   Audio.startBgm(gameState.scene);
   renderBattle();
+  renderInkHud(endInkRound);
   startTurn();
 }
 
@@ -248,7 +285,58 @@ function buildTurnOrder(){
   gameState.currentPlayer=1;
 }
 
+let inkChoice=null;
+function inkRelicsFor(side){return side===1?gameState.inkRelics||[]:[];}
+function startInkRound(){
+  const side=gameState.currentPlayer;
+  gameState.inkTurn=createInkTurn(inkRelicsFor(side));gameState.inkBusy=true;
+  // A volley advances time once for every teammate, regardless of how many ink actions follow.
+  getAllies(side).filter(u=>u.alive).forEach(processStartOfTurn);
+  if(checkVictory())return;
+  if(side===1&&isAiSide(2)){
+    const turn=createInkTurn([]);
+    const chosen=chooseInkAction(turn,getAllies(2),getEnemies(2),gameState.scene);
+    gameState.enemyIntent=chosen?makeIntent(chosen.actor,chosen,gameState.scene):null;
+  }
+  continueInkTurn();
+}
+function continueInkTurn(){
+  gameState.inkBusy=false;gameState.activeUnitId=null;gameState.pickingActor=false;
+  const side=gameState.currentPlayer, team=getAllies(side);
+  const units=availableInkUnits(gameState.inkTurn,team);
+  if(!units.length){finishInkRound();return;}
+  renderInkHud(endInkRound);
+  if(!isAiSide(side)){beginActorChoice(side,units);return;}
+  inkChoice=null;
+  if(side===2&&gameState.inkTurn.acted.length===0&&gameState.enemyIntent){
+    const it=gameState.enemyIntent,actor=team.find(u=>u.id===it.unitId&&u.alive);
+    if(actor){
+      const chosen=resolveIntent(actor,it,getEnemies(side).filter(u=>u.alive),team.filter(u=>u.alive),{teamwork:1,ctx:teamCtx[side]});
+      if(chosen&&canInkAct(gameState.inkTurn,actor,chosen.skill))inkChoice={actor,...chosen};
+    }
+    if(!inkChoice)addLog('敌方预告未能落笔，阵型被打乱。','crit');
+    gameState.enemyIntent=null;
+  }
+  inkChoice ||= chooseInkAction(gameState.inkTurn,team,getEnemies(side),gameState.scene);
+  if(!inkChoice){finishInkRound();return;}
+  activateUnit(inkChoice.actor);
+}
+function finishInkRound(){
+  if(gameState.inkTurn?.ended)return;
+  const shield=finishInkTurn(gameState.inkTurn,getAllies(gameState.currentPlayer));
+  if(shield)addLog(`收笔留白：全队各获得 ${shield} 点护盾。`,'buff');
+  gameState.inkBusy=true;gameState.pickingActor=false;gameState.activeUnitId=null;
+  document.getElementById('skill-panel').innerHTML='<span class="ink-resolving">这一轮已收笔…</span>';
+  renderBattle();renderInkHud(endInkRound);
+  battleDelay(nextTurn,d(450));
+}
+export function endInkRound(){
+  if(!isInkBattle()||gameState.inkBusy||gameState.waitingForTarget||isAiSide(gameState.currentPlayer)||gameState.resultShown)return;
+  finishInkRound();
+}
+
 function startTurn(){
+  if(isInkBattle()){startInkRound();return;}
   const p=gameState.currentPlayer;
   const units=(p===1?gameState.p1Units:gameState.p2Units).filter(u=>u.alive);
   if(!units.length){ nextTurn(); return; }
@@ -275,7 +363,8 @@ function beginActorChoice(player, units){
   gameState.previewUnitId = units[0].id;
   document.getElementById('round-badge').textContent = `回合 ${gameState.round}`;
   document.getElementById('turn-text').textContent =
-    `玩家${player} — 点我方角色查看技能，点技能出手（没出手的人回复 SP）`;
+    isInkBattle()?`第 ${gameState.round} 轮 · ${player===1?'我方':'敌方'}落笔 — 选择尚未出手的人，写下连携`
+    :`玩家${player} — 点我方角色查看技能，点技能出手（没出手的人回复 SP）`;
   renderBattle();
   renderSkillPanel(units[0]);
 }
@@ -283,6 +372,7 @@ function beginActorChoice(player, units){
 // 战场上点了自己人：只换预览，不提交。
 export function onPreviewUnit(u){
   if(!gameState.pickingActor || !u.alive) return;
+  if(isInkBattle()&&(gameState.inkBusy||!availableInkUnits(gameState.inkTurn,getAllies(u.player)).includes(u)))return;
   gameState.previewUnitId = u.id;
   renderBattle();
   renderSkillPanel(u);
@@ -295,19 +385,23 @@ function beginTurnFor(u){
   gameState.activeUnitId = u.id;
   gameState.pickingActor = false;
   gameState.previewUnitId = null;
+  if(isInkBattle()){
+    document.getElementById('turn-text').textContent=`第 ${gameState.round} 轮 · ${u.name} 落笔`;
+    return u.alive;
+  }
   // 回合开始流程必须先跑。stunned 只为 interrupt-check 的旧版「完整跳过」对照保留；
   // 正式规则用 disrupted，行动照常，在 executeSkill 里把伤害 / 治疗降到 60%。
   processStartOfTurn(u);
   if(!u.alive){
     cancelIntentOf(u,'已阵亡');
-    setTimeout(()=>{ if(!checkVictory()) nextTurn(); },d(600));
+    battleDelay(()=>{ if(!checkVictory()) nextTurn(); },d(600));
     return false;
   }
   if(u.stunned){
     addLog(`${u.name} 被打断，跳过本次行动！`,'stun');
     cancelIntentOf(u,'被打断');
     playSfx('stun'); u.stunned=false;
-    setTimeout(nextTurn,d(700));
+    battleDelay(nextTurn,d(700));
     return false;
   }
   // 轮空回蓝：回给这回合**没出手**的队友。见 combat.js 的 applyRestRegen。
@@ -365,7 +459,7 @@ function activateUnit(u){
   renderBattle();
   if(isAiSide(u.player)){
     document.getElementById('skill-panel').innerHTML=`<span style="color:#888;">🤖 AI 思考中...</span>`;
-    setTimeout(()=>aiAct(u),d(700+Math.random()*400));
+    battleDelay(()=>aiAct(u),d(700+Math.random()*400));
   } else {
     renderSkillPanel(u);
   }
@@ -374,7 +468,7 @@ function activateUnit(u){
 function processStartOfTurn(u){
   const r = resolveStartOfTurn(u, {allies:getAllies(u.player), foes:getEnemies(u.player), round:gameState.round});
   // 轮空的队友也要走状态衰减，否则中毒不掉、buff 不过期、封印解不开
-  processBenchedTurn(getAllies(u.player), u);
+  if(!isInkBattle())processBenchedTurn(getAllies(u.player), u);
   renderPassiveEvent(u, r.passiveEvent);
   // BOSS 阶段切换必须说出来：规则中途变了，玩家不知道就只会觉得
   // 「怎么突然打不过了」，而不是「他换招式了，我也得换打法」。
@@ -422,7 +516,7 @@ function nextTurn(){
 function checkVictory(){
   const p1=gameState.p1Units.some(u=>u.alive);
   const p2=gameState.p2Units.some(u=>u.alive);
-  if(!p1||!p2){ setTimeout(()=>showResult(p1?1:2),d(700)); return true; }
+  if(!p1||!p2){ battleDelay(()=>showResult(p1?1:2),d(700)); return true; }
   return false;
 }
 
@@ -505,11 +599,24 @@ function bindRecordNote(rec){
 
 function showResult(w){
   // 一局只结算一次。checkVictory() 有两个调用点（nextTurn 和「行动单位已阵亡」
-  // 那条分支），胜负已定时**两边都会各排一个 setTimeout(showResult, 700)**。
+  // 那条分支），胜负已定时**两边都会各排一个 battleDelay(showResult, 700)**。
   // 正常速度下第二次在玩家还没点按钮时就跑完了，看不出来；但玩家只要在 700ms 内
   // 点掉「继续剧情」，延迟的第二次就会把他从过场/通关界面拽回战斗结算界面。
   if(gameState.resultShown) return;
   gameState.resultShown=true;
+  if(isInkBattle()){
+    stopBattle();
+    _onExpeditionResult?.({winner:w,rounds:gameState.round,finalUnits:[...gameState.p1Units,...gameState.p2Units]});
+    _showScreen('screen-result');
+    document.getElementById('result-actions').style.display='none';
+    document.getElementById('result-title').textContent=w===1?'此路已破':'墨迹未干';
+    document.getElementById('result-title').style.color=w===1?'#9bd9c4':'#dba594';
+    document.getElementById('result-desc').textContent=w===1?'伤势与墨契已保存。带着这次落笔，继续走下去。':'这条墨路止于此处。换一种落笔顺序，再写一条。';
+    playSfx(w===1?'victory':'defeat');
+    renderStatsPanel([], '<div style="margin-top:18px"><button class="btn btn-confirm" id="btn-expedition-return">返回墨路 →</button></div>');
+    document.getElementById('btn-expedition-return').onclick=()=>_returnExpedition?.();
+    return;
+  }
   // 记账放在最前面：中途关掉页面不该丢掉这一局。
   const rec=commitBattleRecord(w);
   Audio.stopBgm();
@@ -577,21 +684,22 @@ export function confirmExit(){
   const mask=document.createElement('div');
   mask.className='modal-mask';
   mask.innerHTML=`<div class="modal-box">
-    <h3>退出战斗？</h3><p>当前战斗进度将丢失。</p>
+    <h3>退出战斗？</h3><p>${isInkBattle()?'墨契、路线和战前伤势已保存。回来时从本战开头继续。':'当前战斗进度将丢失。'}</p>
     <div class="row">
       <button class="btn btn-sm" id="cancel-exit">取消</button>
       <button class="btn btn-sm btn-danger" id="ok-exit">确认退出</button>
     </div></div>`;
   document.body.appendChild(mask);
   mask.querySelector('#cancel-exit').onclick=()=>{ playSfx('click'); mask.remove(); };
-  mask.querySelector('#ok-exit').onclick=()=>{ playSfx('click'); mask.remove(); location.reload(); };
+  mask.querySelector('#ok-exit').onclick=()=>{ playSfx('click'); mask.remove();if(isInkBattle()){stopBattle();_returnExpedition?.();}else location.reload(); };
 }
 
 export function previewDmg(u,s){
-  return calcPreviewDmg(u,s,gameState.scene);
+  return calcPreviewDmg(u,isInkBattle()?previewInkSkill(gameState.inkTurn,u,s):s,gameState.scene);
 }
 
 export function renderSkillPanel(u){
+  renderInkHud(endInkRound);
   const p=document.getElementById('skill-panel');
   p.innerHTML='';
   // 打断不再没收行动，但做决定时必须明确告诉玩家这次输出会打折。
@@ -605,7 +713,7 @@ export function renderSkillPanel(u){
   u.skills.forEach((s,i)=>{
     const btn=document.createElement('button');
     btn.className='skill-btn';
-    btn.disabled=!canUseSkill(u,s);
+    btn.disabled=isInkBattle()?gameState.inkBusy||!canInkAct(gameState.inkTurn,u,s):!canUseSkill(u,s);
     const cdLeft=(u.cooldowns&&u.cooldowns[s.name])||0;
     const dmg=previewDmg(u,s);
     // 触发点选在预览出现「必定重击」时，而不是打出重击之后：
@@ -615,10 +723,10 @@ export function renderSkillPanel(u){
       <span class="skill-icon" style="background:${s.iconColor}33;color:${s.iconColor};border:1px solid ${s.iconColor}">${s.icon}</span>
       <span class="key-hint">[${i+1}]</span>
       ${s.name}
-      <span class="sp-cost">${cdLeft>0?`⏳${cdLeft}回合`:(s.cost>0?s.cost+'SP':'免费')}${s.hpCost?` -${s.hpCost}HP`:''}</span>
+      <span class="sp-cost">${isInkBattle()?`${inkActionCost(gameState.inkTurn,u,s)} 墨`:cdLeft>0?`⏳${cdLeft}回合`:(s.cost>0?s.cost+'SP':'免费')}${s.hpCost?` -${s.hpCost}HP`:''}</span>
       ${dmg!==null?`<span class="dmg-preview${willCrit(u,s)?' will-crit':''}">${willCrit(u,s)?`💥≈${dmg} 必定重击`:`≈${dmg}伤害`}</span>`:''}`;
     btn.onmouseenter=(e)=>{ if(!btn.disabled) playSfx('hover');
-      _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${s.cost} SP${s.hpCost?` / ${s.hpCost} HP`:''}</span>`
+      _showTooltip(`<b style="color:${s.iconColor}">${s.icon} ${s.name}</b><br>${s.desc}<br><span style="color:#16c79a">消耗:${isInkBattle()?inkActionCost(gameState.inkTurn,u,s)+' 墨':s.cost+' SP'}${s.hpCost?` / ${s.hpCost} HP`:''}</span>`
         +(s.cd?`<br><span style="color:#f5a623">冷却 ${s.cd} 回合${cdLeft>0?`（还剩 ${cdLeft}）`:''}</span>`:''),e.clientX,e.clientY);
     };
     btn.onmouseleave=_hideTooltip;
@@ -635,6 +743,7 @@ export function renderSkillPanel(u){
 }
 
 function onSkillClick(u,s){
+  if(isInkBattle()&&(gameState.inkBusy||u.player!==gameState.currentPlayer||!canInkAct(gameState.inkTurn,u,s)))return;
   if(!canUseSkill(u,s)) return;
   // 还在「点人看技能」阶段：这一点就是提交。
   // 提交会跑回合开始流程（中毒 / buff / 回蓝），技能可用性可能因此变化，
@@ -647,7 +756,7 @@ function onSkillClick(u,s){
   const needsEnemy=needsEnemyTarget(s);
   const needsAlly=['heal','cleanse','buff'].includes(s.type);
   const noTarget=!needsEnemy &&
-    ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague'].includes(s.type);
+    ['healSp','shield','taunt','dodge','selfBuff','revive','damageAll','corruptBurst','plague','healAll','shieldAll','buffAll'].includes(s.type);
   if(noTarget){ executeSkill(u,s,null); return; }
   if(needsEnemy){
     const taunter=getEnemies(u.player).find(e=>e.alive&&e.buffs.some(b=>b.type==='taunt'));
@@ -655,6 +764,7 @@ function onSkillClick(u,s){
   }
   gameState.waitingForTarget=true; gameState.pendingSkill=s;
   gameState.pendingSkillFriendly=needsAlly; gameState.pendingActor=u;
+  if(isInkBattle())renderInkHud(endInkRound);
   document.getElementById('skill-panel').innerHTML=
     `<span style="color:#16c79a;">▶ 请选择${needsAlly?'友方':'敌方'}目标（点击战场上的角色，按 ESC 取消）</span>`;
   renderBattle();
@@ -681,14 +791,20 @@ export function cancelTargeting(){
   const actor=gameState.pendingActor||getUnit(gameState.activeUnitId);
   gameState.waitingForTarget=false;
   gameState.pendingSkill=null; gameState.pendingActor=null;
+  if(isInkBattle()){gameState.pickingActor=true;gameState.previewUnitId=actor?.id;}
   if(actor) renderSkillPanel(actor);
   renderBattle();
 }
 
 function aiAct(u){
+  if(isInkBattle()){
+    const chosen=inkChoice;
+    if(!chosen||!canInkAct(gameState.inkTurn,u,chosen.skill)){continueInkTurn();return;}
+    executeSkill(u,chosen.skill,chosen.target);return;
+  }
   const enemies=getEnemies(u.player).filter(e=>e.alive);
   const allies=getAllies(u.player).filter(e=>e.alive);
-  if(enemies.length===0){ setTimeout(nextTurn,d(400)); return; }
+  if(enemies.length===0){ battleDelay(nextTurn,d(400)); return; }
   const ctx=teamCtx[u.player];
   // 兑现承诺：玩家回合看到的那条预告，就是这里要执行的行动。
   // **不重新决策**——哪怕玩家的操作已经让这步棋变臭。这正是玩家的操作空间。
@@ -702,13 +818,21 @@ function aiAct(u){
     // 没有可兑现的承诺时照旧现算（p1 侧的 AI、或首回合还没公开过意图）
     chosen=(AI_BY_LEVEL[aiLevelOf(u.player)]||aiNormal)(u,enemies,allies,gameState.scene,ctx);
   }
-  if(!chosen||!chosen.skill){ setTimeout(nextTurn,d(400)); return; }
+  if(!chosen||!chosen.skill){ battleDelay(nextTurn,d(400)); return; }
   addLog(`🤖 ${u.name} 使用 ${chosen.skill.name}${chosen.target?` → ${chosen.target.name}`:''}`+
          `${chosen.hesitated?'（似乎有些犹豫）':''}${note}`,'info');
   executeSkill(u,chosen.skill,chosen.target);
 }
 
 function executeSkill(actor,skill,target){
+  if(isInkBattle()){
+    if(gameState.inkBusy)return;
+    const paid=commitInkAction(gameState.inkTurn,actor,skill);if(!paid)return;
+    skill=paid;gameState.inkBusy=true;gameState.pickingActor=false;
+    document.getElementById('skill-panel').innerHTML='<span class="ink-resolving">墨迹正落，静待这一笔…</span>';
+    addLog(`${actor.name} 落笔「${skill.name}」 · 剩余 ${gameState.inkTurn.remaining} 墨${skill.outputMultiplier>1?' · 墨契共鸣！':''}`,'buff');
+    renderInkHud(endInkRound);
+  }
   animateStageUnit(actor.id,'attack',target?.id);
   showSkillCue(actor,skill);
   const interrupted = consumeInterruptedSkill(actor, skill);
@@ -723,7 +847,7 @@ function executeSkill(actor,skill,target){
   payCosts(actor, skill);
   if(skill.sfx) playSfx(skill.sfx);
   lungeActor(actor); actor.pose='attack';
-  setTimeout(()=>{ actor.pose='idle'; redrawUnit(actor); },d(500));
+  battleDelay(()=>{ actor.pose='idle'; redrawUnit(actor); },d(500));
   switch(skill.type){
     case 'damage': playSkillVfx(actor,target,skill,()=>{
       // 多段技能每段各自结算（各自给锋芒蓄能条充能），见 combat.js 的 resolveHits
@@ -742,13 +866,12 @@ function executeSkill(actor,skill,target){
     }); break;
     case 'damageAll': {
       const targets=getEnemies(actor.player).filter(e=>e.alive);
-      targets.forEach((t,i)=>setTimeout(()=>playSkillVfx(actor,t,skill,()=>doDamage(actor,t,skill)),d(i*120)));
+      targets.forEach((t,i)=>battleDelay(()=>playSkillVfx(actor,t,skill,()=>doDamage(actor,t,skill)),d(i*120)));
       break;
     }
     case 'stun': playSkillVfx(actor,target,skill,()=>doStun(actor,target,skill)); break;
     case 'heal': {
-      const h=skill.healAmt;
-      target.hp=clamp(target.hp+h,0,target.maxHp);
+      const h=applyHealAll([target],skill)[0]?.healed||0;
       gameState.stats['p'+actor.player].heal+=h;
       if(gameState.stats.units[actor.id]) gameState.stats.units[actor.id].heal+=h;
       animateUnit(target.id,'anim-heal'); spawnHealColumn(target); spawnFloatText(target,`+${h}`,'#16c79a',18);
@@ -757,8 +880,11 @@ function executeSkill(actor,skill,target){
     case 'healSp':
       actor.sp=clamp(actor.sp+skill.spGain,0,actor.maxSp);
       if(skill.critCharge){ chargeCrit(actor,skill.critCharge); spawnFloatText(actor,`★+${skill.critCharge}`,'#ffd54f',14); }
-      addLog(`${actor.name} 恢复 ${skill.spGain} SP`,'sp');
-      spawnFloatText(actor,`+${skill.spGain} SP`,'#4fc3f7',16); spawnAura(actor,'#4fc3f7');
+      if(!isInkBattle()){
+        addLog(`${actor.name} 恢复 ${skill.spGain} SP`,'sp');
+        spawnFloatText(actor,`+${skill.spGain} SP`,'#4fc3f7',16);
+      }else addLog(`${actor.name} 凝神蓄势。`,'buff');
+      spawnAura(actor,'#4fc3f7');
       if(skill.buffType) actor.buffs.push(makeSpBuff(skill));
       break;
     case 'shield':
@@ -782,7 +908,7 @@ function executeSkill(actor,skill,target){
       const sb = resolveSelfBuff(actor, target, skill, gameState.scene);
       if(sb.damage) presentDamage(actor, target, sb.damage);
       addLog(`${actor.name} 进入${skill.buffType==='berserk'?'狂暴':'强化'}状态`,'buff');
-      spawnFloatText(actor,'狂暴!','#ff7043',18); spawnAura(actor,'#ff5722');
+      spawnFloatText(actor,skill.buffType==='berserk'?'狂暴!':'蓄势',skill.buffType==='berserk'?'#ff7043':'#ffd54f',18); spawnAura(actor,skill.buffType==='berserk'?'#ff5722':'#ffd54f');
       break;
     }
     case 'cleanse': {
@@ -815,7 +941,7 @@ function executeSkill(actor,skill,target){
       break;
     case 'plague': {
       const enemies=getEnemies(actor.player).filter(e=>e.alive);
-      enemies.forEach((t,i)=>setTimeout(()=>{
+      enemies.forEach((t,i)=>battleDelay(()=>{
         applyCorrupt(t,skill.corrupt,actor);
         t.debuffs.push({type:'poison',dur:skill.dotDur,value:skill.dot});
         addLog(`${t.name} 感染瘟疫，中毒${skill.dotDur}回合`,'buff');
@@ -869,13 +995,15 @@ function executeSkill(actor,skill,target){
       spawnFloatText(actor,'不屈','#ffd54f',16); spawnAura(actor,'#ffd54f');
       break;
   }
-  setTimeout(()=>{ renderBattle(); setTimeout(afterAction,d(700)); },d(900));
+  battleDelay(()=>{ renderBattle(); battleDelay(afterAction,d(700)); },d(900));
 }
 
 // 一次行动收尾。BOSS 阶段二「涂改」每回合行动两次——多出来的那次在这里接上，
 // 而不是回到 nextTurn。承诺制只覆盖第一次（预告的就是它），
 // 玩家在这中间没有操作机会，所以后续几次现算即可。
 function afterAction(){
+  if(pendingImpacts>0){battleDelay(afterAction,30);return;}
+  if(isInkBattle()){if(!checkVictory())continueInkTurn();return;}
   if(gameState.extraActions > 0){
     const u = getUnit(gameState.activeUnitId);
     gameState.extraActions--;
@@ -886,7 +1014,7 @@ function afterAction(){
     const aiSide = u && isAiSide(u.player);
     if(aiSide && u.alive && getEnemies(u.player).some(e=>e.alive)){
       addLog(`${u.name} 再次行动！`,'crit');
-      setTimeout(()=>aiAct(u), d(500));
+      battleDelay(()=>aiAct(u), d(500));
       return;
     }
   }
@@ -921,7 +1049,7 @@ function presentDamage(actor,target,r){
   animateUnit(target.id,'anim-hit'); spawnHitBurst(target);
   spawnFloatText(target,`-${r.dmg}`,r.isCrit?'#ffd54f':'#ff5252',r.isCrit?28:18+Math.min(12,r.dmg/8));
   playSfx('hit'); _screenShake(r.isCrit?14:6,r.isCrit?400:200);
-  target.pose='hurt'; setTimeout(()=>{target.pose='idle'; redrawUnit(target);},d(400));
+  target.pose='hurt'; battleDelay(()=>{target.pose='idle'; redrawUnit(target);},d(400));
   if(r.dotApplied) addLog(`${target.name} 中毒了`,'buff');
   if(r.selfHeal){
     gameState.stats['p'+actor.player].heal+=r.selfHeal;

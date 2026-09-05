@@ -14,6 +14,29 @@ export function initRender(getEffectiveAtk, onTargetClick, onPreviewUnit){
   _onPreviewUnit=onPreviewUnit;
 }
 
+function expeditionInkStatus(u){
+  if(gameState.mode!=='expedition' || !gameState.inkTurn) return '';
+  if(u.player!==gameState.currentPlayer) return 'other';
+  return Array.isArray(gameState.inkTurn.acted) && gameState.inkTurn.acted.includes(u.id) ? 'acted' : 'ready';
+}
+
+// 3D 的人物名牌由 arena3d.js 创建；这里把同一份墨状态投影到名牌，
+// 这样切到立体战场时，玩家仍能看懂谁已落笔、谁可接笔。
+function updateExpeditionInkLabels(){
+  const labels=document.querySelectorAll('#battle-3d .arena-name');
+  if(!labels.length) return;
+  const units=getAllUnits();
+  labels.forEach((label,index)=>{
+    const u=units[index];
+    if(!u) return;
+    const status=expeditionInkStatus(u);
+    label.textContent=`${u.name}${status==='acted'?' ✓':''}`;
+    label.dataset.inkState=status;
+    label.setAttribute('aria-label',`模型：玩家${u.player} ${u.name}${status==='acted'?'，本轮已出手':status==='ready'?'，可接笔':status==='other'?'，敌方墨阵':''}`);
+    label.title=status==='acted'?'本轮已出手':status==='ready'?'可接笔':status==='other'?'敌方墨阵':u.name;
+  });
+}
+
 export function renderBattle(){
   ['team-left','team-right'].forEach((id,idx)=>{
     const c=document.getElementById(id);
@@ -25,6 +48,7 @@ export function renderBattle(){
   });
   requestAnimationFrame(drawIntentPath);
   syncBattle3D();
+  updateExpeditionInkLabels();
 }
 
 // 锁定目标从同一个 enemyIntent 读取；随布局重算端点，避免特效打向旧卡片坐标。
@@ -157,9 +181,14 @@ function phaseTag(u){
 
 function renderUnit(u){
   const div=document.createElement('div');
+  const expedition=gameState.mode==='expedition';
+  const inkTurn=gameState.inkTurn;
+  const inkActed=expedition && u.player===gameState.currentPlayer && Array.isArray(inkTurn?.acted) && inkTurn.acted.includes(u.id);
+  const inkLocked=expedition && (!inkTurn || inkTurn.ended || gameState.inkBusy);
   const isActive=gameState.activeUnitId===u.id&&!gameState.waitingForTarget;
   // 「点我方角色查看技能」阶段：本方存活单位都可点，当前预览的那个加高亮。
-  const isPickable=gameState.pickingActor&&u.alive&&u.player===gameState.currentPlayer;
+  const isPickable=gameState.pickingActor&&u.alive&&u.player===gameState.currentPlayer
+    &&(!expedition || (!inkLocked&&!inkActed));
   const isPreview=isPickable&&gameState.previewUnitId===u.id;
   const isIntentTarget=!!gameState.enemyIntent&&gameState.enemyIntent.targetId===u.id&&u.alive;
   const isTargetable=gameState.waitingForTarget&&(
@@ -174,6 +203,7 @@ function renderUnit(u){
     +(lowHp?' low-hp':'')
     +(isIntentTarget?' intent-target':'')
     +(isPickable?' pickable':'')
+    +(inkActed?' ink-acted':'')
     +(isPreview?' previewing':'');
   div.id='unit-'+u.id;
   div.style.setProperty('--unit-color',u.color);
@@ -203,7 +233,7 @@ function renderUnit(u){
     </div>
     <div class="unit-name"><span style="color:${u.color}">${u.name}</span><span style="font-size:11px;color:#aaa">${u.player===1?'P1':'P2'}</span></div>
     <div class="unit-meta">
-      <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${u.atk}</s>→${eff.toFixed(0)}`:u.atk}</span>
+      <span class="meta-atk">⚔ ${atkChanged?`<s style="color:#666">${Number(u.atk.toFixed(1))}</s>→${eff.toFixed(0)}`:Number(u.atk.toFixed(1))}</span>
       <span class="meta-def">🛡 ${u.def}</span>
       <span class="meta-crit${willCrit(u, {})?' crit-ready':''}" title="锋芒：每击攒 ${u.crit} 点（技能自带的加成另算，多段技能每段各攒一次），攒满 ${CRIT_METER_FULL} 下一击必定重击（伤害 ×${CRIT_MULTIPLIER}）然后清零重攒。这是确定的，不是概率">锋芒 ${meterText}</span>
     </div>
@@ -212,7 +242,7 @@ function renderUnit(u){
       ${u.shield>0?`<div class="bar-shield" style="width:${pct(Math.min(u.shield,u.maxHp),u.maxHp)}%"></div>`:''}
       <div class="bar-label">HP ${u.hp}/${u.maxHp}${u.shield>0?` (+${u.shield})`:''}</div>
     </div>
-    <div class="bar-wrap bar-sp"><div class="bar-fill" style="width:${pct(u.sp,u.maxSp)}%"></div><div class="bar-label">SP ${u.sp}/${u.maxSp}</div></div>
+    ${expedition?`<div class="ink-unit-strip ink-state-${inkActed?'acted':u.player===gameState.currentPlayer?'ready':'other'}"><span>${inkActed?'本轮已出手':u.player===gameState.currentPlayer?'可接笔':'敌方墨阵'}</span>${u.player===gameState.currentPlayer?`<span class="ink-unit-mark" aria-hidden="true">${inkActed?'✓':'·'}</span>`:''}</div>`:`<div class="bar-wrap bar-sp"><div class="bar-fill" style="width:${pct(u.sp,u.maxSp)}%"></div><div class="bar-label">SP ${u.sp}/${u.maxSp}</div></div>`}
     <div class="unit-status">${statusChips(u)}</div>
     ${phaseTag(u)}
     ${intentBar(u)}`;

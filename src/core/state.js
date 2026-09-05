@@ -18,6 +18,7 @@ export function teamSizeFor(mode){
 
 export let gameState = {
   mode:null, difficulty:'normal', scene:null,
+  expeditionRun:null, inkRelics:[], inkTurn:null, inkBusy:false,
   // **哪一方由 AI 控制，以及用哪一档** —— 唯一真相来源。
   // null = 真人操作。以前这件事是各处自己判 `mode==='ai' && player===2`，
   // 散在 battle.js 的 startTurn / activateUnit / aiAct / updateEnemyIntent

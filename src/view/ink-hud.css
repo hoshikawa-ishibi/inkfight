@@ -1,0 +1,73 @@
+/* 墨滴 HUD：只在远征模式由 ink-hud.js 显示。 */
+#ink-hud { width:min(1200px,96%); margin:7px auto 5px; color:#efe6d1; border:1px solid rgba(121,181,159,.35); background:linear-gradient(105deg,rgba(12,47,46,.92),rgba(9,28,34,.94)); box-shadow:0 10px 26px rgba(0,0,0,.18); }
+#ink-hud[hidden] { display:none !important; }
+#ink-hud .ink-build { display:flex;gap:8px;padding:0 14px 5px;flex-wrap:wrap;font-size:10px;color:#d1ac67; }
+#ink-hud .ink-build span { cursor:help;border-bottom:1px dotted #698f79; }
+#ink-hud .ink-resonance { margin-left:auto;color:#e8d9a4;text-shadow:0 0 12px #d1ac67;font-weight:600; }
+@media (min-width:760px) and (max-height:900px) {
+  #screen-battle.ink-battle #battle-3d { height:clamp(185px,29vh,260px); }
+  #screen-battle.ink-battle.stage3d-mode .battle-unit { min-height:90px;padding:5px; }
+  #screen-battle.ink-battle .unit-status { min-height:0; }
+  #screen-battle.ink-battle #ink-hud .ink-hud-main { padding-block:7px; }
+  #screen-battle.ink-battle #ink-hud .ink-hud-overline { display:none; }
+  #screen-battle.ink-battle #ink-hud .ink-hud-resource { display:flex;align-items:center;gap:12px; }
+  #screen-battle.ink-battle #ink-hud .ink-hud-drops { margin-top:0; }
+  #screen-battle.ink-battle .skill-panel { min-height:76px; }
+}
+#ink-hud .ink-hud-main { display:grid; grid-template-columns:minmax(190px,1.1fr) minmax(145px,.8fr) minmax(180px,1fr) auto; align-items:center; gap:18px; padding:11px 14px; }
+#ink-hud .ink-hud-overline { display:block; margin-bottom:4px; color:#79b59f; font:9px "Courier New",monospace; letter-spacing:2px; }
+#ink-hud .ink-hud-resource-line { display:flex; align-items:baseline; gap:7px; }
+#ink-hud .ink-hud-resource-line strong, #ink-hud .ink-hud-turn strong, #ink-hud .ink-hud-acted strong { font:19px "STKaiti","KaiTi",serif; letter-spacing:2px; }
+#ink-hud .ink-hud-number { color:#d1ac67; }
+#ink-hud .ink-hud-slash { color:#77938d; padding:0 2px; }
+#ink-hud .ink-hud-label, #ink-hud .ink-hud-turn-state { color:#b9bda8; font-size:10px; }
+#ink-hud .ink-hud-drops { display:flex; gap:4px; min-height:11px; margin-top:7px; }
+#ink-hud .ink-drop { display:block; width:10px; height:10px; border:1px solid rgba(121,181,159,.6); border-radius:50% 50% 55% 45%; transform:rotate(45deg); background:rgba(46,88,80,.4); }
+#ink-hud .ink-drop.is-filled { border-color:#d1ac67; background:radial-gradient(circle at 35% 30%,#f1d28a,#8aa76f 62%,#3d7067); box-shadow:0 0 7px rgba(209,172,103,.35); }
+#ink-hud .ink-drop-empty { color:#718f89; font-size:10px; }
+#ink-hud .ink-hud-turn, #ink-hud .ink-hud-acted { min-width:0; padding-left:15px; border-left:1px solid rgba(121,181,159,.22); }
+#ink-hud .ink-hud-turn strong, #ink-hud .ink-hud-acted strong { display:block; }
+#ink-hud .ink-hud-turn-state { display:block; margin-top:3px; }
+#ink-hud .ink-hud-acted-names { display:block; overflow:hidden; max-width:220px; margin-top:4px; color:#b9bda8; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+#ink-hud .ink-hud-end-turn { display:inline-flex; align-items:center; gap:5px; min-height:42px; padding:8px 12px; color:#0b211f; border:1px solid #d1ac67; background:linear-gradient(110deg,#e2c784,#aa945b); font:12px inherit; letter-spacing:1px; cursor:pointer; white-space:nowrap; transition:transform .2s,filter .2s; }
+#ink-hud .ink-hud-end-turn:hover:not(:disabled) { transform:translateY(-2px); filter:brightness(1.08); }
+#ink-hud .ink-hud-end-turn:disabled { opacity:.38; cursor:not-allowed; }
+#ink-hud .ink-hud-arrow { margin-left:5px; font-size:16px; }
+#ink-hud .ink-hud-help { border-top:1px solid rgba(121,181,159,.17); }
+#ink-hud .ink-hud-help summary { padding:7px 14px; color:#b9bda8; font-size:10px; cursor:pointer; list-style-position:inside; }
+#ink-hud .ink-hud-help summary:hover { color:#efe6d1; }
+#ink-hud .ink-hud-help p { max-width:760px; margin:0; padding:0 14px 10px 27px; color:#aeb8a6; font-size:11px; line-height:1.7; }
+#ink-hud .ink-hud-help p::first-letter { color:#d1ac67; }
+@media (max-width:900px) {
+  #ink-hud .ink-hud-main { grid-template-columns:1fr 1fr; gap:10px 17px; }
+  #ink-hud .ink-hud-resource { grid-row:span 2; }
+  #ink-hud .ink-hud-end-turn { grid-column:2; grid-row:2; justify-self:stretch; }
+}
+@media (max-width:560px) {
+  #ink-hud { width:calc(100% - 12px); }
+  #ink-hud .ink-hud-main { grid-template-columns:1fr 1fr; gap:12px 10px; padding:10px; }
+  #ink-hud .ink-hud-resource { grid-column:1/-1; display:flex; align-items:end; justify-content:space-between; gap:10px; }
+  #ink-hud .ink-hud-drops { margin-top:0; }
+  #ink-hud .ink-hud-turn, #ink-hud .ink-hud-acted { padding-left:9px; }
+  #ink-hud .ink-hud-acted-names { max-width:145px; }
+  #ink-hud .ink-hud-end-turn { grid-column:1/-1; grid-row:auto; justify-self:stretch; justify-content:center; }
+}
+@media (prefers-reduced-motion:reduce) { #ink-hud .ink-hud-end-turn { transition:none; } }
+
+/* expedition-view.css gives its shell a flex layout; keep the global screen
+   contract intact until that screen is explicitly activated. */
+#screen-expedition.expedition-root:not(.active) { display:none !important; }
+#screen-expedition.expedition-root.active { display:flex; }
+
+/* 2D 单位卡和 3D 名牌共用这组状态语义。 */
+#screen-battle .battle-unit .ink-unit-strip { display:flex; align-items:center; justify-content:space-between; min-height:18px; margin:4px 0 3px; padding:2px 5px; border-left:2px solid rgba(121,181,159,.42); color:#9db9aa; background:rgba(24,71,65,.28); font:9px "Courier New",monospace; letter-spacing:.5px; }
+#screen-battle .battle-unit .ink-unit-strip.ink-state-ready { color:#d4d6a2; border-left-color:#d1ac67; background:rgba(92,91,52,.25); }
+#screen-battle .battle-unit .ink-unit-strip.ink-state-acted { color:#86a99d; border-left-color:#507d70; background:rgba(18,52,49,.42); }
+#screen-battle .battle-unit .ink-unit-strip.ink-state-other { color:#718c87; border-left-color:rgba(121,181,159,.2); }
+#screen-battle .battle-unit.ink-acted .unit-name { opacity:.78; }
+#battle-3d .arena-name[data-ink-state="ready"] { color:#f0d18c; border-color:rgba(209,172,103,.7); }
+#battle-3d .arena-name[data-ink-state="acted"] { color:#88b4a4; border-color:rgba(121,181,159,.45); opacity:.78; }
+#battle-3d .arena-name[data-ink-state="other"] { color:#b5a89a; }
+@media (max-width:520px) {
+  #screen-battle .battle-unit .ink-unit-strip { min-height:16px; font-size:8px; padding-inline:3px; }
+}

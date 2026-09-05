@@ -71,7 +71,7 @@ export function executeSkill(actor, skill, target, scene, p1, p2, stats){
       break;
     }
     case 'heal': {
-      const h=skill.healAmt; target.hp=clamp(target.hp+h,0,target.maxHp);
+      const h=applyHealAll([target],skill)[0]?.healed||0;
       if(stats) stats[actor.charId].heals+=h; break;
     }
     case 'healSp':

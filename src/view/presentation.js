@@ -22,7 +22,7 @@ export function initPresentation(){
     roster.appendChild(button);
   });
   document.getElementById('title-roster-count').textContent = `${CHARACTERS.length} 位墨境行者`;
-  document.getElementById('quick-battle-note').textContent = `普通难度 · 自动补齐双方 ${teamSizeFor('ai')} 人阵容`;
+  document.getElementById('quick-battle-note').textContent = `远征：共享三墨 · 经典快战：自动补齐双方 ${teamSizeFor('ai')} 人阵容`;
   selectHero(CHARACTERS[0]);
 }
 

@@ -548,6 +548,8 @@ body {
 .vs-divider::before { content:"VS"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#e94560; font-weight:bold; font-size:24px; background:#0a0a18; padding:8px; border-radius:50%; border:2px solid #e94560; box-shadow:0 0 16px rgba(233,69,96,.6); }
 </style>
 <link rel="stylesheet" href="./src/view/presentation.css">
+<link rel="stylesheet" href="./src/view/expedition.css">
+<link rel="stylesheet" href="./src/view/ink-hud.css">
 <link rel="stylesheet" href="./src/view/arena3d.css">
 </head>
 <body>
@@ -572,17 +574,18 @@ body {
 <div id="screen-title" class="active">
   <div class="title-hero" aria-hidden="true"><div class="title-halo"></div><img id="title-hero-image" alt="" fetchpriority="high"></div>
   <div class="title-copy">
-    <div class="title-edition">墨 境 · 一 念 成 锋</div>
+    <div class="title-edition">墨 境 · 三 笔 成 阵</div>
     <div class="subtitle">INKFIGHT / REALM OF INK</div>
     <h1>墨境<em>之战</em></h1>
     <p class="title-manifesto">万象皆墨，一念成锋。</p>
-    <p class="title-description">看穿敌人的下一招，选定此刻出手的人。<br>破阵、护佑、扰乱——让每一回合，写下你的胜负。</p>
+    <p class="title-description">一队行者，三笔共享的墨。<br>谁来铺阵，谁来收锋——让落笔的顺序，改写这条归路。</p>
     <div class="title-actions">
-      <button class="btn title-primary" id="btn-quick-battle" onclick="playSfx('confirm'); quickBattle()">即刻出战　↗</button>
-      <button class="btn title-secondary" onclick="playSfx('click'); showScreen('screen-mode')">自由配队</button>
+      <button class="btn title-primary" id="btn-expedition">墨路远征　↗</button>
+      <button class="btn title-secondary" id="btn-quick-battle" onclick="playSfx('confirm'); quickBattle()">经典快战</button>
     </div>
     <small id="quick-battle-note"></small>
     <div class="title-links">
+      <button onclick="playSfx('click'); showScreen('screen-mode')">经典配队 ↗</button>
       <a href="./model-workshop.html">3D 造物间 ↗</a>
       <button onclick="playSfx('click'); showScreen('screen-archive')">角色档案 ↗</button>
       <button onclick="playSfx('click'); showScreen('screen-records')">战绩室 ↗</button>
@@ -594,6 +597,7 @@ body {
 </div>
 
 <!-- 角色档案 -->
+<div id="screen-expedition"></div>
 <div id="screen-archive">
   <div class="archive-shell">
     <aside class="archive-sidebar">

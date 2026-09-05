@@ -19,6 +19,7 @@ import { initPresentation, featuredCharacter, clearSkillCue } from '../view/pres
 import { portraitFor } from '../data/character-portraits.js';
 import { stopBattle3D } from '../view/battle3d.js';
 import { shuffle } from '../../tools/sim.js';
+import { initExpedition, openExpedition, finishExpeditionBattle } from './expedition.js';
 
 let _inBattle = false;
 export function showScreen(id) {
@@ -30,6 +31,7 @@ export function showScreen(id) {
   document.querySelectorAll('[id^="screen-"]').forEach(el => el.classList.remove('active'));
   const el = document.getElementById(id);
   el.classList.add('active');
+  window.scrollTo(0,0);
   el.style.animation='none'; void el.offsetWidth; el.style.animation='';
   if (id==='screen-battle') {
     stopMenuBackground();
@@ -800,7 +802,7 @@ document.addEventListener('keydown',e=>{
   if(document.getElementById('screen-battle').classList.contains('active')&&!gameState.waitingForTarget){
     const n=parseInt(e.key);
     if(n>=1&&n<=4){
-      const u=getUnit(gameState.activeUnitId);
+      const u=getUnit(gameState.pickingActor?gameState.previewUnitId:gameState.activeUnitId);
       // AI 控场的单位不接受键盘输入。判断走 state.js 的 isAiSide——
       // 和 battle.js 决定「是否交给 aiAct」的是同一份，不再各写一套。
       if(u&&!isAiSide(u.player)&&u.skills[n-1]){
@@ -835,7 +837,8 @@ syncMuteButton();   // 让静音按钮图标反映上次保存的状态
 syncDebugBadge();   // 🔊 / 🛠 反映调试模式状态
 initDebugTap();
 
-initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin);
+initBattle(showScreen, hideTooltip, showTooltip, screenShake, onCampaignWin, finishExpeditionBattle, ()=>openExpedition());
+initExpedition({showScreen,startBattle});
 initRender(getEffectiveAtk, onTargetClick, onPreviewUnit);
 initPresentation();
 startMenuBackground();

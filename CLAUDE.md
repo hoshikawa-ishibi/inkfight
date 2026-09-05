@@ -31,9 +31,9 @@ node serve-game.mjs      # 零依赖静态服务器（launch-game.vbs 用的就�
 
 游戏本身无构建步骤。
 
-## AI 架构（`docs/archive/AI_MERGE_PLAN.md` 已全部完成）
+## 经典对战 AI 架构（`docs/archive/AI_MERGE_PLAN.md` 已全部完成）
 
-**AI 只有一条链路**：
+**经典对战 AI 只有一条链路**：
 
 ```
 src/data/data.js（技能配置）
@@ -45,6 +45,14 @@ src/data/data.js（技能配置）
 
 `npm run balance` 现在跑的就是玩家在困难难度下面对的那个 AI，
 胜率数字第一次真正代表实战平衡。
+
+**墨路远征（2026-09-05）使用独立的共享墨量回合。** `core/ink-turn.js` 管全队墨量、
+每人每轮一次、技能转换与墨契；`ai/ink-ai.js` 共用 `ai-scoring.js` 的技能评分，再考虑墨耗与接力。
+`game/battle.js` 和 `tools/ink-sim.js` 共用墨量规则，技能伤害与状态公式仍来自 `core/combat.js`。
+远征所有存活队友在各自侧回合开始时推进状态一次，连携中不再推进；个人 SP 与轮空回蓝不适用。
+旅程状态、路线与伤势在 `core/expedition.js`，存档与入口在 `game/expedition.js`。
+校准跑 `node tools/expedition-check.mjs 180`，玩法和验证见 `docs/EXPEDITION.md`。
+远征结果不进入经典战绩与分享码。用户要求保留已有角色立绘。
 
 **给技能加新字段时，要检查三处是否需要同步：`ai-scoring.js` 的评分、
 `combat.js` 的执行、以及 `data.js` 的配置。** 历史教训：给「狂暴」加 `power`
@@ -89,7 +97,7 @@ src/data/data.js（技能配置）
   只要有一条路绕过统一的 `dismiss()`，队列类逻辑就会静默卡死。
   教学提示踩过：ESC 关掉之后 `showing` 永远是 `true`，后面所有提示进队列再也不出来，
   **而且已经被记成「教过了」，永远不会再弹**。`node --check` 和单元测试都发现不了。
-- **战斗规则只改 `combat.js`。** `battle.js` 和 `sim.js` 都依赖它。历史上这两个文件
+- **伤害与状态规则只改 `combat.js`，远征行动规则只改 `ink-turn.js`。** 实战与各自模拟器都依赖它们。历史上这两个文件
   各自手写过一份战斗逻辑，漂移出过真实 bug（术士整套机制在平衡测试里静默失效）。
   不要为了图快在 `battle.js` 或 `sim.js` 里就地写规则。
 - **改完 `combat.js` / `battle.js` / `sim.js` 必须跑 `npm test`。**
@@ -183,7 +191,7 @@ docs/     在推进的计划 + 长期参考（HISTORY / ROSTER）
 完整的改动经过、实测数字和当时的推理过程见 [docs/HISTORY.md](docs/HISTORY.md)。
 这里只留**每次动手前都该记得**的硬规则：
 
-- **本作回合流程是「双方各行动一个单位」**：队伍人数不影响行动次数，只影响血池。
+- **经典对战回合流程是「双方各行动一个单位」**：队伍人数不影响行动次数，只影响血池。
   所以单人 BOSS 每回合都出手，两人队的 BOSS 只能隔回合出手一次。
 - **「哪一方由 AI 控制、用哪一档」的唯一真相来源是 `gameState.aiLevels`**
   （`state.js` 的 `aiLevelOf` / `isAiSide`）。以前这件事是各处自己判

@@ -394,13 +394,14 @@ export function calcDamage(actor, target, skill, scene){
 export const DEFAULT_INTERRUPT_SP = 0.5;
 
 export function interruptNeed(target, skill){
+  if(target.inkMode) return 0;
   return Math.ceil((skill.spThreshold ?? DEFAULT_INTERRUPT_SP) * target.maxSp);
 }
 
 // 免疫期（`interruptImmune`）防连锁：没有它，两个打断角色可以把对方锁死。
 // 计数在 processStartOfTurn 里递减，所以设 2 意味着「最多隔一次打断一回」。
 export function canInterrupt(target, skill){
-  return !target.interruptImmune && target.sp >= interruptNeed(target, skill);
+  return !target.interruptImmune && (target.inkMode || target.sp >= interruptNeed(target, skill));
 }
 
 export const INTERRUPT_IMMUNE_TURNS = 2;
@@ -494,7 +495,7 @@ export function applyBuffAll(allies, skill){
 export function calcStun(actor, target, skill){
   const need = interruptNeed(target, skill);
   if(target.interruptImmune) return { success:false, reason:'immune', need };
-  if(target.sp < need)       return { success:false, reason:'lowSp', need };
+  if(!target.inkMode && target.sp < need) return { success:false, reason:'lowSp', need };
   // interruptMode 只给 interrupt-check.mjs 保留历史候选对照；正式数据不写该字段，
   // 默认就是 weaken。skip 是被淘汰的旧规则，none / drain 是另外两组对照。
   const mode = skill.interruptMode ?? 'weaken';
