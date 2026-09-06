@@ -16,7 +16,7 @@ import {
 } from '../src/core/sha256.js';
 import {
   makeRecord, normalizeRecord, auditRecord, summarize, mvpOf, outcomeOf,
-  RECORD_VERSION,
+  filterRecordsByRuleset, RECORD_VERSION, RULESETS,
 } from '../src/core/record.js';
 import {
   encodeShare, decodeShare, extractCode, SHARE_PREFIX, shareFileText, shareFileName,
@@ -388,6 +388,15 @@ describe('分享码', () => {
 
 // ═══════════════════════════════════════════════════════════
 describe('生涯统计', () => {
+  test('战绩室默认展示全部规则，仍可按规则版本筛选', () => {
+    const legacy = sampleRecord({ id:'legacy', ruleset:RULESETS.legacy });
+    const ink = sampleRecord({ id:'ink', ruleset:RULESETS.ink });
+
+    assert.deepEqual(filterRecordsByRuleset([legacy, ink]), [legacy, ink]);
+    assert.deepEqual(filterRecordsByRuleset([legacy, ink], RULESETS.ink), [ink]);
+    assert.deepEqual(filterRecordsByRuleset([legacy, ink], RULESETS.legacy), [legacy]);
+  });
+
 
   test('胜率只算有「我」的局，观战计入总场次但不计胜负', () => {
     const list = [

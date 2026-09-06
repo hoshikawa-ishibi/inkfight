@@ -76,6 +76,18 @@ function writeJson(key, value) {
   }
 }
 
+function readArray(key) {
+  const value = readJson(key, []);
+  return Array.isArray(value) ? value : [];
+}
+
+function readObject(key) {
+  const value = readJson(key, {});
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+}
+
 // ── 本机档案 ──────────────────────────────────────────────
 // pid 是这台设备的安装 id，只用来在好友榜上区分同名玩家，不含任何身份信息。
 export function getProfile() {
@@ -109,7 +121,7 @@ function newPid() {
 // ── 本机战绩 ──────────────────────────────────────────────
 export function listRecords() {
   seedBackfilled();
-  return readJson(RECORDS_KEY, [])
+  return readArray(RECORDS_KEY)
     .map(normalizeRecord)
     .filter(Boolean)
     .sort((a, b) => b.at - a.at); // 新的在前
@@ -118,17 +130,16 @@ export function listRecords() {
 export function saveRecord(rec) {
   const r = normalizeRecord(rec);
   if (!r) return null;
-  const all = readJson(RECORDS_KEY, []).filter((x) => x && x.id !== r.id);
+  const all = readArray(RECORDS_KEY).filter((x) => x && x.id !== r.id);
   all.push(r);
   all.sort((a, b) => b.at - a.at);
-  writeJson(RECORDS_KEY, all.slice(0, RECORD_LIMIT));
-  return r;
+  return writeJson(RECORDS_KEY, all.slice(0, RECORD_LIMIT)) ? r : null;
 }
 
 export function deleteRecord(id) {
   writeJson(
     RECORDS_KEY,
-    readJson(RECORDS_KEY, []).filter((r) => r && r.id !== id),
+    readArray(RECORDS_KEY).filter((r) => r && r.id !== id),
   );
 }
 
@@ -147,7 +158,7 @@ export function careerSummary() {
 // 「有没有种过」，而不是「战绩里有没有这一条」。
 function seedBackfilled() {
   if (readRaw(BACKFILL_KEY)) return;
-  const all = readJson(RECORDS_KEY, []);
+  const all = readArray(RECORDS_KEY);
   const have = new Set(all.map((r) => r && r.id));
   BACKFILLED_RECORDS.forEach((r) => {
     if (!have.has(r.id)) all.push(normalizeRecord(r));
@@ -161,13 +172,14 @@ function seedBackfilled() {
 // ── 好友战绩 ──────────────────────────────────────────────
 // 按对方的安装 id 归档：同一个人第二次发战绩过来是**合并**，不是新开一份。
 export function listFriends() {
-  const raw = readJson(FRIENDS_KEY, {});
+  const raw = readObject(FRIENDS_KEY);
   return Object.values(raw)
+    .filter((f) => f && typeof f === "object" && f.pid)
     .map((f) => ({
       pid: String(f.pid || ""),
       name: String(f.name || ""),
       importedAt: f.importedAt || 0,
-      records: (f.records || [])
+      records: (Array.isArray(f.records) ? f.records : [])
         .map(normalizeRecord)
         .filter(Boolean)
         .sort((a, b) => b.at - a.at),
@@ -177,12 +189,19 @@ export function listFriends() {
 
 // 返回这次实际新增了几条（同 id 的算已有，不重复计）。
 export function mergeFriend(profile, records) {
-  const raw = readJson(FRIENDS_KEY, {});
+  const raw = readObject(FRIENDS_KEY);
   const pid = String((profile && profile.pid) || "unknown");
-  const prev = raw[pid] || { pid, name: "", records: [] };
-  const byId = new Map((prev.records || []).map((r) => [r.id, r]));
+  const candidate = raw[pid];
+  const prev =
+    candidate && typeof candidate === "object"
+      ? candidate
+      : { pid, name: "", records: [] };
+  const previousRecords = (Array.isArray(prev.records) ? prev.records : [])
+    .map(normalizeRecord)
+    .filter(Boolean);
+  const byId = new Map(previousRecords.map((r) => [r.id, r]));
   let added = 0;
-  records.forEach((r) => {
+  (Array.isArray(records) ? records : []).forEach((r) => {
     const n = normalizeRecord(r);
     if (!n) return;
     if (!byId.has(n.id)) added++;
@@ -201,7 +220,7 @@ export function mergeFriend(profile, records) {
 }
 
 export function deleteFriend(pid) {
-  const raw = readJson(FRIENDS_KEY, {});
+  const raw = readObject(FRIENDS_KEY);
   delete raw[pid];
   writeJson(FRIENDS_KEY, raw);
 }

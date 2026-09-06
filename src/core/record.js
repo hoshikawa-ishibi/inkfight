@@ -12,6 +12,16 @@ import { CHARACTERS, SCENES } from "../data/data.js";
 
 export const RECORD_VERSION = 1;
 export const RULESETS = Object.freeze({ legacy: "legacy", ink: "ink-v1" });
+export const ALL_RULESETS = "all";
+
+// 战绩室默认必须展示整册历史。共享墨上线后如果默认只看 ink-v1，
+// 旧玩家会看到“没有任何战绩”，但导出按钮又显示有数据。
+export function filterRecordsByRuleset(records, ruleset = ALL_RULESETS) {
+  const list = Array.isArray(records) ? records : [];
+  return ruleset === ALL_RULESETS
+    ? list
+    : list.filter((record) => record?.ruleset === ruleset);
+}
 
 export const MODE_LABEL = {
   ai: "人机",
@@ -246,11 +256,11 @@ export function auditRecord(rec, now = Date.now()) {
 
 // ── 生涯统计 ──────────────────────────────────────────────
 // 只统计**有「我」参与**的对局（观战没有「我」，算局数不算胜负）。
-export function summarize(records, ruleset = "all") {
+export function summarize(records, ruleset = ALL_RULESETS) {
   const list = (records || [])
     .map(normalizeRecord)
     .filter(Boolean)
-    .filter((r) => ruleset === "all" || r.ruleset === ruleset)
+    .filter((r) => ruleset === ALL_RULESETS || r.ruleset === ruleset)
     .sort((a, b) => a.at - b.at);
   const rated = list.filter((r) => outcomeOf(r) !== null);
   const wins = rated.filter((r) => outcomeOf(r) === "win").length;

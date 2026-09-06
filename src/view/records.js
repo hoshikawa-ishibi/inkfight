@@ -17,6 +17,8 @@ import {
   charName,
   MODE_LABEL,
   RULESETS,
+  ALL_RULESETS,
+  filterRecordsByRuleset,
 } from "../core/record.js";
 import { DIFF_LABEL } from "../core/combat.js";
 import {
@@ -86,7 +88,7 @@ const teamNames = (r, p) =>
 let tab = "mine";
 let selectedId = null;
 let selectedPid = null;
-let rulesetFilter = "ink-v1";
+let rulesetFilter = ALL_RULESETS;
 
 export function initRecordsScreen() {
   const shell = document.getElementById("screen-records");
@@ -119,7 +121,7 @@ export function initRecordsScreen() {
     filter.setAttribute("aria-label", "战绩规则版本");
     filter.className = "records-ruleset-filter";
     filter.innerHTML =
-      '<option value="all">全部规则</option><option value="ink-v1">新共享墨规则</option><option value="legacy">经典 SP 规则</option>';
+      `<option value="${ALL_RULESETS}">全部规则</option><option value="${RULESETS.ink}">新共享墨规则</option><option value="${RULESETS.legacy}">经典 SP 规则</option>`;
     const body = shell.querySelector("#records-body");
     if (body) body.before(filter);
     filter.addEventListener("change", () => {
@@ -158,21 +160,23 @@ function render() {
       ? `📤 分享我的战绩（${mine.length}）`
       : "📤 分享我的战绩";
   }
-  const filtered = mine.filter(
-    (r) => rulesetFilter === "all" || r.ruleset === rulesetFilter,
-  );
-  if (tab === "mine") renderMine(body, filtered);
-  else if (tab === "career") renderCareer(body, filtered);
+  const filtered = filterRecordsByRuleset(mine, rulesetFilter);
+  if (tab === "mine") renderMine(body, filtered, mine.length);
+  else if (tab === "career") renderCareer(body, filtered, mine.length);
   else renderFriends(body);
 }
 
 // ── 我的战绩 ──────────────────────────────────────────────
-function renderMine(body, records) {
+function renderMine(body, records, totalRecords) {
   if (!records.length) {
-    body.innerHTML = `<div class="records-empty">
-      <b>还没有任何战绩。</b>
-      <p>打完一局，结果会自动记在这台设备上（最多保留 ${RECORD_LIMIT} 局）。<br>
-      战绩只存在本地浏览器里，不会上传到任何地方。</p></div>`;
+    body.innerHTML = totalRecords
+      ? `<div class="records-empty">
+        <b>当前规则筛选下没有战绩。</b>
+        <p>整册里还有 ${totalRecords} 局；在上方切换到“全部规则”即可查看。</p></div>`
+      : `<div class="records-empty">
+        <b>还没有任何战绩。</b>
+        <p>打完一局，结果会自动记在这台设备上（最多保留 ${RECORD_LIMIT} 局）。<br>
+        战绩只存在本地浏览器里，不会上传到任何地方。</p></div>`;
     return;
   }
   if (!records.some((r) => r.id === selectedId)) selectedId = records[0].id;
@@ -274,11 +278,12 @@ function renderDetail(r, own, host) {
 }
 
 // ── 生涯统计 ──────────────────────────────────────────────
-function renderCareer(body, records) {
+function renderCareer(body, records, totalRecords) {
   const s = summarize(records);
   if (!s.total) {
-    body.innerHTML =
-      '<div class="records-empty"><b>还没有数据。</b><p>打几局再来看。</p></div>';
+    body.innerHTML = totalRecords
+      ? `<div class="records-empty"><b>当前规则筛选下没有数据。</b><p>整册里还有 ${totalRecords} 局；切换到“全部规则”即可统计。</p></div>`
+      : '<div class="records-empty"><b>还没有数据。</b><p>打几局再来看。</p></div>';
     return;
   }
   const diffRows =
@@ -368,9 +373,7 @@ function renderFriends(body) {
   }
   if (!friends.some((f) => f.pid === selectedPid)) selectedPid = friends[0].pid;
   const f = friends.find((x) => x.pid === selectedPid);
-  const records = f.records.filter(
-    (r) => rulesetFilter === "all" || r.ruleset === rulesetFilter,
-  );
+  const records = filterRecordsByRuleset(f.records, rulesetFilter);
   const s = summarize(records);
   body.innerHTML = `
     <div class="records-split">
@@ -381,7 +384,7 @@ function renderFriends(body) {
               x,
             ) => `<button class="rec-row${x.pid === selectedPid ? " selected" : ""}" data-pid="${esc(x.pid)}">
           <div class="rec-row-top"><b>${esc(displayName(x))}</b>
-            <span class="rec-when">${x.records.filter((r) => rulesetFilter === "all" || r.ruleset === rulesetFilter).length} 局</span></div>
+            <span class="rec-when">${filterRecordsByRuleset(x.records, rulesetFilter).length} 局</span></div>
           <div class="rec-row-foot">导入于 ${shortWhen(x.importedAt)}</div>
         </button>`,
           )
@@ -390,22 +393,26 @@ function renderFriends(body) {
       <div class="records-detail">
         <div class="rec-detail-head">
           <div><h3>${esc(displayName(f))} 的战绩</h3>
-            <p>${f.records.length} 局 · 胜率 ${s.winRate.toFixed(1)}%（${s.wins}/${s.rated}）
+            <p>当前显示 ${records.length} / 共 ${f.records.length} 局 · 胜率 ${s.winRate.toFixed(1)}%（${s.wins}/${s.rated}）
                · 最长连胜 ${s.bestStreak}</p></div>
           <div class="rec-detail-acts">
             <button class="btn btn-sm btn-danger" id="btn-friend-del">移除这位好友</button>
           </div>
         </div>
-        <div class="rec-friend-games">${records
-          .map(
-            (r) => `
+        <div class="rec-friend-games">${
+          records.length
+            ? records
+                .map(
+                  (r) => `
           <button class="rec-row rec-row-flat" data-rid="${esc(r.id)}">
             <div class="rec-row-top">${outcomeChip(r)}<b>${esc(modeText(r))}</b>
               <span class="rec-when">${shortWhen(r.at)}</span></div>
             <div class="rec-row-teams">${esc(teamNames(r, 1))} <i>vs</i> ${esc(teamNames(r, 2))}</div>
           </button>`,
-          )
-          .join("")}</div>
+                )
+                .join("")
+            : '<div class="records-empty"><b>当前规则筛选下没有这位好友的战绩。</b><p>切换到“全部规则”即可查看。</p></div>'
+        }</div>
         <div id="records-friend-detail"></div>
       </div>
     </div>`;
